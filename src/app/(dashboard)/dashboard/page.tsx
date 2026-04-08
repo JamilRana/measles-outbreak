@@ -25,7 +25,9 @@ import {
   Zap,
   Activity,
   Map as MapIcon,
-  Table as TableIcon
+  Table as TableIcon,
+  FileText,
+  File as FileIcon
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -211,27 +213,9 @@ export default function DashboardPage() {
     setSelectedRows(newSelected);
   };
 
-  const handleExportPDF = () => {
-    const doc = new jsPDF();
-    const selectedReports = reports.filter(r => selectedRows.has(r.id));
-    doc.setFontSize(18);
-    doc.setTextColor(30, 58, 95);
-    doc.text("Measles Outbreak Monitoring Platform", 14, 20);
-    doc.setFontSize(10);
-    doc.text(`Report Date: ${filterDate} | Generated: ${new Date().toLocaleString()}`, 14, 28);
-    
-    const tableData = selectedReports.map(r => [
-      r.division, r.district, r.facilityName, r.suspectedYTD, r.confirmedYTD, r.confirmedDeathYTD
-    ]);
-
-    autoTable(doc, { 
-      startY: 35, 
-      head: [['Division', 'District', 'Facility', 'Susp.', 'Conf.', 'Deaths']], 
-      body: tableData,
-      theme: 'striped',
-      headStyles: { fillColor: [30, 58, 95] }
-    });
-    doc.save(`Measles_Report_${filterDate}.pdf`);
+  const handleExportPDF = async () => {
+    const { generateGovtPDF } = await import("@/lib/pdf-report-generator");
+    await generateGovtPDF(reports, filterDate);
   };
 
   return (
@@ -557,11 +541,11 @@ export default function DashboardPage() {
                <button className="px-4 py-2 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all flex items-center gap-2">
                  <Filter className="w-4 h-4" /> Filter
                </button>
-               {session?.user.role === "EXPORTER" && (
-                 <button onClick={handleExportPDF} className="px-4 py-2 bg-[#1E3A5F] text-white rounded-xl text-sm font-bold shadow-lg shadow-blue-900/10 flex items-center gap-2">
-                   <Download className="w-4 h-4" /> Export CSV
-                 </button>
-               )}
+                {session?.user.role === "EXPORTER" && (
+                  <button onClick={handleExportPDF} className="px-4 py-2 bg-[#1E3A5F] text-white rounded-xl text-sm font-bold shadow-lg shadow-blue-900/10 flex items-center gap-2 transition-all hover:scale-[1.02] active:scale-95">
+                    <FileText className="w-4 h-4" /> Download PDF Report
+                  </button>
+                )}
             </div>
           </div>
           <div className="overflow-x-auto">

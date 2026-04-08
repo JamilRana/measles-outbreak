@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSession, signOut } from "next-auth/react";
-import { TrendingUp, LogOut, User, LayoutDashboard, ClipboardList, Settings } from "lucide-react";
+import { TrendingUp, LogOut, User, LayoutDashboard, ClipboardList, Settings, FileText } from "lucide-react";
 
 export default function Navbar() {
   const { data: session } = useSession();
@@ -23,7 +23,10 @@ export default function Navbar() {
               <>
                 <div className="flex gap-2">
                   <NavLink href="/dashboard" icon={<LayoutDashboard className="w-4 h-4" />} label="Dashboard" />
-                  <NavLink href="/report" icon={<ClipboardList className="w-4 h-4" />} label="Data Entry" />
+                  {(session.user.role === "SUBMITTER" || session.user.role === "ADMIN") && (
+                    <NavLink href="/report" icon={<ClipboardList className="w-4 h-4" />} label="Data Entry" />
+                  )}
+                  <NavLink href="/my-reports" icon={<FileText className="w-4 h-4" />} label="My Reports" />
                   {session.user.role === "ADMIN" && (
                     <NavLink href="/admin" icon={<Settings className="w-4 h-4" />} label="Admin" />
                   )}

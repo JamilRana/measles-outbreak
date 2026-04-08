@@ -154,13 +154,13 @@ async function loginHrmUser(email: string, password: string | null) {
 
 async function verifyHrmUser(email: string, password: string | null) {
   try {
-    const res = await fetch(`${process.env.HRM_API_URL}/auth/verify`, {
+    const res = await fetch(`${process.env.NEXTAUTH_URL}/api/auth/hrm/`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username: email, password }),
+      body: JSON.stringify({ username: email, password: password ?? "" }),
     });
 
-    if (!res.ok) return null;
+    if (!res.ok) throw new Error("HRM auth failed");
     return await res.json();
   } catch (error) {
     console.error("HRM verification error:", error);

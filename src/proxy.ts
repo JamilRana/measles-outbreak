@@ -26,5 +26,5 @@ export default authProxy;
 export const proxy = authProxy;
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/report/:path*", "/admin/:path*"],
+  matcher: ["/dashboard/:path*", "/report/:path*", "/admin/:path*", "/my-reports/:path*"],
 };
