@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
+import Image from 'next/image';
 import { 
   TrendingUp, 
   Users, 
@@ -9,6 +11,7 @@ import {
   CheckCircle2,
   BarChart3,
   PieChart as PieChartIcon,
+  Globe,
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -26,6 +29,10 @@ import {
 import { motion } from 'motion/react';
 import { DIVISIONS } from '@/lib/constants';
 import Link from 'next/link';
+import MarqueeBanner from '@/components/MarqueeBanner';
+import Footer from '@/components/Footer';
+import OutbreakMap from '@/components/OutbreakMap';
+import EpiInsights from '@/components/EpiInsights';
 
 interface Report {
   id: string;
@@ -49,8 +56,14 @@ interface Report {
 }
 
 export default function IndexPage() {
+  const { t, i18n } = useTranslation();
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const toggleLanguage = () => {
+    const newLang = i18n.language === 'bn' ? 'en' : 'bn';
+    i18n.changeLanguage(newLang);
+  };
 
   useEffect(() => {
     const fetchReports = async () => {
@@ -77,7 +90,7 @@ export default function IndexPage() {
   }, [reports]);
 
   const divisionData = useMemo(() => {
-    const data: any = {};
+    const data: Record<string, { name: string; suspected: number; confirmed: number }> = {};
     DIVISIONS.forEach(div => {
       data[div] = { name: div, suspected: 0, confirmed: 0 };
     });
@@ -91,36 +104,51 @@ export default function IndexPage() {
   }, [reports]);
 
   return (
-    <div className="min-h-screen bg-[#f8fafc]">
+    <div className="min-h-screen bg-[#f8fafc] flex flex-col">
+      {/* Navbar */}
       <nav className="bg-white border-b border-slate-200 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <TrendingUp className="w-6 h-6 text-indigo-600" />
-            <span className="font-bold text-xl text-slate-800 tracking-tight">Measles Monitor</span>
+          <div className="flex items-center gap-3">
+            <div className="bg-white border border-slate-200 p-1 rounded-lg shadow-sm">
+              <Image src="/dghs_logo.svg" alt="DGHS Logo" width={36} height={36} className="w-9 h-9" />
+            </div>
+            <span className="font-bold text-xl text-slate-800 tracking-tight">{t('app.shortTitle')}</span>
           </div>
-          <div className="flex gap-4">
-            <Link href="/login" className="text-sm font-semibold text-slate-600 hover:text-indigo-600 transition-colors">Login</Link>
-            <Link href="/register" className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-lg shadow-indigo-600/20 hover:bg-indigo-500 transition-all">Register Facility</Link>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={toggleLanguage}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-800 transition-all text-sm font-semibold"
+            >
+              <Globe className="w-4 h-4" />
+              <span className="hidden sm:inline">{i18n.language === 'bn' ? 'English' : 'বাংলা'}</span>
+            </button>
+            <Link href="/login" className="text-sm font-semibold text-slate-600 hover:text-indigo-600 transition-colors">{t('nav.login')}</Link>
+            <Link href="/register" className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-lg shadow-indigo-600/20 hover:bg-indigo-500 transition-all">{t('nav.register')}</Link>
           </div>
         </div>
       </nav>
 
-      <main className="p-8 max-w-7xl mx-auto space-y-8 pb-16">
+      {/* Marquee Banner */}
+      <MarqueeBanner />
+
+      <main className="p-8 max-w-7xl mx-auto space-y-8 pb-16 flex-1">
         <div className="text-center max-w-2xl mx-auto mb-12">
-          <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight mb-4">Public Monitoring Dashboard</h1>
-          <p className="text-slate-500 text-lg leading-relaxed text-balance">Real-time situational awareness and outbreak tracking across all districts of Bangladesh. Data updated manually by health facilities.</p>
+          <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight mb-4">{t('home.title')}</h1>
+          <p className="text-slate-500 text-lg leading-relaxed text-balance">{t('home.subtitle')}</p>
         </div>
 
+        {/* Stats Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          <StatsCard title="Total Suspected" value={totals.suspected} icon={<Users className="w-6 h-6" />} color="indigo" />
-          <StatsCard title="Total Confirmed" value={totals.confirmed} icon={<CheckCircle2 className="w-6 h-6" />} color="emerald" />
-          <StatsCard title="Total Mortality" value={totals.deaths} icon={<Skull className="w-6 h-6" />} color="rose" />
-          <StatsCard title="Total Hospitalized" value={totals.hospitalized} icon={<Hospital className="w-6 h-6" />} color="amber" />
+          <StatsCard title={t('stats.totalSuspected')} value={totals.suspected} icon={<Users className="w-6 h-6" />} color="indigo" />
+          <StatsCard title={t('stats.totalConfirmed')} value={totals.confirmed} icon={<CheckCircle2 className="w-6 h-6" />} color="emerald" />
+          <StatsCard title={t('stats.totalMortality')} value={totals.deaths} icon={<Skull className="w-6 h-6" />} color="rose" />
+          <StatsCard title={t('stats.totalHospitalized')} value={totals.hospitalized} icon={<Hospital className="w-6 h-6" />} color="amber" />
         </div>
 
+        {/* Charts */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 bg-white p-8 rounded-3xl border border-slate-200 shadow-sm relative">
-            <div className="flex items-center gap-3 mb-8"><div className="p-2 bg-indigo-50 rounded-lg"><TrendingUp className="w-5 h-5 text-indigo-600" /></div><h3 className="text-xl font-bold text-slate-800">Geographic Distribution</h3></div>
+            <div className="flex items-center gap-3 mb-8"><div className="p-2 bg-indigo-50 rounded-lg"><TrendingUp className="w-5 h-5 text-indigo-600" /></div><h3 className="text-xl font-bold text-slate-800">{t('charts.geographicDistribution')}</h3></div>
             <div className="h-[350px] w-full">
               {loading ? <LoadingSkeleton /> : (
                 <ResponsiveContainer width="100%" height="100%">
@@ -130,33 +158,40 @@ export default function IndexPage() {
             </div>
           </div>
           <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm flex flex-col">
-            <div className="flex items-center gap-3 mb-8"><div className="p-2 bg-rose-50 rounded-lg"><PieChartIcon className="w-5 h-5 text-rose-600" /></div><h3 className="text-xl font-bold text-slate-800">Case Proportions</h3></div>
+            <div className="flex items-center gap-3 mb-8"><div className="p-2 bg-rose-50 rounded-lg"><PieChartIcon className="w-5 h-5 text-rose-600" /></div><h3 className="text-xl font-bold text-slate-800">{t('charts.caseProportions')}</h3></div>
             <div className="h-[350px] w-full flex-1">
               {loading ? <LoadingSkeleton circular /> : (
                 <ResponsiveContainer width="100%" height="100%">
-                  <PieChart><Pie data={[{ name: 'Suspected', value: totals.suspected }, { name: 'Confirmed', value: totals.confirmed }, { name: 'Deaths', value: totals.deaths }]} innerRadius={80} outerRadius={100} paddingAngle={5} dataKey="value"><Cell fill="#6366f1" /><Cell fill="#10b981" /><Cell fill="#f43f5e" /></Pie><Tooltip /><Legend /></PieChart>
+                  <PieChart><Pie data={[{ name: t('stats.suspected'), value: totals.suspected }, { name: t('stats.confirmed'), value: totals.confirmed }, { name: t('stats.mortality'), value: totals.deaths }]} innerRadius={80} outerRadius={100} paddingAngle={5} dataKey="value"><Cell fill="#6366f1" /><Cell fill="#10b981" /><Cell fill="#f43f5e" /></Pie><Tooltip /><Legend /></PieChart>
                 </ResponsiveContainer>
               )}
             </div>
           </div>
         </div>
 
+        {/* Outbreak Map */}
+        <OutbreakMap />
+
+        {/* Epidemiological Insights */}
+        <EpiInsights />
+
+        {/* Recent Submissions Table */}
         <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="px-8 py-6 border-b border-slate-100 bg-slate-50/50">
             <div className="flex items-center gap-3">
                <div className="p-2 bg-slate-200 rounded-lg"><BarChart3 className="w-5 h-5 text-slate-600" /></div>
-               <h3 className="text-xl font-bold text-slate-800">Recent Submissions</h3>
+               <h3 className="text-xl font-bold text-slate-800">{t('charts.recentSubmissions')}</h3>
             </div>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-slate-50/80 text-slate-500 uppercase text-[10px] font-black tracking-[0.1em]">
-                  <th className="px-8 py-4">Division / District</th>
-                  <th className="px-6 py-4">Facility</th>
-                  <th className="px-6 py-4 text-center">Suspected</th>
-                  <th className="px-6 py-4 text-center">Confirmed</th>
-                  <th className="px-6 py-4 text-center">Deaths</th>
+                  <th className="px-8 py-4">{t('charts.divisionDistrict')}</th>
+                  <th className="px-6 py-4">{t('charts.facility')}</th>
+                  <th className="px-6 py-4 text-center">{t('stats.suspected')}</th>
+                  <th className="px-6 py-4 text-center">{t('stats.confirmed')}</th>
+                  <th className="px-6 py-4 text-center">{t('stats.mortality')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -175,19 +210,22 @@ export default function IndexPage() {
               </tbody>
             </table>
             {loading && <div className="p-20 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-indigo-600" /></div>}
-            {!loading && reports.length === 0 && <div className="p-20 text-center text-slate-400 font-medium flex flex-col items-center gap-4"><p>No reports available</p></div>}
+            {!loading && reports.length === 0 && <div className="p-20 text-center text-slate-400 font-medium flex flex-col items-center gap-4"><p>{t('charts.noReports')}</p></div>}
           </div>
           <div className="p-8 text-center bg-slate-50/50 border-t border-slate-100">
-            <p className="text-slate-500 text-sm font-medium">To access full details, filtering, and export tools, please <Link href="/login" className="text-indigo-600 font-bold hover:underline">sign in</Link>.</p>
+            <p className="text-slate-500 text-sm font-medium">{t('home.signInPrompt')} <Link href="/login" className="text-indigo-600 font-bold hover:underline">{t('home.signInLink')}</Link>.</p>
           </div>
         </div>
       </main>
+
+      {/* Footer */}
+      <Footer />
     </div>
   );
 }
 
-function StatsCard({ title, value, icon, color }: any) {
-  const colors: any = { indigo: "bg-indigo-600 text-indigo-50", emerald: "bg-emerald-600 text-emerald-50", rose: "bg-rose-600 text-rose-50", amber: "bg-amber-600 text-amber-50" };
+function StatsCard({ title, value, icon, color }: { title: string; value: number; icon: React.ReactNode; color: string }) {
+  const colors: Record<string, string> = { indigo: "bg-indigo-600 text-indigo-50", emerald: "bg-emerald-600 text-emerald-50", rose: "bg-rose-600 text-rose-50", amber: "bg-amber-600 text-amber-50" };
   return (
     <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex items-center gap-5">
       <div className={`p-4 rounded-2xl ${colors[color]}`}>{icon}</div>
@@ -205,6 +243,6 @@ function LoadingSkeleton({ circular = false }) {
   );
 }
 
-function Loader2(props: any) {
+function Loader2(props: React.SVGProps<SVGSVGElement>) {
   return <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>;
 }

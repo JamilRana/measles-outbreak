@@ -1,53 +1,53 @@
 "use client";
 
 import Link from "next/link";
+import { useTranslation } from "react-i18next";
 import { 
-  Users, 
   Settings, 
-  Trash2, 
   Database, 
   Mail, 
   ShieldAlert,
-  UserPlus,
   Search,
   ChevronRight
 } from "lucide-react";
 import { motion } from "motion/react";
 
 export default function AdminPage() {
+  const { t } = useTranslation();
+
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-8">
       <div>
-        <h1 className="text-3xl font-bold text-slate-900">Administrative Controls</h1>
-        <p className="text-slate-500 mt-1">System management and data maintenance</p>
+        <h1 className="text-3xl font-bold text-slate-900">{t('adminPanel.title')}</h1>
+        <p className="text-slate-500 mt-1">{t('adminPanel.subtitle')}</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <AdminCard 
           href="/admin/reports" 
-          title="Advanced Search" 
-          description="Filter, analyze and search outbreak data" 
+          title={t('adminPanel.advancedSearch')} 
+          description={t('adminPanel.advancedSearchDesc')} 
           icon={<Search className="w-6 h-6" />}
           color="indigo"
         />
         <AdminCard 
           href="/admin/recipients" 
-          title="Email Recipients" 
-          description="Manage automated report recipient list" 
+          title={t('adminPanel.emailRecipients')} 
+          description={t('adminPanel.emailRecipientsDesc')} 
           icon={<Mail className="w-6 h-6" />}
           color="indigo"
         />
         <AdminCard 
           href="/admin/users" 
-          title="User Accounts" 
-          description="Manage facility accounts and permissions" 
+          title={t('adminPanel.userAccounts')} 
+          description={t('adminPanel.userAccountsDesc')} 
           icon={<ShieldAlert className="w-6 h-6" />}
           color="amber"
         />
         <AdminCard 
           href="/admin/data-management" 
-          title="System Maintenance" 
-          description="Clean or reset daily outbreak data" 
+          title={t('adminPanel.systemMaintenance')} 
+          description={t('adminPanel.systemMaintenanceDesc')} 
           icon={<Database className="w-6 h-6" />}
           color="rose"
         />
@@ -57,7 +57,7 @@ export default function AdminPage() {
 }
 
 function AdminCard({ href, title, description, icon, color, disabled = false }: any) {
-  const colors: any = {
+  const colors: Record<string, string> = {
     indigo: "bg-indigo-50 text-indigo-600 border-indigo-100",
     rose: "bg-rose-50 text-rose-600 border-rose-100",
     amber: "bg-amber-50 text-amber-600 border-amber-100"
@@ -69,7 +69,7 @@ function AdminCard({ href, title, description, icon, color, disabled = false }: 
         <div className="p-3 bg-slate-200 rounded-xl w-fit mb-4 text-slate-400">
           {icon}
         </div>
-        <h3 className="text-lg font-bold text-slate-700">{title} (Coming Soon)</h3>
+        <h3 className="text-lg font-bold text-slate-700">{title}</h3>
         <p className="text-slate-400 text-sm mt-1">{description}</p>
       </div>
     );
