@@ -1,0 +1,166 @@
+{
+  "app": {
+    "title": "Measles Outbreak Monitoring Platform",
+    "shortTitle": "Measles Monitor"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "dataEntry": "Data Entry",
+    "admin": "Admin",
+    "signIn": "Sign In",
+    "signOut": "Sign Out",
+    "facility": "Facility",
+    "login": "Login",
+    "register": "Register Facility"
+  },
+  "home": {
+    "title": "Public Monitoring Dashboard",
+    "subtitle": "Real-time situational awareness and outbreak tracking across all districts of Bangladesh. Data updated manually by health facilities.",
+    "signInPrompt": "To access full details, filtering, and export tools, please",
+    "signInLink": "sign in"
+  },
+  "marquee": {
+    "message": "⚕️ If you notice symptoms of measles or similar diseases, call <1>16263</1> for medical assistance or visit your nearest hospital for treatment. ⚕️"
+  },
+  "stats": {
+    "suspected": "Suspected",
+    "confirmed": "Confirmed",
+    "mortality": "Mortality",
+    "hospitalized": "Hospitalized",
+    "totalSuspected": "Total Suspected",
+    "totalConfirmed": "Total Confirmed",
+    "totalMortality": "Total Mortality",
+    "totalHospitalized": "Total Hospitalized"
+  },
+  "charts": {
+    "geographicDistribution": "Geographic Distribution",
+    "caseProportions": "Case Proportions",
+    "recentSubmissions": "Recent Submissions",
+    "detailedSubmissions": "Detailed Report Submissions",
+    "divisionDistrict": "Division / District",
+    "facility": "Facility",
+    "export": "Export",
+    "admin": "Admin",
+    "noReports": "No reports available",
+    "noReportsDate": "No reports for this date"
+  },
+  "epi": {
+    "title": "Epidemiological Insights",
+    "diseaseTrends": "Disease Trends",
+    "growthRate": "Growth Rate",
+    "movingAverage": "Moving Average (7-day)",
+    "reproductionNumber": "Reproduction Number (Rₜ)",
+    "rtDeclining": "Declining",
+    "rtStable": "Stable",
+    "rtGrowing": "Growing",
+    "dailyCases": "Daily Cases",
+    "confirmedCases": "Confirmed Cases",
+    "suspectedCases": "Suspected Cases",
+    "last30Days": "Last 30 Days",
+    "last60Days": "Last 60 Days",
+    "last90Days": "Last 90 Days"
+  },
+  "map": {
+    "title": "Outbreak Map — Affected Areas",
+    "deaths": "Deaths",
+    "confirmedCases": "Confirmed Cases",
+    "hospitalizations": "Hospitalizations",
+    "toggleDeaths": "Show Deaths",
+    "toggleConfirmed": "Show Confirmed",
+    "toggleHospitalized": "Show Hospitalized",
+    "district": "District",
+    "division": "Division"
+  },
+  "dashboard": {
+    "title": "Outbreak Dashboard",
+    "subtitle": "Real-time monitoring and situational awareness",
+    "editEntry": "Edit Entry",
+    "saveChanges": "Save Changes"
+  },
+  "report": {
+    "title": "Daily Report Submission",
+    "authenticatedAs": "Authenticated as",
+    "submitReport": "Submit Report",
+    "submitAnother": "Submit another report",
+    "submissionSuccess": "Submission Successful",
+    "submissionSuccessMsg": "Your daily report has been recorded. Thank you for your contribution.",
+    "historicalWarning": "You are entering data for a past date",
+    "cutoffTitle": "Report Submission Window Closed",
+    "cutoffMessage": "Today's report submission deadline (2:00 PM) has passed.",
+    "cutoffContact": "Please contact the control room at MIS, DGHS for assistance.",
+    "bdTime": "Bangladesh Time",
+    "sections": {
+      "generalInfo": "1. General Information",
+      "generalInfoSub": "Reporting unit details",
+      "suspected": "2. Suspected Cases",
+      "suspectedSub": "Patients with measles-like symptoms",
+      "confirmed": "3. Confirmed Cases",
+      "confirmedSub": "Laboratory/clinically confirmed cases",
+      "mortality": "4. Mortality (Deaths)",
+      "mortalitySub": "Deaths attributed to measles",
+      "hospitalization": "5. Hospitalization",
+      "hospitalizationSub": "Admissions and discharges",
+      "labSurveillance": "6. Laboratory Surveillance",
+      "labSurveillanceSub": "Samples sent to lab"
+    },
+    "fields": {
+      "division": "Division",
+      "district": "District",
+      "reportingDate": "Reporting Date",
+      "facilityName": "Facility Name",
+      "last24h": "Last 24 hrs",
+      "yearToDate": "Year to Date",
+      "suspected24h": "Suspected (24 hrs)",
+      "suspectedYTD": "Suspected (YTD)",
+      "confirmed24h": "Confirmed (24 hrs)",
+      "confirmedYTD": "Confirmed (YTD)",
+      "suspectedDeath24h": "Suspected Death (24 hrs)",
+      "suspectedDeathYTD": "Suspected Death (YTD)",
+      "confirmedDeath24h": "Confirmed Death (24 hrs)",
+      "confirmedDeathYTD": "Confirmed Death (YTD)",
+      "admitted24h": "Admitted (24 hrs)",
+      "admittedYTD": "Admitted (YTD)",
+      "discharged24h": "Discharged (24 hrs)",
+      "dischargedYTD": "Discharged (YTD)",
+      "serumSentYTD": "Total Serum Sent to Lab (YTD)"
+    }
+  },
+  "adminPanel": {
+    "title": "Administrative Controls",
+    "subtitle": "System management and data maintenance",
+    "advancedSearch": "Advanced Search",
+    "advancedSearchDesc": "Filter, analyze and search outbreak data",
+    "emailRecipients": "Email Recipients",
+    "emailRecipientsDesc": "Manage automated report recipient list",
+    "userAccounts": "User Accounts",
+    "userAccountsDesc": "Manage facility accounts and permissions",
+    "systemMaintenance": "System Maintenance",
+    "systemMaintenanceDesc": "Clean or reset daily outbreak data"
+  },
+  "footer": {
+    "copyright": "© {{year}} Measles Outbreak Monitoring Platform. All rights reserved.",
+    "misDghs": "Management Information System (MIS)",
+    "dghs": "Directorate General of Health Services (DGHS)",
+    "mohfw": "Ministry of Health and Family Welfare",
+    "govBd": "Government of the People's Republic of Bangladesh"
+  },
+  "common": {
+    "loading": "Loading...",
+    "error": "Error",
+    "save": "Save",
+    "cancel": "Cancel",
+    "close": "Close",
+    "selectOption": "Select an option",
+    "pdf": "PDF",
+    "excel": "Excel",
+    "comingSoon": "Coming Soon"
+  },
+  "validation": {
+    "suspectedYTDError": "Suspected YTD cannot be less than 24h count.",
+    "confirmedYTDError": "Confirmed YTD cannot be less than 24h count.",
+    "suspectedDeathYTDError": "Suspected Deaths YTD cannot be less than 24h count.",
+    "confirmedDeathYTDError": "Confirmed Deaths YTD cannot be less than 24h count.",
+    "correctErrors": "Please correct the following errors:",
+    "unexpectedError": "An unexpected error occurred."
+  }
+}

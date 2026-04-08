@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { startOfDay, endOfDay } from "date-fns";
+import { getBDNow } from "@/lib/utils";
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
@@ -13,7 +14,25 @@ export async function POST(req: Request) {
   try {
     const data = await req.json();
     const reportingDate = new Date(data.reportingDate);
-    
+    const isAdmin = session.user.role === "ADMIN";
+
+    // Time cutoff enforcement (skip for admin)
+    if (!isAdmin) {
+      const cutoffHour = parseInt(process.env.REPORT_CUTOFF_HOUR || "14", 10);
+      const cutoffMinute = parseInt(process.env.REPORT_CUTOFF_MINUTE || "0", 10);
+      const bdNow = getBDNow();
+      const currentHour = bdNow.getHours();
+      const currentMinute = bdNow.getMinutes();
+
+      if (currentHour > cutoffHour || (currentHour === cutoffHour && currentMinute >= cutoffMinute)) {
+        return NextResponse.json({
+          error: "Submission closed",
+          cutoffPassed: true,
+          message: "Report submission deadline has passed. Please contact the control room at MIS, DGHS for assistance."
+        }, { status: 403 });
+      }
+    }
+
     // Check if report already exists for this facility on this date
     const existing = await prisma.report.findFirst({
       where: {
@@ -26,6 +45,28 @@ export async function POST(req: Request) {
     });
 
     if (existing) {
+      // Admin can upsert (update existing report)
+      if (isAdmin) {
+        const updated = await prisma.report.update({
+          where: { id: existing.id },
+          data: {
+            suspected24h: Number(data.suspected24h) || 0,
+            suspectedYTD: Number(data.suspectedYTD) || 0,
+            confirmed24h: Number(data.confirmed24h) || 0,
+            confirmedYTD: Number(data.confirmedYTD) || 0,
+            suspectedDeath24h: Number(data.suspectedDeath24h) || 0,
+            suspectedDeathYTD: Number(data.suspectedDeathYTD) || 0,
+            confirmedDeath24h: Number(data.confirmedDeath24h) || 0,
+            confirmedDeathYTD: Number(data.confirmedDeathYTD) || 0,
+            admitted24h: Number(data.admitted24h) || 0,
+            admittedYTD: Number(data.admittedYTD) || 0,
+            discharged24h: Number(data.discharged24h) || 0,
+            dischargedYTD: Number(data.dischargedYTD) || 0,
+            serumSentYTD: Number(data.serumSentYTD) || 0,
+          },
+        });
+        return NextResponse.json(updated, { status: 200 });
+      }
       return NextResponse.json({ error: "You have already submitted a report for this date." }, { status: 400 });
     }
 

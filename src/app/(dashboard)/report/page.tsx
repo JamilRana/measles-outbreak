@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useSession } from 'next-auth/react';
+import { useTranslation } from 'react-i18next';
 import { 
   ClipboardList, 
   Clock, 
@@ -9,7 +10,10 @@ import {
   CheckCircle2, 
   ChevronRight,
   Hospital,
-  Calendar
+  Calendar,
+  AlertTriangle,
+  Phone,
+  ShieldAlert
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { DISTRICTS_BY_DIVISION, DIVISIONS } from '@/lib/constants';
@@ -78,6 +82,9 @@ const InputGroup = ({
 
 export default function ReportPage() {
   const { data: session } = useSession();
+  const { t } = useTranslation();
+  const isAdmin = session?.user?.role === 'ADMIN';
+  
   const [formData, setFormData] = useState<any>({
     reportingDate: new Date().toISOString().split('T')[0],
     suspected24h: '', 
@@ -99,11 +106,31 @@ export default function ReportPage() {
   const [error, setError] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [cutoffPassed, setCutoffPassed] = useState(false);
+
+  const cutoffHour = parseInt(process.env.NEXT_PUBLIC_REPORT_CUTOFF_HOUR || '14', 10);
+  const cutoffMinute = parseInt(process.env.NEXT_PUBLIC_REPORT_CUTOFF_MINUTE || '0', 10);
 
   useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    const timer = setInterval(() => {
+      const now = new Date();
+      setCurrentTime(now);
+      
+      // Check cutoff in Bangladesh time
+      const bdTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Dhaka' }));
+      const hour = bdTime.getHours();
+      const minute = bdTime.getMinutes();
+      const isPast = hour > cutoffHour || (hour === cutoffHour && minute >= cutoffMinute);
+      setCutoffPassed(isPast);
+    }, 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [cutoffHour, cutoffMinute]);
+
+  // Check if user is entering historical data
+  const isHistoricalEntry = useMemo(() => {
+    const today = new Date().toISOString().split('T')[0];
+    return formData.reportingDate < today;
+  }, [formData.reportingDate]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -116,12 +143,11 @@ export default function ReportPage() {
     e.preventDefault();
     setError(null);
     
-    // Validation
     const errors: string[] = [];
-    if (Number(formData.suspectedYTD) < Number(formData.suspected24h)) errors.push("Suspected YTD cannot be less than 24h count.");
-    if (Number(formData.confirmedYTD) < Number(formData.confirmed24h)) errors.push("Confirmed YTD cannot be less than 24h count.");
-    if (Number(formData.suspectedDeathYTD) < Number(formData.suspectedDeath24h)) errors.push("Suspected Deaths YTD cannot be less than 24h count.");
-    if (Number(formData.confirmedDeathYTD) < Number(formData.confirmedDeath24h)) errors.push("Confirmed Deaths YTD cannot be less than 24h count.");
+    if (Number(formData.suspectedYTD) < Number(formData.suspected24h)) errors.push(t('validation.suspectedYTDError'));
+    if (Number(formData.confirmedYTD) < Number(formData.confirmed24h)) errors.push(t('validation.confirmedYTDError'));
+    if (Number(formData.suspectedDeathYTD) < Number(formData.suspectedDeath24h)) errors.push(t('validation.suspectedDeathYTDError'));
+    if (Number(formData.confirmedDeathYTD) < Number(formData.confirmedDeath24h)) errors.push(t('validation.confirmedDeathYTDError'));
     
     if (errors.length > 0) {
       setValidationErrors(errors);
@@ -142,26 +168,53 @@ export default function ReportPage() {
         setIsSubmitted(true);
         setTimeout(() => setIsSubmitted(false), 5000);
       } else {
-        setError(data.error);
+        if (data.cutoffPassed) {
+          setError(data.message);
+        } else {
+          setError(data.error);
+        }
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
     } catch (err) {
-      setError("An unexpected error occurred.");
+      setError(t('validation.unexpectedError'));
     }
   };
 
-  const availableDistricts = formData.division ? DISTRICTS_BY_DIVISION[formData.division] : [];
+  // Show cutoff notice for non-admin users
+  if (cutoffPassed && !isAdmin) {
+    return (
+      <div className="max-w-3xl mx-auto px-4 py-20">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-amber-50 border-2 border-amber-200 rounded-3xl p-12 text-center shadow-xl shadow-amber-500/5"
+        >
+          <div className="w-20 h-20 bg-amber-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg shadow-amber-500/20">
+            <ShieldAlert className="w-10 h-10 text-white" />
+          </div>
+          <h2 className="text-2xl font-bold text-slate-800 mb-3">{t('report.cutoffTitle')}</h2>
+          <p className="text-slate-600 text-lg mb-4">{t('report.cutoffMessage')}</p>
+          <div className="bg-white rounded-2xl border border-amber-200 p-6 mt-6 inline-block">
+            <div className="flex items-center gap-3 text-amber-700">
+              <Phone className="w-5 h-5" />
+              <span className="font-semibold">{t('report.cutoffContact')}</span>
+            </div>
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-12">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-10">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">Daily Report Submission</h1>
-          <p className="text-slate-500 mt-2">Authenticated as <span className="text-indigo-600 font-semibold">{session?.user.facilityName}</span></p>
+          <h1 className="text-3xl font-bold text-slate-900">{t('report.title')}</h1>
+          <p className="text-slate-500 mt-2">{t('report.authenticatedAs')} <span className="text-indigo-600 font-semibold">{session?.user.facilityName}</span></p>
         </div>
         <div className="flex flex-col items-end bg-white px-5 py-3 rounded-2xl border border-slate-200 shadow-sm min-w-[200px]">
           <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1 flex items-center">
-            <Clock className="w-3.5 h-3.5 mr-1.5 text-indigo-500"/> Bangladesh Time
+            <Clock className="w-3.5 h-3.5 mr-1.5 text-indigo-500"/>{t('report.bdTime')}
           </span>
           <span className="text-xl font-bold text-slate-800 tabular-nums">
             {currentTime.toLocaleTimeString('en-US', { timeZone: 'Asia/Dhaka', hour12: true, hour: 'numeric', minute: '2-digit', second: '2-digit' })}
@@ -184,13 +237,13 @@ export default function ReportPage() {
             <div className="w-20 h-20 bg-emerald-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg shadow-emerald-500/20">
               <CheckCircle2 className="w-10 h-10 text-white" />
             </div>
-            <h2 className="text-3xl font-bold text-slate-800 mb-3">Submission Successful</h2>
-            <p className="text-slate-600 text-lg mb-8">Your daily report has been recorded. Thank you for your contribution.</p>
+            <h2 className="text-3xl font-bold text-slate-800 mb-3">{t('report.submissionSuccess')}</h2>
+            <p className="text-slate-600 text-lg mb-8">{t('report.submissionSuccessMsg')}</p>
             <button 
               onClick={() => setIsSubmitted(false)}
               className="text-emerald-600 font-semibold hover:text-emerald-700 underline flex items-center gap-2 mx-auto"
             >
-              Submit another report
+              {t('report.submitAnother')}
             </button>
           </motion.div>
         ) : (
@@ -211,7 +264,7 @@ export default function ReportPage() {
             {validationErrors.length > 0 && (
               <div className="p-5 bg-amber-50 border border-amber-200 rounded-xl shadow-sm">
                 <p className="font-bold text-amber-800 mb-2 flex items-center gap-2">
-                  <AlertCircle className="w-5 h-5" /> Please correct the following errors:
+                  <AlertCircle className="w-5 h-5" /> {t('validation.correctErrors')}
                 </p>
                 <ul className="text-sm text-amber-700 space-y-1 list-disc pl-5">
                   {validationErrors.map((err, i) => <li key={i}>{err}</li>)}
@@ -219,30 +272,39 @@ export default function ReportPage() {
               </div>
             )}
 
-            <Section title="1. General Information" subtitle="Reporting unit details">
+            {/* Historical data warning for admin */}
+            {isAdmin && isHistoricalEntry && (
+              <div className="p-4 bg-violet-50 border border-violet-200 text-violet-700 rounded-xl flex items-center gap-3 shadow-sm">
+                <AlertTriangle className="w-5 h-5 flex-shrink-0" />
+                <p className="font-medium">{t('report.historicalWarning')}: <span className="font-bold">{formData.reportingDate}</span></p>
+              </div>
+            )}
+
+            <Section title={t('report.sections.generalInfo')} subtitle={t('report.sections.generalInfoSub')}>
               <InputGroup 
-                label="Division" 
+                label={t('report.fields.division')} 
                 name="divisionDisplay" 
                 value={session?.user.division || ''} 
                 disabled 
                 type="text" 
               />
               <InputGroup 
-                label="District" 
+                label={t('report.fields.district')} 
                 name="districtDisplay" 
                 value={session?.user.district || ''} 
                 disabled 
                 type="text" 
               />
               <InputGroup 
-                label="Reporting Date" 
+                label={t('report.fields.reportingDate')} 
                 name="reportingDate" 
                 value={formData.reportingDate} 
                 onChange={handleChange} 
-                type="date" 
+                type="date"
+                disabled={!isAdmin}
               />
               <InputGroup 
-                label="Facility Name" 
+                label={t('report.fields.facilityName')} 
                 name="facilityDisplay" 
                 value={session?.user.facilityName || ''} 
                 disabled 
@@ -250,33 +312,33 @@ export default function ReportPage() {
               />
             </Section>
 
-            <Section title="2. Suspected Cases" subtitle="Patients with measles-like symptoms">
-              <InputGroup label="Last 24 hrs" labelBn="গত ২৪ ঘণ্টায় রোগীর সংখ্যা" name="suspected24h" value={formData.suspected24h} onChange={handleChange} />
-              <InputGroup label="Year to Date" labelBn="অদ্যাবধি মোট রোগীর সংখ্যা" name="suspectedYTD" value={formData.suspectedYTD} onChange={handleChange} />
+            <Section title={t('report.sections.suspected')} subtitle={t('report.sections.suspectedSub')}>
+              <InputGroup label={t('report.fields.last24h')} labelBn="গত ২৪ ঘণ্টায় রোগীর সংখ্যা" name="suspected24h" value={formData.suspected24h} onChange={handleChange} />
+              <InputGroup label={t('report.fields.yearToDate')} labelBn="অদ্যাবধি মোট রোগীর সংখ্যা" name="suspectedYTD" value={formData.suspectedYTD} onChange={handleChange} />
             </Section>
 
-            <Section title="3. Confirmed Cases" subtitle="Laboratory/clinically confirmed cases">
-              <InputGroup label="Last 24 hrs" labelBn="গত ২৪ ঘণ্টায় নিশ্চিত রোগীর সংখ্যা" name="confirmed24h" value={formData.confirmed24h} onChange={handleChange} />
-              <InputGroup label="Year to Date" labelBn="অদ্যাবধি মোট নিশ্চিত রোগীর সংখ্যা" name="confirmedYTD" value={formData.confirmedYTD} onChange={handleChange} />
+            <Section title={t('report.sections.confirmed')} subtitle={t('report.sections.confirmedSub')}>
+              <InputGroup label={t('report.fields.last24h')} labelBn="গত ২৪ ঘণ্টায় নিশ্চিত রোগীর সংখ্যা" name="confirmed24h" value={formData.confirmed24h} onChange={handleChange} />
+              <InputGroup label={t('report.fields.yearToDate')} labelBn="অদ্যাবধি মোট নিশ্চিত রোগীর সংখ্যা" name="confirmedYTD" value={formData.confirmedYTD} onChange={handleChange} />
             </Section>
 
-            <Section title="4. Mortality (Deaths)" subtitle="Deaths attributed to measles">
-              <InputGroup label="Suspected (24 hrs)" name="suspectedDeath24h" value={formData.suspectedDeath24h} onChange={handleChange} />
-              <InputGroup label="Suspected (YTD)" name="suspectedDeathYTD" value={formData.suspectedDeathYTD} onChange={handleChange} />
-              <InputGroup label="Confirmed (24 hrs)" name="confirmedDeath24h" value={formData.confirmedDeath24h} onChange={handleChange} />
-              <InputGroup label="Confirmed (YTD)" name="confirmedDeathYTD" value={formData.confirmedDeathYTD} onChange={handleChange} />
+            <Section title={t('report.sections.mortality')} subtitle={t('report.sections.mortalitySub')}>
+              <InputGroup label={t('report.fields.suspectedDeath24h')} name="suspectedDeath24h" value={formData.suspectedDeath24h} onChange={handleChange} />
+              <InputGroup label={t('report.fields.suspectedDeathYTD')} name="suspectedDeathYTD" value={formData.suspectedDeathYTD} onChange={handleChange} />
+              <InputGroup label={t('report.fields.confirmedDeath24h')} name="confirmedDeath24h" value={formData.confirmedDeath24h} onChange={handleChange} />
+              <InputGroup label={t('report.fields.confirmedDeathYTD')} name="confirmedDeathYTD" value={formData.confirmedDeathYTD} onChange={handleChange} />
             </Section>
 
-            <Section title="5. Hospitalization" subtitle="Admissions and discharges">
-              <InputGroup label="Admitted (24 hrs)" name="admitted24h" value={formData.admitted24h} onChange={handleChange} />
-              <InputGroup label="Admitted (YTD)" name="admittedYTD" value={formData.admittedYTD} onChange={handleChange} />
-              <InputGroup label="Discharged (24 hrs)" name="discharged24h" value={formData.discharged24h} onChange={handleChange} />
-              <InputGroup label="Discharged (YTD)" name="dischargedYTD" value={formData.dischargedYTD} onChange={handleChange} />
+            <Section title={t('report.sections.hospitalization')} subtitle={t('report.sections.hospitalizationSub')}>
+              <InputGroup label={t('report.fields.admitted24h')} name="admitted24h" value={formData.admitted24h} onChange={handleChange} />
+              <InputGroup label={t('report.fields.admittedYTD')} name="admittedYTD" value={formData.admittedYTD} onChange={handleChange} />
+              <InputGroup label={t('report.fields.discharged24h')} name="discharged24h" value={formData.discharged24h} onChange={handleChange} />
+              <InputGroup label={t('report.fields.dischargedYTD')} name="dischargedYTD" value={formData.dischargedYTD} onChange={handleChange} />
             </Section>
 
-            <Section title="6. Laboratory Surveillance" subtitle="Samples sent to lab">
+            <Section title={t('report.sections.labSurveillance')} subtitle={t('report.sections.labSurveillanceSub')}>
               <InputGroup 
-                label="Total Serum Sent to Lab (YTD)" 
+                label={t('report.fields.serumSentYTD')} 
                 name="serumSentYTD" 
                 value={formData.serumSentYTD} 
                 onChange={handleChange} 
@@ -290,7 +352,7 @@ export default function ReportPage() {
                 type="submit"
                 className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 px-10 rounded-2xl shadow-xl shadow-indigo-600/20 transition-all flex items-center text-lg group active:scale-95"
               >
-                Submit Report
+                {t('report.submitReport')}
                 <ChevronRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
               </button>
             </div>
