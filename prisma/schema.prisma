@@ -1,0 +1,103 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String    @id @default(cuid())
+  email           String    @unique
+  password        String?
+  facilityName    String
+  nameNormalized  String    @unique
+  facilityCode    String?
+  facilityType    String?
+  division        String?
+  district        String?
+  upazila         String?
+  phone           String?
+  emailVerified   DateTime?
+  role            Role      @default(USER)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  reports         Report[]
+
+  @@index([division])
+  @@index([district])
+  @@index([facilityCode])
+}
+
+enum Role {
+  USER
+  ADMIN
+  SUBMITTER
+  EXPORTER
+}
+
+model Report {
+  id                  String   @id @default(cuid())
+  reportingDate       DateTime
+  division            String
+  district            String
+  facilityName        String
+  userId              String
+  user                User     @relation(fields: [userId], references: [id])
+  
+  // Suspected Cases
+  suspected24h        Int      @default(0)
+  suspectedYTD        Int      @default(0)
+  
+  // Confirmed Cases
+  confirmed24h        Int      @default(0)
+  confirmedYTD        Int      @default(0)
+  
+  // Mortality
+  suspectedDeath24h   Int      @default(0)
+  suspectedDeathYTD   Int      @default(0)
+  confirmedDeath24h   Int      @default(0)
+  confirmedDeathYTD   Int      @default(0)
+  
+  // Hospitalization
+  admitted24h         Int      @default(0)
+  admittedYTD         Int      @default(0)
+  discharged24h       Int      @default(0)
+  dischargedYTD       Int      @default(0)
+  
+  // Lab
+  serumSentYTD        Int      @default(0)
+  
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@unique([userId, reportingDate]) // Facility can only submit once per day
+}
+
+model EmailRecipient {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  designation  String
+  organization String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model VerificationToken {
+  id      String   @id @default(cuid())
+  email   String
+  token   String   @unique
+  expires DateTime
+  type    TokenType
+
+  @@unique([email, token])
+}
+
+enum TokenType {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+}
