@@ -23,6 +23,7 @@ declare module "next-auth" {
     division?: string;
     district?: string;
     upazila?: string;
+    isActive?: boolean;
   }
 }
 
@@ -36,5 +37,6 @@ declare module "next-auth/jwt" {
     division?: string;
     district?: string;
     upazila?: string;
+    isActive?: boolean;
   }
 }

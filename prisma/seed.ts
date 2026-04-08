@@ -18,8 +18,8 @@ async function main() {
     create: {
       email: 'admin@monitor.org',
       password: adminPassword,
-      facilityName: 'National Monitoring Center',
-      nameNormalized: 'national monitoring center',
+      facilityName: 'Management Information System',
+      nameNormalized: 'management information system',
       role: 'ADMIN',
       emailVerified: new Date(),
     },

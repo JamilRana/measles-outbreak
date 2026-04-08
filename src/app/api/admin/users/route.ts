@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { normalizeFacilityName } from "@/lib/utils";
+import { sendUserCreatedEmail, sendAccountStatusEmail } from "@/lib/mail";
 
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions);
@@ -25,6 +26,7 @@ export async function GET(req: Request) {
         upazila: true,
         role: true,
         emailVerified: true,
+        isActive: true,
         createdAt: true,
         password: true,
       },
@@ -69,8 +71,13 @@ export async function POST(req: Request) {
         upazila,
         role,
         emailVerified: new Date(),
+        isActive: true,
       },
     });
+
+    if (email && password) {
+      await sendUserCreatedEmail(email, password, facilityName, role);
+    }
 
     const { password: _, ...userWithoutPassword } = user;
     return NextResponse.json(userWithoutPassword, { status: 201 });
@@ -87,12 +94,13 @@ export async function PATCH(req: Request) {
   }
 
   try {
-    const { id, role, emailVerified, password, ...otherData } = await req.json();
+    const { id, role, emailVerified, password, isActive, ...otherData } = await req.json();
     
     const updateData: any = {};
     if (role) updateData.role = role;
     if (emailVerified !== undefined) updateData.emailVerified = emailVerified ? new Date() : null;
     if (password) updateData.password = await bcrypt.hash(password, 10);
+    if (isActive !== undefined) updateData.isActive = isActive;
     if (Object.keys(otherData).length > 0) {
       Object.assign(updateData, otherData);
     }
@@ -101,6 +109,10 @@ export async function PATCH(req: Request) {
       where: { id },
       data: updateData,
     });
+
+    if (isActive !== undefined) {
+      await sendAccountStatusEmail(user.email, user.facilityName, isActive);
+    }
     
     const { password: _, ...userWithoutPassword } = user;
     return NextResponse.json(userWithoutPassword);

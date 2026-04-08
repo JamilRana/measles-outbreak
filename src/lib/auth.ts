@@ -38,6 +38,7 @@ export const authOptions: NextAuthOptions = {
         token.division = user.division;
         token.district = user.district;
         token.upazila = user.upazila;
+        token.isActive = user.isActive;
       }
       return token;
     },
@@ -77,6 +78,10 @@ async function loginLocalUser(email: string, password: string) {
     throw new Error("User not found");
   }
 
+  if (!user.isActive) {
+    throw new Error("Your account has been deactivated. Please contact administrator.");
+  }
+
   const isValid = await bcrypt.compare(password, user.password);
 
   if (!isValid) {
@@ -98,6 +103,7 @@ async function loginLocalUser(email: string, password: string) {
     division: user.division ?? undefined,
     district: user.district ?? undefined,
     upazila: user.upazila ?? undefined,
+    isActive: user.isActive,
   };
 }
 

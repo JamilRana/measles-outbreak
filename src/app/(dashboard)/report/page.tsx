@@ -16,7 +16,7 @@ import { DISTRICTS_BY_DIVISION, DIVISIONS } from '@/lib/constants';
 
 const Section = ({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) => (
   <div className="mb-8 bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-    <div className="px-6 py-4 border-b border-slate-200 bg-slate-50/80">
+    <div className="px-6 py-5 border-b border-slate-100">
       <h3 className="text-lg font-semibold text-slate-800">{title}</h3>
       {subtitle && <p className="text-sm text-slate-500 mt-1">{subtitle}</p>}
     </div>

@@ -60,10 +60,10 @@ export async function POST(req: Request) {
 }
 
 export async function GET(req: Request) {
-  // Allow public access for the dashboard
-
   const { searchParams } = new URL(req.url);
   const date = searchParams.get("date");
+  const from = searchParams.get("from");
+  const to = searchParams.get("to");
   const startDate = searchParams.get("startDate");
   const endDate = searchParams.get("endDate");
   const divisions = searchParams.get("divisions")?.split(",").filter(Boolean);
@@ -77,6 +77,11 @@ export async function GET(req: Request) {
       where.reportingDate = {
         gte: startOfDay(d),
         lte: endOfDay(d),
+      };
+    } else if (from && to) {
+      where.reportingDate = {
+        gte: startOfDay(new Date(from)),
+        lte: endOfDay(new Date(to)),
       };
     } else if (startDate && endDate) {
       where.reportingDate = {

@@ -16,7 +16,9 @@ import {
   X,
   Building2,
   Phone,
-  Save
+  Save,
+  ToggleLeft,
+  ToggleRight
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -31,10 +33,11 @@ interface User {
   upazila?: string | null;
   role: string;
   emailVerified: string | null;
+  isActive: boolean;
   createdAt: string;
 }
 
-const ROLE_OPTIONS = ["USER", "ADMIN", "SUBMITTER", "EXPORTER"];
+const ROLE_OPTIONS = ["USER", "ADMIN", "SUBMITTER", "EXPORTER", "VIEWER"];
 const DIVISIONS = ["Dhaka", "Chittagong", "Khulna", "Rajshahi", "Rangpur", "Sylhet", "Barisal", "Mymensingh"];
 
 export default function UserManagementPage() {
@@ -165,6 +168,20 @@ export default function UserManagementPage() {
     }
   };
 
+  const toggleActive = async (user: User) => {
+    const newStatus = !user.isActive;
+    try {
+      const res = await fetch("/api/admin/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: user.id, isActive: newStatus }),
+      });
+      if (res.ok) fetchUsers();
+    } catch (err) {
+      console.error("Update failed");
+    }
+  };
+
   const deleteUser = async (id: string) => {
     if (!confirm("Are you sure you want to delete this user? This action cannot be undone.")) return;
     try {
@@ -245,15 +262,32 @@ export default function UserManagementPage() {
                     </div>
                   </td>
                   <td className="px-6 py-5 text-center">
-                    {user.emailVerified ? (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-full text-xs font-bold">
-                        <CheckCircle2 className="w-3 h-3" /> Verified
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-50 text-amber-700 rounded-full text-xs font-bold">
-                        Pending
-                      </span>
-                    )}
+                    <div className="flex flex-col items-center gap-2">
+                      {user.emailVerified ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-full text-xs font-bold">
+                          <CheckCircle2 className="w-3 h-3" /> Verified
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-50 text-amber-700 rounded-full text-xs font-bold">
+                          <XCircle className="w-3 h-3" /> Unverified
+                        </span>
+                      )}
+                      <button 
+                        onClick={() => toggleActive(user)}
+                        title={user.isActive ? "Deactivate User" : "Activate User"}
+                        className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
+                          user.isActive 
+                            ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' 
+                            : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                        }`}
+                      >
+                        {user.isActive ? (
+                          <><ToggleRight className="w-4 h-4" /> Active</>
+                        ) : (
+                          <><ToggleLeft className="w-4 h-4" /> Inactive</>
+                        )}
+                      </button>
+                    </div>
                   </td>
                   <td className="px-6 py-5 text-center">
                     <button 
@@ -265,6 +299,8 @@ export default function UserManagementPage() {
                           ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
                           : user.role === 'EXPORTER'
                           ? 'bg-orange-100 text-orange-700 hover:bg-orange-200'
+                          : user.role === 'VIEWER'
+                          ? 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200'
                           : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                       }`}
                     >
