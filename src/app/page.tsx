@@ -34,30 +34,26 @@ import Footer from '@/components/Footer';
 import OutbreakMap from '@/components/OutbreakMap';
 import EpiInsights from '@/components/EpiInsights';
 
-interface Report {
+interface DailyReport {
   id: string;
   reportingDate: string;
-  division: string;
-  district: string;
-  facilityName: string;
   suspected24h: number;
-  suspectedYTD: number;
   confirmed24h: number;
-  confirmedYTD: number;
   suspectedDeath24h: number;
-  suspectedDeathYTD: number;
   confirmedDeath24h: number;
-  confirmedDeathYTD: number;
   admitted24h: number;
-  admittedYTD: number;
   discharged24h: number;
-  dischargedYTD: number;
-  serumSentYTD: number;
+  serumSent24h: number;
+  user: {
+    facilityName: string;
+    division: string;
+    district: string;
+  };
 }
 
 export default function IndexPage() {
   const { t, i18n } = useTranslation();
-  const [reports, setReports] = useState<Report[]>([]);
+  const [reports, setReports] = useState<DailyReport[]>([]);
   const [loading, setLoading] = useState(true);
 
   const toggleLanguage = () => {
@@ -95,9 +91,9 @@ export default function IndexPage() {
       data[div] = { name: div, suspected: 0, confirmed: 0 };
     });
     reports.forEach(report => {
-      if (data[report.division]) {
-        data[report.division].suspected += report.suspected24h;
-        data[report.division].confirmed += report.confirmed24h;
+      if (data[report.user.division]) {
+        data[report.user.division].suspected += report.suspected24h;
+        data[report.user.division].confirmed += report.confirmed24h;
       }
     });
     return Object.values(data);
@@ -170,10 +166,10 @@ export default function IndexPage() {
         </div>
 
         {/* Outbreak Map */}
-        <OutbreakMap />
+        <OutbreakMap apiEndpoint="/api/reports/geo" />
 
         {/* Epidemiological Insights */}
-        <EpiInsights />
+        <EpiInsights apiEndpoint="/api/reports/timeseries" />
 
         {/* Recent Submissions Table */}
         <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
@@ -198,10 +194,10 @@ export default function IndexPage() {
                 {!loading && reports.slice(0, 10).map((report) => (
                   <tr key={report.id} className="hover:bg-slate-50/50 transition-colors group">
                     <td className="px-8 py-4">
-                      <div className="font-semibold text-slate-800">{report.division}</div>
-                      <div className="text-xs text-slate-500">{report.district}</div>
+                      <div className="font-semibold text-slate-800">{report.user.division}</div>
+                      <div className="text-xs text-slate-500">{report.user.district}</div>
                     </td>
-                    <td className="px-6 py-4 text-slate-600 font-medium">{report.facilityName}</td>
+                    <td className="px-6 py-4 text-slate-600 font-medium">{report.user.facilityName}</td>
                     <td className="px-6 py-4 text-center"><span className="px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-md font-bold text-sm">{report.suspected24h}</span></td>
                     <td className="px-6 py-4 text-center"><span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-md font-bold text-sm">{report.confirmed24h}</span></td>
                     <td className="px-6 py-4 text-center"><span className="px-2.5 py-1 bg-rose-50 text-rose-700 rounded-md font-bold text-sm">{report.suspectedDeath24h + report.confirmedDeath24h}</span></td>

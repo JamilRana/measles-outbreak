@@ -5,14 +5,14 @@ import { useTranslation } from 'react-i18next';
 import dynamic from 'next/dynamic';
 
 // Dynamically import the map to avoid SSR issues with Leaflet
-const MapInner = dynamic(() => import('@/components/OutbreakMapInner') as any, {
+const MapInner = dynamic(() => import('@/components/OutbreakMapInner').then(mod => mod.default), {
   ssr: false,
   loading: () => (
     <div className="h-[650px] w-full bg-slate-100 animate-pulse rounded-2xl flex items-center justify-center">
       <span className="text-slate-400 font-medium">Loading map...</span>
     </div>
   ),
-}) as any;
+});
 
 interface GeoData {
   district: string;
@@ -24,7 +24,11 @@ interface GeoData {
   lng: number;
 }
 
-export default function OutbreakMap() {
+interface OutbreakMapProps {
+  apiEndpoint?: string;
+}
+
+export default function OutbreakMap({ apiEndpoint = '/api/reports/geo' }: OutbreakMapProps) {
   const { t } = useTranslation();
   const [geoData, setGeoData] = useState<GeoData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -35,7 +39,7 @@ export default function OutbreakMap() {
   useEffect(() => {
     const fetchGeoData = async () => {
       try {
-        const res = await fetch('/api/reports/geo');
+        const res = await fetch(apiEndpoint);
         const data = await res.json();
         setGeoData(data);
       } catch (err) {
@@ -45,7 +49,7 @@ export default function OutbreakMap() {
       }
     };
     fetchGeoData();
-  }, []);
+  }, [apiEndpoint]);
 
   return (
     <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">

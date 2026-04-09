@@ -37,7 +37,7 @@ export default function LoginPage() {
       } else {
         router.push("/dashboard");
       }
-    } catch (err) {
+    } catch {
       setError("An unexpected error occurred.");
     } finally {
       setLoading(false);
@@ -185,7 +185,7 @@ export default function LoginPage() {
 
         {loginType === "local" && (
           <p className="text-center text-slate-500 mt-8 text-sm">
-            Don't have an account?{" "}
+            Don&apos;t have an account?{" "}
             <Link href="/register" className="text-white hover:text-indigo-400 font-medium transition-colors">
               Register your facility
             </Link>

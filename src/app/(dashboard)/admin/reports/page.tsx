@@ -10,7 +10,11 @@ import {
   ChevronDown, 
   Filter,
   Search,
-  Check
+  Check,
+  Edit2,
+  Trash2,
+  Globe,
+  Globe2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { DIVISIONS, DISTRICTS_BY_DIVISION } from '@/lib/constants';
@@ -23,15 +27,24 @@ interface Report {
   district: string;
   facilityName: string;
   suspected24h: number;
+  suspectedYTD: number;
   confirmed24h: number;
+  confirmedYTD: number;
   suspectedDeath24h: number;
   confirmedDeath24h: number;
   admitted24h: number;
+  admittedYTD: number;
+  discharged24h: number;
+  dischargedYTD: number;
+  serumSentYTD: number;
+  published: boolean;
 }
 
 export default function AdminReportsPage() {
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
+  const [editingReport, setEditingReport] = useState<Report | null>(null);
+  const [deletingReport, setDeletingReport] = useState<Report | null>(null);
   
   // Filters
   const [dateMode, setDateMode] = useState<'single' | 'range'>('single');
@@ -58,11 +71,77 @@ export default function AdminReportsPage() {
       const res = await fetch(url);
       const data = await res.json();
       setReports(data);
-    } catch (error) {
+    } catch {
       console.error("Failed to fetch reports");
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleDelete = async () => {
+    if (!deletingReport) return;
+    try {
+      const res = await fetch(`/api/reports/${deletingReport.id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setReports(reports.filter(r => r.id !== deletingReport.id));
+        setDeletingReport(null);
+      }
+    } catch {
+      console.error("Delete failed");
+    }
+  };
+
+  const handlePublish = async (report: Report) => {
+    try {
+      const res = await fetch(`/api/reports/${report.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ published: !report.published })
+      });
+      if (res.ok) {
+        setReports(reports.map(r => r.id === report.id ? { ...r, published: !r.published } : r));
+      }
+    } catch {
+      console.error("Publish toggle failed");
+    }
+  };
+
+  const handlePublishAll = async () => {
+    try {
+      const res = await fetch('/api/admin/publish-reports', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date: singleDate })
+      });
+      if (res.ok) {
+        fetchReports();
+      }
+    } catch {
+      console.error("Publish all failed");
+    }
+  };
+
+  const handleUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingReport) return;
+    try {
+      const res = await fetch(`/api/reports/${editingReport.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editingReport)
+      });
+      if (res.ok) {
+        setReports(reports.map(r => r.id === editingReport.id ? editingReport : r));
+        setEditingReport(null);
+      }
+    } catch {
+      console.error("Update failed");
+    }
+  };
+
+  const handleEditChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setEditingReport((prev: any) => ({ ...prev, [name]: Number(value) }));
   };
 
   const removeDivision = (div: string) => {
@@ -174,6 +253,13 @@ export default function AdminReportsPage() {
             <div className="p-2 bg-slate-200 rounded-lg"><BarChart3 className="w-5 h-5 text-slate-600" /></div>
             <h3 className="text-xl font-bold text-slate-800">Search Results ({reports.length})</h3>
           </div>
+          <button
+            onClick={handlePublishAll}
+            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg font-bold text-sm hover:bg-emerald-500"
+          >
+            <Globe2 className="w-4 h-4" />
+            Publish All for Date
+          </button>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
@@ -184,11 +270,13 @@ export default function AdminReportsPage() {
                 <th className="px-6 py-5 text-center">Suspected</th>
                 <th className="px-6 py-5 text-center">Confirmed</th>
                 <th className="px-6 py-5 text-center">Mortality</th>
+                <th className="px-6 py-5 text-center">Published</th>
+                <th className="px-6 py-5 text-center">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading ? (
-                <tr><td colSpan={5} className="p-20 text-center"><Loader /></td></tr>
+                <tr><td colSpan={7} className="p-20 text-center"><Loader /></td></tr>
               ) : reports.map((report) => (
                 <tr key={report.id} className="hover:bg-slate-50/50 transition-colors">
                   <td className="px-8 py-5">
@@ -201,14 +289,118 @@ export default function AdminReportsPage() {
                   <td className="px-6 py-5 text-center"><span className="px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-lg font-bold text-sm">{report.suspected24h}</span></td>
                   <td className="px-6 py-5 text-center"><span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-lg font-bold text-sm">{report.confirmed24h}</span></td>
                   <td className="px-6 py-5 text-center"><span className="px-2.5 py-1 bg-rose-50 text-rose-700 rounded-lg font-bold text-sm">{report.suspectedDeath24h + report.confirmedDeath24h}</span></td>
+                  <td className="px-6 py-5 text-center">
+                    <button 
+                      onClick={() => handlePublish(report)}
+                      className={`p-2 rounded-lg transition-all ${report.published ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}
+                    >
+                      {report.published ? <Globe className="w-4 h-4" /> : <Globe2 className="w-4 h-4" />}
+                    </button>
+                  </td>
+                  <td className="px-6 py-5 text-center">
+                    <div className="flex items-center justify-center gap-2">
+                      <button onClick={() => setEditingReport(report)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"><Edit2 className="w-4 h-4" /></button>
+                      <button onClick={() => setDeletingReport(report)} className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition-all"><Trash2 className="w-4 h-4" /></button>
+                    </div>
+                  </td>
                 </tr>
               ))}
               {!loading && reports.length === 0 && (
-                <tr><td colSpan={5} className="p-20 text-center text-slate-400 font-medium">No reports found for these criteria.</td></tr>
+                <tr><td colSpan={7} className="p-20 text-center text-slate-400 font-medium">No reports found for these criteria.</td></tr>
               )}
             </tbody>
           </table>
         </div>
+
+        {/* Edit Modal */}
+        <AnimatePresence>
+          {editingReport && (
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+              onClick={() => setEditingReport(null)}
+            >
+              <motion.div 
+                initial={{ scale: 0.9 }} 
+                animate={{ scale: 1 }} 
+                exit={{ scale: 0.9 }}
+                className="bg-white rounded-3xl p-8 max-w-lg w-full max-h-[90vh] overflow-y-auto"
+                onClick={e => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-xl font-bold text-slate-800">Edit Report</h3>
+                  <button onClick={() => setEditingReport(null)} className="p-2 hover:bg-slate-100 rounded-lg"><X className="w-5 h-5" /></button>
+                </div>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">{editingReport.facilityName}</p>
+                <p className="text-sm text-slate-500 mb-6">{editingReport.division} • {editingReport.district}</p>
+                
+                <form onSubmit={handleUpdate} className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 mb-1">Suspected (24h)</label>
+                      <input type="number" name="suspected24h" value={editingReport.suspected24h} onChange={handleEditChange} className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 mb-1">Confirmed (24h)</label>
+                      <input type="number" name="confirmed24h" value={editingReport.confirmed24h} onChange={handleEditChange} className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 mb-1">Suspected Death (24h)</label>
+                      <input type="number" name="suspectedDeath24h" value={editingReport.suspectedDeath24h} onChange={handleEditChange} className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 mb-1">Confirmed Death (24h)</label>
+                      <input type="number" name="confirmedDeath24h" value={editingReport.confirmedDeath24h} onChange={handleEditChange} className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 mb-1">Admitted (24h)</label>
+                      <input type="number" name="admitted24h" value={editingReport.admitted24h} onChange={handleEditChange} className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 mb-1">Discharged (24h)</label>
+                      <input type="number" name="discharged24h" value={editingReport.discharged24h} onChange={handleEditChange} className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-sm" />
+                    </div>
+                  </div>
+                  <button type="submit" className="w-full bg-indigo-600 text-white font-bold py-3 rounded-xl hover:bg-indigo-500">Save Changes</button>
+                </form>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Delete Modal */}
+        <AnimatePresence>
+          {deletingReport && (
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+              onClick={() => setDeletingReport(null)}
+            >
+              <motion.div 
+                initial={{ scale: 0.9 }} 
+                animate={{ scale: 1 }} 
+                exit={{ scale: 0.9 }}
+                className="bg-white rounded-3xl p-8 max-w-md w-full"
+                onClick={e => e.stopPropagation()}
+              >
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-3 bg-rose-100 rounded-xl"><Trash2 className="w-6 h-6 text-rose-600" /></div>
+                  <h3 className="text-xl font-bold text-slate-800">Delete Report?</h3>
+                </div>
+                <p className="text-slate-500 mb-6">Are you sure you want to delete this report? This action cannot be undone.</p>
+                <p className="text-sm font-bold text-slate-700 mb-6">{deletingReport.facilityName} - {format(new Date(deletingReport.reportingDate), 'dd MMM yyyy')}</p>
+                <div className="flex gap-3">
+                  <button onClick={() => setDeletingReport(null)} className="flex-1 px-4 py-3 border border-slate-200 rounded-xl font-bold text-slate-600 hover:bg-slate-50">Cancel</button>
+                  <button onClick={handleDelete} className="flex-1 px-4 py-3 bg-rose-600 text-white rounded-xl font-bold hover:bg-rose-500">Delete</button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );

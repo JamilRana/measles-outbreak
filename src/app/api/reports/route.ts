@@ -1,150 +1,117 @@
-import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
-import { startOfDay, endOfDay } from "date-fns";
-import { getBDNow } from "@/lib/utils";
+import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
+import { createAuditLog, AuditActions } from '@/lib/audit';
 
-export async function POST(req: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
+export async function GET(request: Request) {
   try {
-    const data = await req.json();
-    const reportingDate = new Date(data.reportingDate);
-    const isAdmin = session.user.role === "ADMIN";
+    const { searchParams } = new URL(request.url);
+    const date = searchParams.get('date');
+    const userId = searchParams.get('userId');
+    const division = searchParams.get('division');
+    const from = searchParams.get('from');
+    const to = searchParams.get('to');
 
-    // Time cutoff enforcement (skip for admin)
-    if (!isAdmin) {
-      const cutoffHour = parseInt(process.env.REPORT_CUTOFF_HOUR || "14", 10);
-      const cutoffMinute = parseInt(process.env.REPORT_CUTOFF_MINUTE || "0", 10);
-      const bdNow = getBDNow();
-      const currentHour = bdNow.getHours();
-      const currentMinute = bdNow.getMinutes();
-
-      if (currentHour > cutoffHour || (currentHour === cutoffHour && currentMinute >= cutoffMinute)) {
-        return NextResponse.json({
-          error: "Submission closed",
-          cutoffPassed: true,
-          message: "Report submission deadline has passed. Please contact the control room at MIS, DGHS for assistance."
-        }, { status: 403 });
-      }
-    }
-
-    // Check if report already exists for this facility on this date
-    const existing = await prisma.report.findFirst({
-      where: {
-        userId: session.user.id,
-        reportingDate: {
-          gte: startOfDay(reportingDate),
-          lte: endOfDay(reportingDate),
-        },
-      },
-    });
-
-    if (existing) {
-      // Admin can upsert (update existing report)
-      if (isAdmin) {
-        const updated = await prisma.report.update({
-          where: { id: existing.id },
-          data: {
-            suspected24h: Number(data.suspected24h) || 0,
-            suspectedYTD: Number(data.suspectedYTD) || 0,
-            confirmed24h: Number(data.confirmed24h) || 0,
-            confirmedYTD: Number(data.confirmedYTD) || 0,
-            suspectedDeath24h: Number(data.suspectedDeath24h) || 0,
-            suspectedDeathYTD: Number(data.suspectedDeathYTD) || 0,
-            confirmedDeath24h: Number(data.confirmedDeath24h) || 0,
-            confirmedDeathYTD: Number(data.confirmedDeathYTD) || 0,
-            admitted24h: Number(data.admitted24h) || 0,
-            admittedYTD: Number(data.admittedYTD) || 0,
-            discharged24h: Number(data.discharged24h) || 0,
-            dischargedYTD: Number(data.dischargedYTD) || 0,
-            serumSentYTD: Number(data.serumSentYTD) || 0,
-          },
-        });
-        return NextResponse.json(updated, { status: 200 });
-      }
-      return NextResponse.json({ error: "You have already submitted a report for this date." }, { status: 400 });
-    }
-
-    const report = await prisma.report.create({
-      data: {
-        reportingDate,
-        division: session.user.division ?? "",
-        district: session.user.district ?? "",
-        userId: session.user.id,
-        facilityName: session.user.facilityName,
-        suspected24h: Number(data.suspected24h) || 0,
-        suspectedYTD: Number(data.suspectedYTD) || 0,
-        confirmed24h: Number(data.confirmed24h) || 0,
-        confirmedYTD: Number(data.confirmedYTD) || 0,
-        suspectedDeath24h: Number(data.suspectedDeath24h) || 0,
-        suspectedDeathYTD: Number(data.suspectedDeathYTD) || 0,
-        confirmedDeath24h: Number(data.confirmedDeath24h) || 0,
-        confirmedDeathYTD: Number(data.confirmedDeathYTD) || 0,
-        admitted24h: Number(data.admitted24h) || 0,
-        admittedYTD: Number(data.admittedYTD) || 0,
-        discharged24h: Number(data.discharged24h) || 0,
-        dischargedYTD: Number(data.dischargedYTD) || 0,
-        serumSentYTD: Number(data.serumSentYTD) || 0,
-      },
-    });
-
-    return NextResponse.json(report, { status: 201 });
-  } catch (error) {
-    console.error("Report submission error:", error);
-    return NextResponse.json({ error: "Failed to submit report" }, { status: 500 });
-  }
-}
-
-export async function GET(req: Request) {
-  const { searchParams } = new URL(req.url);
-  const date = searchParams.get("date");
-  const from = searchParams.get("from");
-  const to = searchParams.get("to");
-  const startDate = searchParams.get("startDate");
-  const endDate = searchParams.get("endDate");
-  const divisions = searchParams.get("divisions")?.split(",").filter(Boolean);
-  const districts = searchParams.get("districts")?.split(",").filter(Boolean);
-
-  try {
     const where: any = {};
     
     if (date) {
-      const d = new Date(date);
-      where.reportingDate = {
-        gte: startOfDay(d),
-        lte: endOfDay(d),
-      };
-    } else if (from && to) {
-      where.reportingDate = {
-        gte: startOfDay(new Date(from)),
-        lte: endOfDay(new Date(to)),
-      };
-    } else if (startDate && endDate) {
-      where.reportingDate = {
-        gte: startOfDay(new Date(startDate)),
-        lte: endOfDay(new Date(endDate)),
-      };
+      const startOfDay = new Date(date);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(date);
+      endOfDay.setHours(23, 59, 59, 999);
+      where.reportingDate = { gte: startOfDay, lte: endOfDay };
+    }
+    
+    if (from && to) {
+      const startDate = new Date(from);
+      startDate.setHours(0, 0, 0, 0);
+      const endDate = new Date(to);
+      endDate.setHours(23, 59, 59, 999);
+      where.reportingDate = { gte: startDate, lte: endDate };
     }
 
-    if (divisions && divisions.length > 0) {
-      where.division = { in: divisions };
-    }
-    if (districts && districts.length > 0) {
-      where.district = { in: districts };
+    if (userId) where.userId = userId;
+    
+    // Filter by user's division if provided
+    if (division) {
+      where.user = { division };
     }
 
-    const reports = await prisma.report.findMany({
+    const reports = await prisma.dailyReport.findMany({
       where,
-      orderBy: { reportingDate: "desc" },
+      orderBy: { reportingDate: 'desc' },
+      include: {
+        user: {
+          select: {
+            id: true,
+            facilityName: true,
+            division: true,
+            district: true
+          }
+        }
+      }
     });
 
     return NextResponse.json(reports);
   } catch (error) {
-    return NextResponse.json({ error: "Failed to fetch reports" }, { status: 500 });
+    console.error('Reports GET error:', error);
+    return NextResponse.json({ error: 'Failed to fetch reports' }, { status: 500 });
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const { reportingDate, suspected24h, confirmed24h, suspectedDeath24h, confirmedDeath24h, admitted24h, discharged24h, serumSent24h } = body;
+
+    const reportDate = new Date(reportingDate);
+    const startOfDay = new Date(reportDate);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(reportDate);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const existing = await prisma.dailyReport.findFirst({
+      where: {
+        userId: session.user.id,
+        reportingDate: { gte: startOfDay, lte: endOfDay }
+      }
+    });
+
+    if (existing) {
+      return NextResponse.json({ error: 'You have already submitted a report for this date' }, { status: 400 });
+    }
+
+    const report = await prisma.dailyReport.create({
+      data: {
+        reportingDate: reportDate,
+        userId: session.user.id,
+        suspected24h: Number(suspected24h) || 0,
+        confirmed24h: Number(confirmed24h) || 0,
+        suspectedDeath24h: Number(suspectedDeath24h) || 0,
+        confirmedDeath24h: Number(confirmedDeath24h) || 0,
+        admitted24h: Number(admitted24h) || 0,
+        discharged24h: Number(discharged24h) || 0,
+        serumSent24h: Number(serumSent24h) || 0,
+      }
+    });
+
+    await createAuditLog({
+      userId: session.user.id,
+      action: AuditActions.REPORT_CREATE,
+      entityType: 'DailyReport',
+      entityId: report.id,
+      details: { reportingDate, suspected24h, confirmed24h },
+    });
+
+    return NextResponse.json(report);
+  } catch (error) {
+    console.error('Report POST error:', error);
+    return NextResponse.json({ error: 'Failed to submit report' }, { status: 500 });
   }
 }

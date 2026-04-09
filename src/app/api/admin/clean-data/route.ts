@@ -15,7 +15,7 @@ export async function POST(req: Request) {
 
     if (mode === "DAILY") {
       const d = new Date(date);
-      await prisma.report.deleteMany({
+      await prisma.dailyReport.deleteMany({
         where: {
           reportingDate: {
             gte: startOfDay(d),
@@ -25,10 +25,7 @@ export async function POST(req: Request) {
       });
       return NextResponse.json({ message: `All reports for ${date} have been cleared.` });
     } else if (mode === "ALL") {
-       // This is a dangerous but requested feature ("reset daily data")
-       // I'll interpret "reset" as "delete all reports" or maybe just current year.
-       // Given the request, I'll clear ALL reports.
-       await prisma.report.deleteMany({});
+       await prisma.dailyReport.deleteMany({});
        return NextResponse.json({ message: "All historical reports have been cleared." });
     }
 

@@ -37,7 +37,7 @@ interface User {
   createdAt: string;
 }
 
-const ROLE_OPTIONS = ["USER", "ADMIN", "SUBMITTER", "EXPORTER", "VIEWER"];
+const ROLE_OPTIONS = ["USER", "ADMIN", "VIEWER"];
 const DIVISIONS = ["Dhaka", "Chittagong", "Khulna", "Rajshahi", "Rangpur", "Sylhet", "Barisal", "Mymensingh"];
 
 export default function UserManagementPage() {
@@ -69,7 +69,7 @@ export default function UserManagementPage() {
       const res = await fetch("/api/admin/users");
       const data = await res.json();
       setUsers(data);
-    } catch (error) {
+    } catch {
       console.error("Failed to fetch users");
     } finally {
       setLoading(false);
@@ -133,8 +133,8 @@ export default function UserManagementPage() {
 
       setShowModal(false);
       fetchUsers();
-    } catch (err) {
-      console.error("Save failed:", err);
+    } catch {
+      console.error("Save failed");
     } finally {
       setSaving(false);
     }
@@ -149,7 +149,7 @@ export default function UserManagementPage() {
         body: JSON.stringify({ id: user.id, role: newRole }),
       });
       if (res.ok) fetchUsers();
-    } catch (err) {
+    } catch {
       console.error("Update failed");
     }
   };
@@ -163,7 +163,7 @@ export default function UserManagementPage() {
         body: JSON.stringify({ id: user.id, emailVerified: !isVerified }),
       });
       if (res.ok) fetchUsers();
-    } catch (err) {
+    } catch {
       console.error("Update failed");
     }
   };
@@ -177,7 +177,7 @@ export default function UserManagementPage() {
         body: JSON.stringify({ id: user.id, isActive: newStatus }),
       });
       if (res.ok) fetchUsers();
-    } catch (err) {
+    } catch {
       console.error("Update failed");
     }
   };
@@ -187,7 +187,7 @@ export default function UserManagementPage() {
     try {
       const res = await fetch(`/api/admin/users?id=${id}`, { method: "DELETE" });
       if (res.ok) fetchUsers();
-    } catch (err) {
+    } catch {
       console.error("Delete failed");
     }
   };
@@ -295,10 +295,6 @@ export default function UserManagementPage() {
                       className={`inline-flex items-center px-4 py-1.5 rounded-xl text-xs font-extrabold transition-all ${
                         user.role === 'ADMIN' 
                           ? 'bg-purple-100 text-purple-700 hover:bg-purple-200' 
-                          : user.role === 'SUBMITTER'
-                          ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-                          : user.role === 'EXPORTER'
-                          ? 'bg-orange-100 text-orange-700 hover:bg-orange-200'
                           : user.role === 'VIEWER'
                           ? 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200'
                           : 'bg-slate-100 text-slate-600 hover:bg-slate-200'

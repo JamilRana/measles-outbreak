@@ -22,7 +22,11 @@ interface TimeseriesPoint {
   hospitalized: number;
 }
 
-export default function EpiInsights() {
+interface EpiInsightsProps {
+  apiEndpoint?: string;
+}
+
+export default function EpiInsights({ apiEndpoint = '/api/reports/timeseries' }: EpiInsightsProps) {
   const { t } = useTranslation();
   const [data, setData] = useState<TimeseriesPoint[]>([]);
   const [loading, setLoading] = useState(true);
@@ -31,7 +35,7 @@ export default function EpiInsights() {
   useEffect(() => {
     const fetchTimeseries = async () => {
       try {
-        const res = await fetch(`/api/reports/timeseries?days=${range}`);
+        const res = await fetch(`${apiEndpoint}?days=${range}`);
         const json = await res.json();
         setData(json);
       } catch (err) {
@@ -41,7 +45,7 @@ export default function EpiInsights() {
       }
     };
     fetchTimeseries();
-  }, [range]);
+  }, [range, apiEndpoint]);
 
   // Compute growth rate
   const growthRateData = useMemo(() => {

@@ -1,8 +1,25 @@
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import { NextAuthOptions } from "next-auth";
+import { DefaultSession } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
+
+declare module "next-auth" {
+  interface Session {
+    user: {
+      id: string;
+      role: string;
+      facilityName: string;
+      facilityCode: string;
+      facilityType: string;
+      division: string;
+      district: string;
+      upazila: string;
+      isActive: boolean;
+    } & DefaultSession["user"];
+  }
+}
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
@@ -28,7 +45,7 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   callbacks: {
-    async jwt({ token, user }: any) {
+    async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
         token.role = user.role;
@@ -42,16 +59,17 @@ export const authOptions: NextAuthOptions = {
       }
       return token;
     },
-    async session({ session, token }: any) {
+    async session({ session, token }) {
       if (token) {
-        session.user.id = token.id;
-        session.user.role = token.role;
-        session.user.facilityName = token.facilityName;
-        session.user.facilityCode = token.facilityCode;
-        session.user.facilityType = token.facilityType;
-        session.user.division = token.division;
-        session.user.district = token.district;
-        session.user.upazila = token.upazila;
+        session.user.id = token.id as string;
+        session.user.role = token.role as string;
+        session.user.facilityName = token.facilityName as string;
+        session.user.facilityCode = token.facilityCode as string;
+        session.user.facilityType = token.facilityType as string;
+        session.user.division = token.division as string;
+        session.user.district = token.district as string;
+        session.user.upazila = token.upazila as string;
+        session.user.isActive = token.isActive as boolean;
       }
       return session;
     },
@@ -88,10 +106,6 @@ async function loginLocalUser(email: string, password: string) {
     throw new Error("Incorrect password");
   }
 
-  if (!user.emailVerified) {
-    throw new Error("Please verify your email first");
-  }
-
   return {
     id: user.id,
     email: user.email,
@@ -123,7 +137,7 @@ async function loginHrmUser(email: string, password: string | null) {
       division: hrmData.division,
       district: hrmData.district,
       upazila: hrmData.upazila,
-      role: "SUBMITTER",
+      role: "USER",
     },
     create: {
       email: hrmData.email,
@@ -134,7 +148,7 @@ async function loginHrmUser(email: string, password: string | null) {
       division: hrmData.division,
       district: hrmData.district,
       upazila: hrmData.upazila,
-      role: "SUBMITTER",
+      role: "USER",
     },
   });
 

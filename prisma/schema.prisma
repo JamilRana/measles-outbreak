@@ -27,7 +27,8 @@ model User {
   isActive        Boolean   @default(true)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
-  reports         Report[]
+  dailyReports    DailyReport[]
+  auditLogs       AuditLog[]
 
   @@index([division])
   @@index([district])
@@ -36,48 +37,50 @@ model User {
 
 enum Role {
   USER
+  MANAGER
   ADMIN
-  SUBMITTER
-  EXPORTER
   VIEWER
 }
 
-model Report {
+model DailyReport {
   id                  String   @id @default(cuid())
   reportingDate       DateTime
-  division            String
-  district            String
-  facilityName        String
   userId              String
   user                User     @relation(fields: [userId], references: [id])
   
-  // Suspected Cases
+  // 24h data only - YTD calculated automatically
   suspected24h        Int      @default(0)
-  suspectedYTD        Int      @default(0)
-  
-  // Confirmed Cases
   confirmed24h        Int      @default(0)
-  confirmedYTD        Int      @default(0)
-  
-  // Mortality
   suspectedDeath24h   Int      @default(0)
-  suspectedDeathYTD   Int      @default(0)
   confirmedDeath24h   Int      @default(0)
-  confirmedDeathYTD   Int      @default(0)
-  
-  // Hospitalization
   admitted24h         Int      @default(0)
-  admittedYTD         Int      @default(0)
   discharged24h       Int      @default(0)
-  dischargedYTD       Int      @default(0)
+  serumSent24h        Int      @default(0)
   
-  // Lab
-  serumSentYTD        Int      @default(0)
+  published           Boolean  @default(false)
   
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
-  @@unique([userId, reportingDate]) // Facility can only submit once per day
+  @@unique([userId, reportingDate])
+  @@index([reportingDate])
+  @@index([userId])
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  action      String
+  entityType  String
+  entityId    String?
+  details     Json?
+  ipAddress   String?
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
+  @@index([entityType])
 }
 
 model EmailRecipient {
@@ -102,4 +105,18 @@ model VerificationToken {
 enum TokenType {
   EMAIL_VERIFICATION
   PASSWORD_RESET
+}
+
+model Settings {
+  id                        String   @id @default(cuid())
+  cutoffHour                Int      @default(14)
+  cutoffMinute              Int      @default(0)
+  editDeadlineHour          Int      @default(10)
+  editDeadlineMinute        Int      @default(0)
+  publishTimeHour           Int      @default(9)
+  publishTimeMinute         Int      @default(0)
+  enablePublicView          Boolean  @default(true)
+  enableEmailNotifications  Boolean  @default(true)
+  createdAt                 DateTime @default(now())
+  updatedAt                DateTime @updatedAt
 }

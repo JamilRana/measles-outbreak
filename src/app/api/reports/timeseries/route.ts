@@ -10,14 +10,13 @@ export async function GET(req: Request) {
     startDate.setDate(startDate.getDate() - days);
     startDate.setHours(0, 0, 0, 0);
 
-    const reports = await prisma.report.findMany({
+    const reports = await prisma.dailyReport.findMany({
       where: {
         reportingDate: { gte: startDate },
       },
       orderBy: { reportingDate: "asc" },
     });
 
-    // Aggregate by date
     const byDate: Record<string, { suspected: number; confirmed: number; deaths: number; hospitalized: number }> = {};
 
     reports.forEach((r) => {

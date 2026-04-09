@@ -15,7 +15,7 @@ export default function Footer() {
           {/* MIS DGHS */}
           <div className="flex flex-col items-center gap-2 group">
             <div className="w-16 h-16 relative bg-white rounded-xl p-1.5 shadow-lg shadow-black/10 group-hover:shadow-xl transition-shadow">
-              <Image src="/mis_logo.png" alt="MIS DGHS Logo" fill className="object-contain p-1" />
+              <Image src="/mis_logo.png" alt="MIS DGHS Logo" fill sizes="64px" className="object-contain p-1" />
             </div>
             <span className="text-xs text-slate-400 font-medium text-center max-w-[140px] leading-tight">
               {t('footer.misDghs')}
@@ -35,7 +35,7 @@ export default function Footer() {
           {/* MOHFW */}
           <div className="flex flex-col items-center gap-2 group">
             <div className="w-16 h-16 relative bg-white rounded-xl p-1.5 shadow-lg shadow-black/10 group-hover:shadow-xl transition-shadow">
-              <Image src="/logo_mohfw.png" alt="MOHFW Logo" fill className="object-contain p-1" />
+              <Image src="/logo_mohfw.png" alt="MOHFW Logo" fill sizes="64px" className="object-contain p-1" />
             </div>
             <span className="text-xs text-slate-400 font-medium text-center max-w-[180px] leading-tight">
               {t('footer.mohfw')}

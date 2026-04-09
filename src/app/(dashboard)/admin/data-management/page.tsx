@@ -32,7 +32,7 @@ export default function DataManagementPage() {
       });
       const data = await res.json();
       if (res.ok) setSuccess(data.message);
-    } catch (err) {
+    } catch {
       console.error("Cleanup failed");
     } finally {
       setLoading(false);
@@ -53,7 +53,7 @@ export default function DataManagementPage() {
         setSuccess(data.message);
         setConfirmAll(false);
       }
-    } catch (err) {
+    } catch {
       console.error("Reset failed");
     } finally {
       setLoading(false);

@@ -4,18 +4,17 @@ import { BD_DISTRICT_COORDS } from "@/lib/bd-districts";
 
 export async function GET() {
   try {
-    const reports = await prisma.report.findMany({
-      select: {
-        district: true,
-        division: true,
-        confirmed24h: true,
-        suspectedDeath24h: true,
-        confirmedDeath24h: true,
-        admitted24h: true,
+    const reports = await prisma.dailyReport.findMany({
+      include: {
+        user: {
+          select: {
+            district: true,
+            division: true,
+          }
+        }
       },
     });
 
-    // Aggregate by district
     const byDistrict: Record<string, {
       district: string;
       division: string;
@@ -25,21 +24,23 @@ export async function GET() {
     }> = {};
 
     reports.forEach((r) => {
-      if (!byDistrict[r.district]) {
-        byDistrict[r.district] = {
-          district: r.district,
-          division: r.division,
+      const district = r.user.district || 'Unknown';
+      const division = r.user.division || 'Unknown';
+      
+      if (!byDistrict[district]) {
+        byDistrict[district] = {
+          district,
+          division,
           confirmed: 0,
           deaths: 0,
           hospitalized: 0,
         };
       }
-      byDistrict[r.district].confirmed += r.confirmed24h;
-      byDistrict[r.district].deaths += r.suspectedDeath24h + r.confirmedDeath24h;
-      byDistrict[r.district].hospitalized += r.admitted24h;
+      byDistrict[district].confirmed += r.confirmed24h;
+      byDistrict[district].deaths += r.suspectedDeath24h + r.confirmedDeath24h;
+      byDistrict[district].hospitalized += r.admitted24h;
     });
 
-    // Attach coordinates
     const geoData = Object.values(byDistrict)
       .filter((d) => BD_DISTRICT_COORDS[d.district])
       .map((d) => ({

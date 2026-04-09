@@ -43,7 +43,7 @@ export default function RecipientsPage() {
       const res = await fetch("/api/recipients");
       const data = await res.json();
       setRecipients(data);
-    } catch (err) {
+    } catch {
       console.error("Failed to fetch recipients");
     } finally {
       setLoading(false);
@@ -88,7 +88,7 @@ export default function RecipientsPage() {
       } else {
         setError("Failed to save recipient");
       }
-    } catch (err) {
+    } catch {
       setError("An unexpected error occurred");
     }
   };
@@ -101,7 +101,7 @@ export default function RecipientsPage() {
       if (res.ok) {
         setRecipients(recipients.filter((r) => r.id !== id));
       }
-    } catch (err) {
+    } catch {
       console.error("Failed to delete recipient");
     }
   };

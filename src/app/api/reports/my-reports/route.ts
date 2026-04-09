@@ -10,7 +10,7 @@ export async function GET(req: Request) {
   }
 
   try {
-    const reports = await prisma.report.findMany({
+    const reports = await prisma.dailyReport.findMany({
       where: {
         userId: session.user.id,
       },

@@ -17,14 +17,23 @@ export async function GET(req: Request) {
     const yesterday = subDays(new Date(), 1);
     const dateStr = format(yesterday, "yyyy-MM-dd");
 
-    const reports = await prisma.report.findMany({
+    const reports = await prisma.dailyReport.findMany({
       where: {
         reportingDate: {
           gte: startOfDay(yesterday),
           lte: endOfDay(yesterday),
         },
       },
-      orderBy: { division: "asc" },
+      include: {
+        user: {
+          select: {
+            facilityName: true,
+            division: true,
+            district: true,
+          }
+        }
+      },
+      orderBy: { reportingDate: 'desc' },
     });
 
     if (reports.length === 0) {
@@ -69,9 +78,9 @@ export async function GET(req: Request) {
 
     // Main table
     const tableData = reports.map((r: any) => [
-      r.division || "-",
-      r.district || "-",
-      r.facilityName || "-",
+      r.user.division || "-",
+      r.user.district || "-",
+      r.user.facilityName || "-",
       r.suspected24h || 0,
       r.confirmed24h || 0,
       (r.suspectedDeath24h || 0) + (r.confirmedDeath24h || 0),
@@ -97,22 +106,16 @@ export async function GET(req: Request) {
 
     // Generate Excel with all fields
     const excelData = reports.map((r: any) => ({
-      Division: r.division,
-      District: r.district,
-      Facility: r.facilityName,
+      Division: r.user.division,
+      District: r.user.district,
+      Facility: r.user.facilityName,
       'Suspected (24h)': r.suspected24h,
       'Confirmed (24h)': r.confirmed24h,
-      'Suspected (YTD)': r.suspectedYTD,
-      'Confirmed (YTD)': r.confirmedYTD,
       'Suspected Deaths (24h)': r.suspectedDeath24h,
       'Confirmed Deaths (24h)': r.confirmedDeath24h,
-      'Suspected Deaths (YTD)': r.suspectedDeathYTD,
-      'Confirmed Deaths (YTD)': r.confirmedDeathYTD,
       'Admitted (24h)': r.admitted24h,
-      'Admitted (YTD)': r.admittedYTD,
       'Discharged (24h)': r.discharged24h,
-      'Discharged (YTD)': r.dischargedYTD,
-      'Serum Sent (YTD)': r.serumSentYTD,
+      'Serum Sent (24h)': r.serumSent24h,
     }));
 
     const ws = XLSX.utils.json_to_sheet(excelData);
