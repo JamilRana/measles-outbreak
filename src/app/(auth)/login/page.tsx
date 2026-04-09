@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { signIn } from "next-auth/react";
+import { useState, useEffect } from "react";
+import { signIn, useSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { TrendingUp, Mail, Lock, AlertCircle, CheckCircle2, ArrowRight, Building2 } from "lucide-react";
@@ -10,11 +10,19 @@ import { motion } from "motion/react";
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { data: session, status } = useSession();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loginType, setLoginType] = useState<"local" | "hrm">("local");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (status === "authenticated") {
+      router.push("/dashboard");
+      router.refresh();
+    }
+  }, [status, router]);
 
   const successMessage = searchParams.get("success") === "EmailVerified" ? "Email verified successfully! You can now log in." : null;
   const urlError = searchParams.get("error");
@@ -36,6 +44,7 @@ export default function LoginPage() {
         setError(res.error);
       } else {
         router.push("/dashboard");
+        router.refresh();
       }
     } catch {
       setError("An unexpected error occurred.");
