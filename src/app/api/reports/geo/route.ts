@@ -6,7 +6,7 @@ export async function GET() {
   try {
     const reports = await prisma.dailyReport.findMany({
       include: {
-        user: {
+        facility: {
           select: {
             district: true,
             division: true,
@@ -24,8 +24,8 @@ export async function GET() {
     }> = {};
 
     reports.forEach((r) => {
-      const district = r.user.district || 'Unknown';
-      const division = r.user.division || 'Unknown';
+      const district = r.facility.district || 'Unknown';
+      const division = r.facility.division || 'Unknown';
       
       if (!byDistrict[district]) {
         byDistrict[district] = {

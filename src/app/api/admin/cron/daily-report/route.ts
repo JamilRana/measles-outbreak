@@ -25,7 +25,7 @@ export async function GET(req: Request) {
         },
       },
       include: {
-        user: {
+        facility: {
           select: {
             facilityName: true,
             division: true,
@@ -45,10 +45,8 @@ export async function GET(req: Request) {
       return NextResponse.json({ message: "No recipients configured." });
     }
 
-    // Generate PDF with comprehensive format
     const doc = new jsPDF();
     
-    // Header
     doc.setFontSize(18);
     doc.setTextColor(79, 70, 229);
     doc.text("Daily Measles Outbreak Monitoring Report", 14, 20);
@@ -59,7 +57,6 @@ export async function GET(req: Request) {
     doc.text(`Generated: ${format(new Date(), "yyyy-MM-dd HH:mm")}`, 14, 34);
     doc.text(`Total Facilities Reported: ${reports.length}`, 14, 40);
 
-    // Summary section
     const totalSuspected = reports.reduce((sum: number, r: any) => sum + (r.suspected24h || 0), 0);
     const totalConfirmed = reports.reduce((sum: number, r: any) => sum + (r.confirmed24h || 0), 0);
     const totalDeaths = reports.reduce((sum: number, r: any) => sum + ((r.suspectedDeath24h || 0) + (r.confirmedDeath24h || 0)), 0);
@@ -76,11 +73,10 @@ export async function GET(req: Request) {
     doc.text(`Total Admitted: ${totalAdmitted}`, 14, 76);
     doc.text(`Total Discharged: ${totalDischarged}`, 14, 82);
 
-    // Main table
     const tableData = reports.map((r: any) => [
-      r.user.division || "-",
-      r.user.district || "-",
-      r.user.facilityName || "-",
+      r.facility.division || "-",
+      r.facility.district || "-",
+      r.facility.facilityName || "-",
       r.suspected24h || 0,
       r.confirmed24h || 0,
       (r.suspectedDeath24h || 0) + (r.confirmedDeath24h || 0),
@@ -104,11 +100,10 @@ export async function GET(req: Request) {
 
     const pdfBuffer = Buffer.from(doc.output('arraybuffer'));
 
-    // Generate Excel with all fields
     const excelData = reports.map((r: any) => ({
-      Division: r.user.division,
-      District: r.user.district,
-      Facility: r.user.facilityName,
+      Division: r.facility.division,
+      District: r.facility.district,
+      Facility: r.facility.facilityName,
       'Suspected (24h)': r.suspected24h,
       'Confirmed (24h)': r.confirmed24h,
       'Suspected Deaths (24h)': r.suspectedDeath24h,
@@ -123,7 +118,6 @@ export async function GET(req: Request) {
     XLSX.utils.book_append_sheet(wb, ws, "Reports");
     const excelBuffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
 
-    // Send Emails
     const emailPromises = recipients.map((recipient: any) =>
       sendEmail(
         recipient.email,

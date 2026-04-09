@@ -10,11 +10,14 @@ declare module "next-auth" {
     user: {
       id: string;
       role: string;
+      facilityId: string;
       facilityName: string;
       facilityCode: string;
       facilityType: string;
       division: string;
       district: string;
+      managedDivisions: string[];
+      managedDistricts: string[];
       upazila: string;
       isActive: boolean;
     } & DefaultSession["user"];
@@ -49,13 +52,13 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.id = user.id;
         token.role = user.role;
-        token.facilityName = user.facilityName;
-        token.facilityCode = user.facilityCode;
-        token.facilityType = user.facilityType;
-        token.division = user.division;
-        token.district = user.district;
-        token.upazila = user.upazila;
-        token.isActive = user.isActive;
+        token.facilityId = (user as any).facilityId;
+        token.isActive = (user as any).isActive;
+        token.division = (user as any).division;
+        token.district = (user as any).district;
+        token.managedDivisions = (user as any).managedDivisions;
+        token.managedDistricts = (user as any).managedDistricts;
+        token.facilityName = (user as any).facilityName;
       }
       return token;
     },
@@ -63,13 +66,13 @@ export const authOptions: NextAuthOptions = {
       if (token) {
         session.user.id = token.id as string;
         session.user.role = token.role as string;
-        session.user.facilityName = token.facilityName as string;
-        session.user.facilityCode = token.facilityCode as string;
-        session.user.facilityType = token.facilityType as string;
+        session.user.facilityId = token.facilityId as string;
+        session.user.isActive = token.isActive as boolean;
         session.user.division = token.division as string;
         session.user.district = token.district as string;
-        session.user.upazila = token.upazila as string;
-        session.user.isActive = token.isActive as boolean;
+        session.user.managedDivisions = token.managedDivisions as string[];
+        session.user.managedDistricts = token.managedDistricts as string[];
+        session.user.facilityName = token.facilityName as string;
       }
       return session;
     },
@@ -81,6 +84,17 @@ export const authOptions: NextAuthOptions = {
     strategy: "jwt",
     maxAge: 30 * 24 * 60 * 60,
   },
+  cookies: {
+    sessionToken: {
+      name: `next-auth.session-token`,
+      options: {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+      },
+    },
+  },
   secret: process.env.NEXTAUTH_SECRET,
 };
 
@@ -91,6 +105,7 @@ async function loginLocalUser(email: string, password: string) {
 
   const user = await prisma.user.findUnique({
     where: { email },
+    include: { facility: true },
   });
 
   if (!user || !user.password) {
@@ -107,18 +122,26 @@ async function loginLocalUser(email: string, password: string) {
     throw new Error("Incorrect password");
   }
 
+  const facility = user.facility;
+  if (!facility) {
+    throw new Error("No facility associated with this account. Please contact administrator.");
+  }
+
   return {
     id: user.id,
     email: user.email,
-    name: user.facilityName,
+    name: user.name ?? facility.facilityName,
     role: user.role,
-    facilityName: user.facilityName,
-    facilityCode: user.facilityCode ?? undefined,
-    facilityType: user.facilityType ?? undefined,
-    division: user.division ?? undefined,
-    district: user.district ?? undefined,
-    upazila: user.upazila ?? undefined,
-    isActive: user.isActive,
+    facilityId: facility.id,
+    facilityName: facility.facilityName,
+    facilityCode: facility.facilityCode,
+    facilityType: facility.facilityType ?? undefined,
+    division: facility.division,
+    district: facility.district,
+    managedDivisions: (user as any).managedDivisions,
+    managedDistricts: (user as any).managedDistricts,
+    upazila: facility.upazila ?? undefined,
+    isActive: facility.isActive,
   };
 }
 
@@ -129,26 +152,34 @@ async function loginHrmUser(email: string, password: string | null) {
     throw new Error("HRM authentication failed");
   }
 
+  let facility = await prisma.facility.findUnique({
+    where: { facilityCode: hrmData.facilityCode },
+  });
+
+  if (!facility) {
+    facility = await prisma.facility.create({
+      data: {
+        facilityCode: hrmData.facilityCode,
+        facilityName: hrmData.facilityName,
+        facilityType: hrmData.facilityType,
+        division: hrmData.division,
+        district: hrmData.district,
+        upazila: hrmData.upazila,
+      },
+    });
+  }
+
   const user = await prisma.user.upsert({
     where: { email: hrmData.email },
     update: {
-      facilityName: hrmData.facilityName,
-      facilityCode: hrmData.facilityCode,
-      facilityType: hrmData.facilityType,
-      division: hrmData.division,
-      district: hrmData.district,
-      upazila: hrmData.upazila,
+      name: hrmData.name,
       role: "USER",
     },
     create: {
       email: hrmData.email,
-      facilityName: hrmData.facilityName,
-      nameNormalized: hrmData.facilityName.toLowerCase().replace(/\s+/g, "_"),
-      facilityCode: hrmData.facilityCode,
-      facilityType: hrmData.facilityType,
-      division: hrmData.division,
-      district: hrmData.district,
-      upazila: hrmData.upazila,
+      name: hrmData.name,
+      nameNormalized: hrmData.email.toLowerCase().replace(/[^a-z0-9]/g, "_"),
+      facilityId: facility.id,
       role: "USER",
     },
   });
@@ -156,14 +187,18 @@ async function loginHrmUser(email: string, password: string | null) {
   return {
     id: user.id,
     email: user.email,
-    name: user.facilityName,
+    name: user.name ?? facility.facilityName,
     role: user.role,
-    facilityName: user.facilityName,
-    facilityCode: user.facilityCode ?? undefined,
-    facilityType: user.facilityType ?? undefined,
-    division: user.division ?? undefined,
-    district: user.district ?? undefined,
-    upazila: user.upazila ?? undefined,
+    facilityId: facility.id,
+    facilityName: facility.facilityName,
+    facilityCode: facility.facilityCode,
+    facilityType: facility.facilityType ?? undefined,
+    division: facility.division,
+    district: facility.district,
+    managedDivisions: (user as any).managedDivisions,
+    managedDistricts: (user as any).managedDistricts,
+    upazila: facility.upazila ?? undefined,
+    isActive: facility.isActive,
   };
 }
 

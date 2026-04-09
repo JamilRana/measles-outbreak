@@ -12,6 +12,11 @@ export async function POST(req: Request) {
   try {
     const formData = await req.formData();
     const file = formData.get("file") as File;
+    const outbreakId = formData.get("outbreakId") as string;
+    
+    if (!outbreakId) {
+      return NextResponse.json({ error: "Outbreak ID is required" }, { status: 400 });
+    }
     
     if (!file) {
       return NextResponse.json({ error: "No file uploaded" }, { status: 400 });
@@ -40,11 +45,12 @@ export async function POST(req: Request) {
 
         const user = await prisma.user.findUnique({
           where: { email: row.email },
+          include: { facility: true },
         });
 
-        if (!user) {
+        if (!user || !user.facilityId) {
           results.failed++;
-          results.errors.push(`Row ${i + 1}: User not found with email ${row.email}`);
+          results.errors.push(`Row ${i + 1}: User or facility not found for email ${row.email}`);
           continue;
         }
 
@@ -56,7 +62,8 @@ export async function POST(req: Request) {
         
         const existing = await prisma.dailyReport.findFirst({
           where: {
-            userId: user.id,
+            facilityId: user.facilityId,
+            outbreakId: outbreakId as any,
             reportingDate: {
               gte: startOfDay,
               lte: endOfDay,
@@ -79,6 +86,7 @@ export async function POST(req: Request) {
         } else {
           await prisma.dailyReport.create({
             data: {
+              facilityId: user.facilityId,
               userId: user.id,
               reportingDate: new Date(row.reportingdate),
               suspected24h: parseInt(row.suspected24h) || 0,
@@ -88,7 +96,8 @@ export async function POST(req: Request) {
               admitted24h: parseInt(row.admitted24h) || 0,
               discharged24h: parseInt(row.discharged24h) || 0,
               serumSent24h: 0,
-            },
+              outbreakId: outbreakId as any,
+            } as any,
           });
         }
         results.success++;

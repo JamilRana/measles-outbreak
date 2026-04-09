@@ -51,10 +51,11 @@ import {
 } from 'recharts';
 import { motion, AnimatePresence } from 'motion/react';
 import * as XLSX from 'xlsx';
-import { DIVISIONS } from '@/lib/constants';
+import { DIVISIONS, DISTRICTS } from '@/lib/constants';
 import OutbreakMap from '@/components/OutbreakMap';
 import EpiInsights from '@/components/EpiInsights';
 import { generateGovtPDF } from '@/lib/pdf-report-generator';
+import OutbreakSelector from '@/components/OutbreakSelector';
 
 interface DailyReport {
   id: string;
@@ -66,11 +67,13 @@ interface DailyReport {
   admitted24h: number;
   discharged24h: number;
   serumSent24h: number;
-  userId: string;
-  user: {
+  facility?: {
     facilityName: string;
     division: string;
     district: string;
+  };
+  outbreak?: {
+    name: string;
   };
 }
 
@@ -88,6 +91,7 @@ export default function DashboardPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
   const [lastSync, setLastSync] = useState<string>('');
+  const [selectedOutbreakId, setSelectedOutbreakId] = useState<string | null>(null);
   const [selectedDivision, setSelectedDivision] = useState<string | null>(null);
   const [selectedDistrict, setSelectedDistrict] = useState<string | null>(null);
   const [userStats, setUserStats] = useState({ totalUsers: 0, activeToday: 0, submissionRate: 0 });
@@ -101,7 +105,7 @@ export default function DashboardPage() {
   useEffect(() => {
     fetchReports();
     fetchUserStats();
-  }, [viewMode, filterDate, dateRange]);
+  }, [viewMode, filterDate, dateRange, selectedDivision, selectedDistrict, selectedOutbreakId]);
 
   const fetchReports = async () => {
     setLoading(true);
@@ -116,7 +120,8 @@ export default function DashboardPage() {
       }
       
       if (selectedDivision) params.set('division', selectedDivision);
-      if (selectedDistrict) params.set('districts', selectedDistrict);
+      if (selectedDistrict) params.set('district', selectedDistrict);
+      if (selectedOutbreakId) params.set('outbreakId', selectedOutbreakId);
 
       const res = await fetch(`/api/reports?${params}`);
       const data = await res.json();
@@ -148,13 +153,13 @@ export default function DashboardPage() {
     }
   };
 
-  const filteredReports = useMemo(() => {
+const filteredReports = useMemo(() => {
     let filtered = [...allReports];
     if (searchTerm) {
       filtered = filtered.filter(r => 
-        r.user.facilityName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        r.user.division.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        r.user.district.toLowerCase().includes(searchTerm.toLowerCase())
+        (r.facility?.facilityName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (r.facility?.division || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (r.facility?.district || '').toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
     return filtered.sort((a, b) => new Date(b.reportingDate).getTime() - new Date(a.reportingDate).getTime());
@@ -232,13 +237,52 @@ export default function DashboardPage() {
       data[div] = { name: div, suspected: 0, confirmed: 0 };
     });
     allReports.forEach(report => {
-      if (data[report.user.division]) {
-        data[report.user.division].suspected += report.suspected24h;
-        data[report.user.division].confirmed += report.confirmed24h;
+      const division = report.facility?.division;
+      if (division && data[division]) {
+        data[division].suspected += report.suspected24h;
+        data[division].confirmed += report.confirmed24h;
       }
     });
     return Object.values(data);
   }, [allReports]);
+
+  const districtData = useMemo(() => {
+    if (!selectedDivision) return [];
+    const districts = DISTRICTS[selectedDivision] || [];
+    const data: Record<string, { name: string; suspected: number; confirmed: number }> = {};
+    districts.forEach(dist => {
+      data[dist] = { name: dist, suspected: 0, confirmed: 0 };
+    });
+    allReports.forEach(report => {
+      const division = report.facility?.division;
+      const district = report.facility?.district;
+      if (division === selectedDivision && district && data[district]) {
+        data[district].suspected += report.suspected24h;
+        data[district].confirmed += report.confirmed24h;
+      }
+    });
+    return Object.values(data);
+  }, [allReports, selectedDivision]);
+
+  const facilityData = useMemo(() => {
+    if (!selectedDivision || !selectedDistrict) return [];
+    const data: Record<string, { name: string; suspected: number; confirmed: number }> = {};
+    allReports.forEach(report => {
+      const division = report.facility?.division;
+      const district = report.facility?.district;
+      const facilityName = report.facility?.facilityName;
+      if (division === selectedDivision && district === selectedDistrict && facilityName) {
+        if (!data[facilityName]) {
+          data[facilityName] = { name: facilityName, suspected: 0, confirmed: 0 };
+        }
+        data[facilityName].suspected += report.suspected24h;
+        data[facilityName].confirmed += report.confirmed24h;
+      }
+    });
+    return Object.values(data).sort((a, b) => b.confirmed - a.confirmed);
+  }, [allReports, selectedDivision, selectedDistrict]);
+
+  const currentChartData = selectedDivision && selectedDistrict ? facilityData : (selectedDivision ? districtData : divisionData);
 
   const handleToggleRow = (id: string) => {
     const newSelected = new Set(selectedRows);
@@ -268,10 +312,10 @@ export default function DashboardPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
           <h1 className="text-3xl font-black text-slate-900 tracking-tight uppercase">
-            Measles Outbreak Dashboard <span className="text-slate-400 font-medium lowercase">/ হাম প্রাদুর্ভাব ড্যাশবোর্ড</span>
+            {allReports[0]?.outbreak?.name || "Outbreak"} Surveillance Dashboard
           </h1>
           <p className="text-slate-500 mt-1 font-medium italic">
-            Real-time surveillance • Vaccine-preventable outbreak monitoring • Bangladesh
+            Real-time monitoring • Multi-disease coordination • Bangladesh
           </p>
         </div>
 
@@ -332,7 +376,7 @@ export default function DashboardPage() {
           <Filter className="w-4 h-4 text-indigo-500" />
           <select 
             value={selectedDivision || ''}
-            onChange={(e) => setSelectedDivision(e.target.value || null)}
+            onChange={(e) => { setSelectedDivision(e.target.value || null); setSelectedDistrict(null); }}
             className="bg-transparent border-none focus:ring-0 text-slate-700 text-xs font-bold cursor-pointer"
           >
             <option value="">All Divisions / সকল বিভাগ</option>
@@ -342,11 +386,33 @@ export default function DashboardPage() {
           </select>
         </div>
 
+        {selectedDivision && DISTRICTS[selectedDivision] && (
+          <div className="flex items-center gap-2 px-4 py-2 bg-slate-50 rounded-xl border border-slate-100">
+            <select 
+              value={selectedDistrict || ''}
+              onChange={(e) => setSelectedDistrict(e.target.value || null)}
+              className="bg-transparent border-none focus:ring-0 text-slate-700 text-xs font-bold cursor-pointer"
+            >
+              <option value="">All Districts / সকল জেলা</option>
+              {DISTRICTS[selectedDivision]?.map(dist => (
+                <option key={dist} value={dist}>{dist}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        <div className="flex items-center gap-2 px-4 py-2 bg-slate-50 rounded-xl border border-slate-100 min-w-[200px]">
+          <Activity className="w-4 h-4 text-indigo-500" />
+          <div className="flex-1">
+            <OutbreakSelector onSelect={(id) => setSelectedOutbreakId(id)} />
+          </div>
+        </div>
+
         <button 
           onClick={fetchReports}
           className="ml-auto bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-md shadow-indigo-200"
         >
-          Filter / ফিল্টার
+          Update View
         </button>
       </div>
 
@@ -446,7 +512,10 @@ export default function DashboardPage() {
           {/* Confirmed cases table */}
           <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden">
             <div className="p-8 border-b border-slate-100 flex items-center justify-between">
-              <h3 className="text-xl font-black text-slate-800 tracking-tight">Confirmed cases by division <span className="text-slate-400 text-sm ml-2 font-medium">/ বিভাগ ভিত্তিক রোগী</span></h3>
+              <h3 className="text-xl font-black text-slate-800 tracking-tight">
+                {selectedDivision && selectedDistrict ? `Confirmed cases by ${selectedDistrict}` : (selectedDivision ? `Confirmed cases by ${selectedDivision} division` : 'Confirmed cases by division')} 
+                <span className="text-slate-400 text-sm ml-2 font-medium">/ {selectedDivision && selectedDistrict ? `${selectedDistrict} স্বাস্থ্য কেন্দ্র` : (selectedDivision ? `${selectedDivision} বিভাগ` : 'বিভাগ ভিত্তিক রোগী')}</span>
+              </h3>
               <div className="flex gap-2">
                  <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-red-500"/> <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">High</span></div>
                  <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-emerald-500"/> <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Low</span></div>
@@ -456,21 +525,21 @@ export default function DashboardPage() {
               <table className="w-full text-left">
                 <thead>
                   <tr className="bg-slate-50/50 text-slate-400 text-[10px] font-black uppercase tracking-widest border-b border-slate-100">
-                    <th className="px-8 py-4">Division</th>
+                    <th className="px-8 py-4">{selectedDivision && selectedDistrict ? 'Facility' : (selectedDivision ? 'District' : 'Division')}</th>
                     <th className="px-6 py-4 text-center">Suspected</th>
                     <th className="px-6 py-4 text-center">Confirmed</th>
                     <th className="px-8 py-4 text-right">Risk</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
-                  {[...divisionData].sort((a,b) => b.confirmed - a.confirmed).map((div) => (
-                    <tr key={div.name} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-8 py-5 font-bold text-slate-700">{div.name}</td>
-                      <td className="px-6 py-5 text-center text-slate-500 font-bold tabular-nums">{div.suspected.toLocaleString()}</td>
-                      <td className="px-6 py-5 text-center text-slate-900 font-extrabold tabular-nums">{div.confirmed.toLocaleString()}</td>
+                  {[...currentChartData].sort((a,b) => b.confirmed - a.confirmed).map((item) => (
+                    <tr key={item.name} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-8 py-5 font-bold text-slate-700">{item.name}</td>
+                      <td className="px-6 py-5 text-center text-slate-500 font-bold tabular-nums">{item.suspected.toLocaleString()}</td>
+                      <td className="px-6 py-5 text-center text-slate-900 font-extrabold tabular-nums">{item.confirmed.toLocaleString()}</td>
                       <td className="px-8 py-5 text-right">
-                        <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${div.confirmed > 200 ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-emerald-50 text-emerald-600 border border-emerald-100'}`}>
-                          {div.confirmed > 200 ? 'High' : 'Low'}
+                        <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${item.confirmed > 200 ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-emerald-50 text-emerald-600 border border-emerald-100'}`}>
+                          {item.confirmed > 200 ? 'High' : 'Low'}
                         </span>
                       </td>
                     </tr>
@@ -480,15 +549,21 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Suspected cases by division horizontal bar chart */}
+          {/* Suspected cases horizontal bar chart */}
           <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm">
-            <h3 className="text-xl font-black text-slate-800 tracking-tight mb-8">Suspected cases by division <span className="text-slate-400 text-sm ml-2 font-medium">/ প্রাক্কলিত তথ্যাদি</span></h3>
+            <h3 className="text-xl font-black text-slate-800 tracking-tight mb-8">
+              {selectedDivision && selectedDistrict ? `Suspected cases by ${selectedDistrict}` : (selectedDivision ? `Suspected cases by ${selectedDivision} district` : 'Suspected cases by division')} 
+              <span className="text-slate-400 text-sm ml-2 font-medium">/ {selectedDivision && selectedDistrict ? `${selectedDistrict} স্বাস্থ্য কেন্দ্র` : (selectedDivision ? `${selectedDivision} জেলা ভিত্তিক` : 'প্রাক্কলিত তথ্যাদি')}</span>
+            </h3>
             <div className="h-[400px] w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={divisionData} layout="vertical" margin={{ left: 20 }}>
+                <BarChart data={currentChartData} layout="vertical" margin={{ left: 20 }}>
                   <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
                   <XAxis type="number" hide />
                   <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 11, fontWeight: 'bold'}} />
+                    <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }} />
+                  <XAxis type="number" hide />
+                  <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 11, fontWeight: 'bold'}} interval={0} />
                   <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }} />
                   <Bar dataKey="suspected" fill="#FFC38B" radius={[0, 4, 4, 0]} barSize={20} />
                   <Bar dataKey="confirmed" fill="#EF4444" radius={[0, 4, 4, 0]} barSize={20} />
@@ -636,11 +711,11 @@ export default function DashboardPage() {
                       <input type="checkbox" checked={selectedRows.has(report.id)} onChange={() => handleToggleRow(report.id)} className="w-5 h-5 rounded-lg border-slate-300 text-blue-600 focus:ring-blue-500/20 cursor-pointer shadow-sm"/>
                     </td>
                     <td className="px-6 py-5">
-                      <div className="font-bold text-slate-800">{report.user.division}</div>
-                      <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{report.user.district}</div>
+                      <div className="font-bold text-slate-800">{report.facility?.division}</div>
+                      <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{report.facility?.district}</div>
                     </td>
                     <td className="px-6 py-5">
-                      <div className="text-sm font-bold text-slate-900">{report.user.facilityName}</div>
+                      <div className="text-sm font-bold text-slate-900">{report.facility?.facilityName}</div>
                       <p className="text-[10px] font-medium text-slate-400">ID: {report.id.substring(0, 8)}</p>
                     </td>
                     <td className="px-6 py-5 text-center"><span className="px-3 py-1 bg-amber-50 text-amber-700 rounded-lg font-black text-xs border border-amber-100/50">{report.suspected24h}</span></td>
@@ -678,7 +753,7 @@ export default function DashboardPage() {
                <div className="px-10 py-8 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
                  <div>
                    <h2 className="text-2xl font-black text-slate-800 tracking-tight">{t('dashboard.editEntry')}</h2>
-                   <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">{editingReport?.user?.facilityName}</p>
+                   <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">{editingReport?.facility?.facilityName}</p>
                  </div>
                  <button onClick={() => setEditingReport(null)} className="w-12 h-12 bg-white hover:bg-slate-100 rounded-2xl flex items-center justify-center shadow-sm border border-slate-100 transition-all"><X className="w-6 h-6 text-slate-400" /></button>
                </div>

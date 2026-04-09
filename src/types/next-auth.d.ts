@@ -6,11 +6,15 @@ declare module "next-auth" {
       id: string;
       role: string;
       facilityName: string;
+      facilityId: string;
       facilityCode?: string;
       facilityType?: string;
       division?: string;
       district?: string;
       upazila?: string;
+      managedDivisions?: string[];
+      managedDistricts?: string[];
+      isActive?: boolean;
     } & DefaultSession["user"];
   }
 
@@ -18,11 +22,14 @@ declare module "next-auth" {
     id: string;
     role: string;
     facilityName: string;
+    facilityId: string;
     facilityCode?: string;
     facilityType?: string;
     division?: string;
     district?: string;
     upazila?: string;
+    managedDivisions?: string[];
+    managedDistricts?: string[];
     isActive?: boolean;
   }
 }
@@ -32,11 +39,14 @@ declare module "next-auth/jwt" {
     id: string;
     role: string;
     facilityName: string;
+    facilityId: string;
     facilityCode?: string;
     facilityType?: string;
     division?: string;
     district?: string;
     upazila?: string;
+    managedDivisions?: string[];
+    managedDistricts?: string[];
     isActive?: boolean;
   }
 }

@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useSession, signOut } from "next-auth/react";
 import { LogOut, LayoutDashboard, ClipboardList, Settings, Globe, FileText, ActivitySquare, Zap, BarChart3 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { hasPermission } from "@/lib/rbac";
 
 export default function Navbar() {
   const { data: session } = useSession();
@@ -15,7 +16,9 @@ export default function Navbar() {
     i18n.changeLanguage(newLang);
   };
 
-  const isAdminOrManager = session?.user?.role === "ADMIN" || session?.user?.role === "MANAGER";
+  const canViewAdmin = hasPermission(session?.user?.role || "", 'user:manage');
+  const canViewReports = hasPermission(session?.user?.role || "", 'report:read:own');
+  const canSubmit = hasPermission(session?.user?.role || "", 'report:create');
 
   return (
     <nav className="bg-[#1E3A5F] text-white shadow-lg relative z-50 border-b border-white/5">
@@ -42,9 +45,13 @@ export default function Navbar() {
               <>
                 <div className="flex gap-1">
                   <NavLink href="/dashboard" icon={<LayoutDashboard className="w-4 h-4" />} label={t('nav.dashboard')} />
-                  <NavLink href="/report" icon={<Zap className="w-4 h-4" />} label={t('nav.report')} />
-                  <NavLink href="/my-reports" icon={<FileText className="w-4 h-4" />} label={t('nav.myReports')} />
-                  {isAdminOrManager && (
+                  {canSubmit && (
+                    <NavLink href="/report" icon={<Zap className="w-4 h-4" />} label={t('nav.report')} />
+                  )}
+                  {canViewReports && (
+                    <NavLink href="/my-reports" icon={<FileText className="w-4 h-4" />} label={t('nav.myReports')} />
+                  )}
+                  {canViewAdmin && (
                     <NavLink href="/admin" icon={<Settings className="w-4 h-4" />} label={t('nav.admin')} />
                   )}
                 </div>

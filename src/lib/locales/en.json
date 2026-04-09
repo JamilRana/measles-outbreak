@@ -1,7 +1,10 @@
 {
   "app": {
     "title": "Measles Outbreak Monitoring Platform",
-    "shortTitle": "Measles Monitor"
+    "shortTitle": "Measles Monitor",
+    "language": "Language",
+    "english": "English",
+    "bengali": "Bengali"
   },
   "dailyReport": {
     "title": "Daily Report",
@@ -199,7 +202,8 @@
     "selectOption": "Select an option",
     "pdf": "PDF",
     "excel": "Excel",
-    "comingSoon": "Coming Soon"
+    "comingSoon": "Coming Soon",
+    "expired": "Expired"
   },
   "validation": {
     "suspectedYTDError": "Suspected YTD cannot be less than 24h count.",
@@ -208,5 +212,32 @@
     "confirmedDeathYTDError": "Confirmed Deaths YTD cannot be less than 24h count.",
     "correctErrors": "Please correct the following errors:",
     "unexpectedError": "An unexpected error occurred."
+  },
+  "publicSubmit": {
+    "navbarTitle": "Measles Daily Report",
+    "navbarSubtitle": "Bangladesh Surveillance System",
+    "banner": {
+      "archived": "Report Archived (Read-Only)",
+      "editing": "Editing Existing Report",
+      "editWindow": "Edit Window Open",
+      "deadlineApproaching": "Deadline Approaching!",
+      "deadlineToday": "Submission Deadline Today",
+      "submissionOpen": "Submission Open",
+      "archivedMsg": "The edit deadline has passed. This report is now archived and cannot be modified.",
+      "editingMsg": "You're editing today's report. Changes will be saved automatically.",
+      "closedMsg": "Submission closed at {{cutoff}}. You can still edit until {{deadline}} tomorrow.",
+      "openMsg": "Submit your daily report by {{cutoff}} (Bangladesh Time)"
+    },
+    "editDeadline": "Edit deadline: {{time}} tomorrow",
+    "selectLocation": "Select Location",
+    "existingReportFound": "Existing Report Found",
+    "newReport": "New Report",
+    "lastUpdated": "Last updated:",
+    "archivedCannotModify": "Report is archived - cannot be modified",
+    "reviewAndSubmit": "Review & Submit Report",
+    "updateReport": "Update Report",
+    "confirmUpdate": "Confirm Update",
+    "confirmSubmission": "Confirm Submission"
   }
 }
+

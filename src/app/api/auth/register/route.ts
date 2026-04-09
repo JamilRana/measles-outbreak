@@ -1,33 +1,17 @@
 import { NextResponse } from "next/server";
-import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
-import { normalizeFacilityName } from "@/lib/utils";
-import { sendVerificationEmail } from "@/lib/mail";
+import bcrypt from "bcryptjs";
 import crypto from "crypto";
 
 export async function POST(req: Request) {
   try {
-    const { facilityName, email, phone, password, division, district } = await req.json();
+    const { email, password, facilityName, phone, division, district, name } = await req.json();
 
-    if (!facilityName || !email || !password || !division || !district) {
+    if (!email || !password || !facilityName) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    const normalized = normalizeFacilityName(facilityName);
-
-    // Check if facility already exists
-    const existingFacility = await prisma.user.findUnique({
-      where: { nameNormalized: normalized },
-    });
-
-    if (existingFacility) {
-      return NextResponse.json({ error: "A facility with this name already exists" }, { status: 400 });
-    }
-
-    // Check if email already exists
-    const existingEmail = await prisma.user.findUnique({
-      where: { email },
-    });
+    const existingEmail = await prisma.user.findUnique({ where: { email } });
 
     if (existingEmail) {
       return NextResponse.json({ error: "Email already registered" }, { status: 400 });
@@ -35,21 +19,37 @@ export async function POST(req: Request) {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    let facility = await prisma.facility.findUnique({
+      where: { facilityCode: facilityName.toUpperCase().replace(/[^A-Z0-9]/g, "_").substring(0, 10) }
+    });
+
+    if (!facility) {
+      facility = await prisma.facility.create({
+        data: {
+          facilityCode: facilityName.toUpperCase().replace(/[^A-Z0-9]/g, "_").substring(0, 10),
+          facilityName,
+          division: division || "Unknown",
+          district: district || "Unknown",
+        }
+      });
+    }
+
+    const normalized = (name || facilityName).toLowerCase().replace(/[^a-z0-9]/g, "_");
+
     const user = await prisma.user.create({
       data: {
-        facilityName,
-        nameNormalized: normalized,
         email,
-        phone,
         password: hashedPassword,
-        division,
-        district,
+        name: name || facilityName,
+        nameNormalized: normalized,
+        facilityId: facility.id,
+        phone,
+        role: "USER",
       },
     });
 
-    // Create verification token
     const token = crypto.randomBytes(32).toString("hex");
-    const expires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+    const expires = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
     await prisma.verificationToken.create({
       data: {
@@ -60,11 +60,9 @@ export async function POST(req: Request) {
       },
     });
 
-    await sendVerificationEmail(user.email, token);
-
-    return NextResponse.json({ message: "Registration successful. Please check your email for verification link." }, { status: 201 });
-  } catch (error: any) {
+    return NextResponse.json({ message: "Registration successful. Please verify your email." });
+  } catch (error) {
     console.error("Registration error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json({ error: "Registration failed" }, { status: 500 });
   }
 }
