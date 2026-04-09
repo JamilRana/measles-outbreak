@@ -81,17 +81,6 @@ export const authOptions: NextAuthOptions = {
     strategy: "jwt",
     maxAge: 30 * 24 * 60 * 60,
   },
-  cookies: {
-    sessionToken: {
-      name: `next-auth.session-token`,
-      options: {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        path: "/",
-      },
-    },
-  },
   secret: process.env.NEXTAUTH_SECRET,
 };
 
@@ -180,7 +169,8 @@ async function loginHrmUser(email: string, password: string | null) {
 
 async function verifyHrmUser(email: string, password: string | null) {
   try {
-    const res = await fetch(`${process.env.NEXTAUTH_URL}/api/auth/hrm/`, {
+    const baseUrl = process.env.NEXTAUTH_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
+    const res = await fetch(`${baseUrl}/api/auth/hrm/`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username: email, password: password ?? "" }),
