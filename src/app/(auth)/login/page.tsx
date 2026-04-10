@@ -19,10 +19,9 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (status === "authenticated") {
-      router.push("/dashboard");
-      router.refresh();
+      window.location.href = "/dashboard";
     }
-  }, [status, router]);
+  }, [status]);
 
   const successMessage = searchParams.get("success") === "EmailVerified" ? "Email verified successfully! You can now log in." : null;
   const urlError = searchParams.get("error");
@@ -44,8 +43,8 @@ export default function LoginPage() {
       if (res?.error) {
         setError(res.error);
       } else {
-        router.push("/dashboard");
-        router.refresh();
+        // Force a hard redirect to ensure cookies are cleared/set and middleware picks them up correctly
+        window.location.href = "/dashboard";
       }
     } catch {
       setError("An unexpected error occurred.");

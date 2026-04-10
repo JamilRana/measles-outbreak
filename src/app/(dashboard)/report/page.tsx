@@ -1,158 +1,157 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useSession } from 'next-auth/react';
 import { useTranslation } from 'react-i18next';
-import { 
-  Clock, 
-  Calendar,
-  Zap
-} from 'lucide-react';
-import { getBdDateString, getBdEndOfDay } from '@/lib/timezone';
-import OutbreakSelector from '@/components/OutbreakSelector';
+import { getBdDateString, getBdTime } from '@/lib/timezone';
 import UnifiedReportForm from '@/components/UnifiedReportForm';
+import DeadlineCard from '@/components/reporting/DeadlineCard';
+import LocationSelector from '@/components/reporting/LocationSelector';
+import SimpleHeader from '@/components/SimpleHeader';
+import Footer from '@/components/Footer';
+import OutbreakSelector from '@/components/OutbreakSelector';
+import { ShieldAlert, ArrowLeft } from 'lucide-react';
+import { hasPermission } from '@/lib/rbac';
 
-export default function DailyReportPage() {
+export default function AuthenticatedReportPage() {
   const { data: session } = useSession();
-  const { t } = useTranslation();
-  
-  const [selectedOutbreakId, setSelectedOutbreakId] = useState("");
-  const [currentTime, setCurrentTime] = useState<string>('--:--:--');
-  const [currentDate, setCurrentDate] = useState<string>('Loading...');
-  const [ytdData, setYtdData] = useState<any>(null);
+  const [selectedOutbreakId, setSelectedOutbreakId] = useState('');
+  const [selectedDate, setSelectedDate] = useState(getBdDateString());
+  const [selectedFacilityId, setSelectedFacilityId] = useState('');
+  const [settings, setSettings] = useState<any>(null);
+  const [currentTime, setCurrentTime] = useState<Date>(getBdTime());
+  const [mounted, setMounted] = useState(false);
+
+  const canSubmit = hasPermission(session?.user?.role || "", 'report:create');
+
+  useEffect(() => { setMounted(true); }, []);
 
   useEffect(() => {
-    const updateTime = () => {
-      const bdTime = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Dhaka" }));
-      setCurrentTime(bdTime.toLocaleTimeString('en-US', { hour12: true, hour: 'numeric', minute: '2-digit', second: '2-digit' }));
-      setCurrentDate(bdTime.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }));
-    };
-    
-    updateTime();
-    const timer = setInterval(updateTime, 1000);
+    const timer = setInterval(() => setCurrentTime(getBdTime()), 1000);
     return () => clearInterval(timer);
   }, []);
 
   useEffect(() => {
-    if (session?.user?.facilityId && selectedOutbreakId) {
-      fetchYtdData();
+    if (session?.user?.facilityId) {
+      setSelectedFacilityId(session.user.facilityId);
     }
-  }, [session?.user?.facilityId, selectedOutbreakId]);
+  }, [session]);
 
-  const fetchYtdData = async () => {
-    if (!session?.user?.facilityId || !selectedOutbreakId) return;
-    try {
-      const startOfYear = new Date(new Date().getFullYear(), 0, 1);
-      startOfYear.setHours(0, 0, 0, 0);
-      const today = getBdEndOfDay();
-      
-      const res = await fetch(`/api/reports?facilityId=${session.user.facilityId}&outbreakId=${selectedOutbreakId}&from=${startOfYear.toISOString()}&to=${today.toISOString()}`);
-      const data = await res.json();
-      
-      if (data.length > 0) {
-        const ytd = data.reduce((acc: any, report: any) => ({
-          suspected: acc.suspected + (report.suspected24h || 0),
-          confirmed: acc.confirmed + (report.confirmed24h || 0),
-          suspectedDeath: acc.suspectedDeath + (report.suspectedDeath24h || 0),
-          confirmedDeath: acc.confirmedDeath + (report.confirmedDeath24h || 0),
-        }), { suspected: 0, confirmed: 0, suspectedDeath: 0, confirmedDeath: 0 });
-        
-        setYtdData(ytd);
-      } else {
-        setYtdData({ suspected: 0, confirmed: 0, suspectedDeath: 0, confirmedDeath: 0 });
-      }
-    } catch (e) {
-      console.error('Failed to fetch YTD data');
-    }
+  useEffect(() => {
+    const fetchConfig = async () => {
+      if (!selectedOutbreakId) return;
+      try {
+        const url = `/api/config?outbreakId=${selectedOutbreakId}`;
+        const res = await fetch(url);
+        if (res.ok) {
+           const d = await res.json();
+           setSettings(d);
+        }
+      } catch (err) { console.error("Failed to fetch config:", err); }
+    };
+    fetchConfig();
+  }, [selectedOutbreakId]);
+
+  const deadlineInfo = useMemo(() => {
+    if (!settings) return null;
+    const now = currentTime;
+    const cutoff = new Date(now);
+    cutoff.setHours(settings.cutoffHour, settings.cutoffMinute, 0, 0);
+    const editDeadline = new Date(now);
+    editDeadline.setHours(settings.editDeadlineHour, settings.editDeadlineMinute, 0, 0);
+    
+    return {
+      isPastCutoff: now > cutoff,
+      isPastEditDeadline: now > editDeadline,
+      isToday: selectedDate === getBdDateString()
+    };
+  }, [settings, currentTime, selectedDate]);
+
+  const handleLocationSelect = (facilityId: string) => {
+    setSelectedFacilityId(facilityId);
   };
 
-  return (
-    <div className="max-w-4xl mx-auto px-4 py-8 lg:py-12">
-      {/* Header Section */}
-      <div className="flex flex-col md:flex-row justify-between items-start gap-6 mb-10">
-        <div className="flex-1">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="bg-indigo-600 p-2 rounded-lg">
-              <Zap className="w-5 h-5 text-white" />
-            </div>
-            <h1 className="text-3xl font-black text-slate-900 tracking-tight">Daily Reporting</h1>
-          </div>
-          <p className="text-slate-500 font-medium">
-            Submitting data for <span className="text-indigo-600 font-bold">{session?.user.facilityName}</span>
-          </p>
-        </div>
+  if (!mounted) return null;
 
-        <div className="flex items-center gap-4">
-          <div className="hidden sm:flex flex-col items-end bg-white dark:bg-slate-800 px-6 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
-            <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1 flex items-center">
-              <Clock className="w-3.5 h-3.5 mr-1.5 text-indigo-500"/>BD TIME
-            </span>
-            <span className="text-xl font-black text-slate-800 dark:text-white tabular-nums">{currentTime}</span>
-            <span className="text-xs font-bold text-slate-500 mt-0.5">{currentDate}</span>
-          </div>
+  if (session && !canSubmit) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
+        <div className="bg-white p-12 rounded-[3rem] shadow-xl max-w-md text-center border border-slate-100 relative overflow-hidden">
+           <div className="absolute top-0 right-0 p-10 opacity-[0.03] -rotate-12">
+              <ShieldAlert className="w-48 h-48" />
+           </div>
+           <div className="w-20 h-20 bg-rose-50 text-rose-500 rounded-3xl flex items-center justify-center mx-auto mb-8 relative z-10">
+              <ShieldAlert className="w-10 h-10" />
+           </div>
+           <h1 className="text-3xl font-black text-slate-800 mb-3 tracking-tight">Access Restricted</h1>
+           <p className="text-slate-500 font-medium mb-10 leading-relaxed">
+              Your account has <b>Viewer-only</b> privileges. You do not have permission to submit or modify surveillance records.
+           </p>
+           <button 
+             onClick={() => window.location.href = '/dashboard'} 
+             className="bg-slate-900 hover:bg-black text-white px-10 py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-slate-200 transition-all flex items-center justify-center gap-3 w-full"
+           >
+              <ArrowLeft className="w-4 h-4" />
+              Return to Dashboard
+           </button>
         </div>
       </div>
+    );
+  }
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Left Column: Selector & YTD */}
-        <div className="lg:col-span-1 space-y-6">
-          <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm">
-            <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-3">
-              Outbreak Context
-            </label>
-            <OutbreakSelector onSelect={(id) => setSelectedOutbreakId(id)} />
-            <p className="text-[11px] text-slate-400 mt-3 leading-relaxed">
-              * Switch outbreak to report for different disease events.
-            </p>
+  return (
+    <div className="min-h-screen bg-slate-50/30 flex flex-col">
+      <main className="flex-1 max-w-4xl mx-auto w-full px-4 pb-20 pt-10">
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="bg-white border border-slate-100 rounded-xl p-4 shadow-sm">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 block">1. Outbreak Context</label>
+              <OutbreakSelector onSelect={setSelectedOutbreakId} defaultValue={selectedOutbreakId} />
+            </div>
+            {!session?.user?.facilityId && (
+              <div className="bg-white border border-slate-100 rounded-xl p-4 shadow-sm">
+                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 block">2. Reporting Location</label>
+                 <LocationSelector onSelect={handleLocationSelect} />
+              </div>
+            )}
           </div>
+          
+          {selectedFacilityId ? (
+            <div className="space-y-6">
+              {settings && deadlineInfo && (
+                <DeadlineCard 
+                  cutoffHour={settings.cutoffHour}
+                  cutoffMinute={settings.cutoffMinute}
+                  editDeadlineHour={settings.editDeadlineHour}
+                  editDeadlineMinute={settings.editDeadlineMinute}
+                  mode="CREATE"
+                  isPastEditDeadline={deadlineInfo.isPastEditDeadline}
+                  isPastCutoff={deadlineInfo.isPastCutoff}
+                  isToday={deadlineInfo.isToday}
+                  allowBacklog={settings.outbreakBacklog?.allowBacklogReporting}
+                  backlogStartDate={settings.outbreakBacklog?.backlogStartDate}
+                  backlogEndDate={settings.outbreakBacklog?.backlogEndDate}
+                  selectedDate={selectedDate}
+                />
+              )}
 
-          {ytdData && (
-            <div className="bg-slate-900 rounded-3xl p-6 text-white shadow-xl shadow-slate-900/20">
-              <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-6 flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-indigo-400" />
-                YTD Summary (2026)
-              </h3>
-              <div className="space-y-4">
-                <YtdItem label="Suspected" value={ytdData.suspected} color="bg-indigo-500" />
-                <YtdItem label="Confirmed" value={ytdData.confirmed} color="bg-emerald-500" />
-                <YtdItem label="Suspected Deaths" value={ytdData.suspectedDeath} color="bg-rose-500" />
-                <YtdItem label="Confirmed Deaths" value={ytdData.confirmedDeath} color="bg-slate-500" />
+              <div className="bg-white border border-slate-100 rounded-xl p-4 md:p-8 shadow-sm">
+                 <UnifiedReportForm 
+                   outbreakId={selectedOutbreakId}
+                   facilityId={selectedFacilityId}
+                   onDateChange={setSelectedDate}
+                   onSuccess={() => {}}
+                 />
               </div>
             </div>
-          )}
-        </div>
-
-        {/* Right Column: Dynamic Form */}
-        <div className="lg:col-span-2">
-          {selectedOutbreakId ? (
-            <UnifiedReportForm 
-              outbreakId={selectedOutbreakId} 
-              facilityId={session?.user?.facilityId}
-              onSuccess={() => fetchYtdData()}
-            />
           ) : (
-            <div className="h-full min-h-[400px] flex flex-col items-center justify-center bg-slate-50 border-2 border-dashed border-slate-200 rounded-3xl p-10 text-center">
-              <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
-                <Zap className="w-8 h-8 text-slate-300" />
-              </div>
-              <h3 className="text-xl font-bold text-slate-700 mb-2">Select Outbreak</h3>
-              <p className="text-slate-500 max-w-xs">Please select an outbreak context from the sidebar to continue with reporting.</p>
+            <div className="bg-white border border-slate-100 border-dashed rounded-2xl p-12 text-center opacity-60">
+               <p className="text-slate-500 font-medium whitespace-pre-wrap">Please select a facility above to continue.{"\n"}If you are an authorized facility user, this should load automatically.</p>
             </div>
           )}
         </div>
-      </div>
-    </div>
-  );
-}
-
-function YtdItem({ label, value, color }: { label: string; value: number; color: string }) {
-  return (
-    <div className="flex items-center justify-between group">
-      <div className="flex items-center gap-3">
-        <div className={`w-1 h-4 rounded-full ${color}`}></div>
-        <span className="text-sm font-semibold text-slate-300">{label}</span>
-      </div>
-      <span className="text-xl font-black tabular-nums">{value.toLocaleString()}</span>
+      </main>
+      <Footer />
     </div>
   );
 }

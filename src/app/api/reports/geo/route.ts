@@ -2,9 +2,36 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { BD_DISTRICT_COORDS } from "@/lib/bd-districts";
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
+    const { searchParams } = new URL(req.url);
+    const date = searchParams.get("date");
+    const outbreakId = searchParams.get("outbreakId");
+    const personDivision = searchParams.get("division");
+    const personDistrict = searchParams.get("district");
+    const from = searchParams.get("from");
+    const to = searchParams.get("to");
+
+    const where: any = {};
+    if (outbreakId) where.outbreakId = outbreakId;
+    if (personDivision) where.facility = { ...where.facility, division: personDivision };
+    if (personDistrict) where.facility = { ...where.facility, district: personDistrict };
+
+    if (date) {
+      const d = new Date(date);
+      where.reportingDate = {
+        gte: new Date(d.setHours(0, 0, 0, 0)),
+        lte: new Date(d.setHours(23, 59, 59, 999)),
+      };
+    } else if (from && to) {
+      where.reportingDate = {
+        gte: new Date(from),
+        lte: new Date(new Date(to).setHours(23, 59, 59, 999)),
+      };
+    }
+
     const reports = await prisma.dailyReport.findMany({
+      where,
       include: {
         facility: {
           select: {

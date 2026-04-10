@@ -26,6 +26,8 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { DIVISIONS, DISTRICTS_BY_DIVISION } from '@/lib/constants';
 import { format } from 'date-fns';
+import UnifiedReportForm from '@/components/UnifiedReportForm';
+import OutbreakSelector from '@/components/OutbreakSelector';
 
 interface Report {
   id: string;
@@ -47,6 +49,7 @@ interface Report {
   serumSentYTD: number;
   published: boolean;
   updatedAt?: string;
+  fieldValues?: any[];
 }
 
 const CustomMultiSelect = ({ 
@@ -144,6 +147,14 @@ export default function AdminReportsPage() {
   const [loading, setLoading] = useState(true);
   const [editingReport, setEditingReport] = useState<Report | null>(null);
   const [deletingReport, setDeletingReport] = useState<Report | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
+  
+  // New Report Creation State
+  const [selectedOutbreakId, setSelectedOutbreakId] = useState("");
+  const [creationDivision, setCreationDivision] = useState("");
+  const [creationDistrict, setCreationDistrict] = useState("");
+  const [creationFacilities, setCreationFacilities] = useState<any[]>([]);
+  const [selectedFacilityId, setSelectedFacilityId] = useState("");
   
   // Filters
   const [dateMode, setDateMode] = useState<'single' | 'range'>('single');
@@ -154,9 +165,30 @@ export default function AdminReportsPage() {
   const [selectedDistricts, setSelectedDistricts] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Handle URL ID for direct preview
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get('id');
+    if (id && reports.length > 0) {
+      const report = reports.find(r => r.id === id);
+      if (report) setEditingReport(report);
+    }
+  }, [reports]);
+
   useEffect(() => {
     fetchReports();
   }, [singleDate, startDate, endDate, dateMode, selectedDivisions, selectedDistricts]);
+
+  useEffect(() => {
+    if (creationDivision && creationDistrict) {
+      fetch(`/api/facilities?division=${encodeURIComponent(creationDivision)}&district=${encodeURIComponent(creationDistrict)}`)
+        .then(r => r.json())
+        .then(d => setCreationFacilities(d))
+        .catch(() => setCreationFacilities([]));
+    } else {
+      setCreationFacilities([]);
+    }
+  }, [creationDivision, creationDistrict]);
 
   const fetchReports = async () => {
     setLoading(true);
@@ -230,6 +262,7 @@ export default function AdminReportsPage() {
       });
       if (res.ok) {
         setReports(reports.map(r => r.id === report.id ? { ...r, published: !r.published } : r));
+        setEditingReport(prev => prev ? { ...prev, published: !prev.published } : null);
       }
     } catch {
       console.error("Publish toggle failed");
@@ -271,7 +304,7 @@ export default function AdminReportsPage() {
 
   const handleEditChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setEditingReport((prev: any) => ({ ...prev, [name]: Number(value) }));
+    setEditingReport((prev: any) => ({ ...prev, [name]: Number(value) || 0 }));
   };
 
   const resetFilters = () => {
@@ -319,6 +352,13 @@ export default function AdminReportsPage() {
             Export PDF
           </button>
           <div className="w-px h-10 bg-slate-200 mx-1 hidden sm:block"></div>
+          <button
+            onClick={() => setIsCreating(true)}
+            className="flex items-center gap-2 px-6 py-3 bg-slate-900 text-white rounded-2xl font-bold text-sm shadow-lg shadow-slate-900/20 hover:bg-slate-800 transition-all active:scale-95 border border-slate-700"
+          >
+            <Activity className="w-4 h-4 text-indigo-400" />
+            Input New Report
+          </button>
           <button
             onClick={handlePublishAll}
             className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-2xl font-bold text-sm shadow-lg shadow-indigo-600/20 hover:bg-indigo-700 transition-all active:scale-95"
@@ -597,6 +637,7 @@ export default function AdminReportsPage() {
                               </button>
                               <div className="w-px h-4 bg-slate-200 mx-1"></div>
                               <button 
+                                onClick={() => setEditingReport(report)}
                                 className="p-2.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-all"
                                 title="View Details"
                               >
@@ -629,7 +670,7 @@ export default function AdminReportsPage() {
         </div>
       </div>
 
-      {/* Edit Modal */}
+      {/* Report Modal (Edit & Preview) */}
       <AnimatePresence mode="wait">
         {editingReport && (
           <motion.div 
@@ -643,7 +684,7 @@ export default function AdminReportsPage() {
               initial={{ scale: 0.95, y: 20 }} 
               animate={{ scale: 1, y: 0 }} 
               exit={{ scale: 0.95, y: 20 }}
-              className="bg-white rounded-[2.5rem] p-10 max-w-xl w-full shadow-2xl border border-white/20 relative overflow-hidden"
+              className="bg-white rounded-[2.5rem] p-10 max-w-2xl w-full shadow-2xl border border-white/20 relative overflow-hidden flex flex-col max-h-[90vh]"
               onClick={e => e.stopPropagation()}
             >
               <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-indigo-500 via-purple-500 to-rose-500"></div>
@@ -651,55 +692,202 @@ export default function AdminReportsPage() {
               <div className="flex items-center justify-between mb-8">
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600">
-                    <Edit2 className="w-6 h-6" />
+                    <Activity className="w-6 h-6" />
                   </div>
                   <div>
-                    <h3 className="text-2xl font-black text-slate-900 tracking-tight">Edit Record</h3>
+                    <h3 className="text-2xl font-black text-slate-900 tracking-tight">Report Preview</h3>
                     <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">{editingReport.facilityName}</p>
                   </div>
                 </div>
                 <button onClick={() => setEditingReport(null)} className="w-10 h-10 flex items-center justify-center bg-slate-100 hover:bg-slate-200 rounded-full transition-colors"><X className="w-5 h-5 text-slate-600" /></button>
               </div>
-              
-              <div className="grid grid-cols-2 gap-3 mb-8">
-                <div className="px-4 py-3 bg-slate-50 rounded-2xl border border-slate-100 flex flex-col">
-                  <span className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1">Division</span>
-                  <span className="text-sm font-bold text-slate-700">{editingReport.division}</span>
+
+              <div className="overflow-y-auto pr-2 custom-scrollbar space-y-8">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="px-4 py-3 bg-slate-50 rounded-2xl border border-slate-100 flex flex-col">
+                    <span className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1">Reporting Date</span>
+                    <span className="text-sm font-bold text-indigo-600">{format(new Date(editingReport.reportingDate), 'EEEE, MMMM do, yyyy')}</span>
+                  </div>
+                  <div className="px-4 py-3 bg-slate-50 rounded-2xl border border-slate-100 flex flex-col">
+                    <span className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1">Location</span>
+                    <span className="text-sm font-bold text-slate-700">{editingReport.district}, {editingReport.division}</span>
+                  </div>
                 </div>
-                <div className="px-4 py-3 bg-slate-50 rounded-2xl border border-slate-100 flex flex-col">
-                  <span className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1">District</span>
-                  <span className="text-sm font-bold text-slate-700">{editingReport.district}</span>
+
+                {/* Core Metrics */}
+                <div className="space-y-4">
+                  <h4 className="text-[11px] font-black uppercase text-slate-400 tracking-[0.2em] flex items-center gap-2">
+                    <span className="w-2 h-2 bg-indigo-500 rounded-full"></span>
+                    Standard Metrics
+                  </h4>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                    {[
+                      { label: 'Suspected (24h)', value: editingReport.suspected24h, color: 'text-indigo-600' },
+                      { label: 'Confirmed (24h)', value: editingReport.confirmed24h, color: 'text-emerald-600' },
+                      { label: 'Mortality (Total)', value: editingReport.suspectedDeath24h + editingReport.confirmedDeath24h, color: 'text-rose-600' },
+                      { label: 'Admitted (24h)', value: editingReport.admitted24h, color: 'text-blue-600' },
+                      { label: 'Discharged (24h)', value: editingReport.discharged24h, color: 'text-teal-600' },
+                    ].map((m) => (
+                      <div key={m.label} className="p-4 bg-slate-50 rounded-xl border border-slate-100 hover:border-indigo-100 transition-colors">
+                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter mb-1">{m.label}</p>
+                        <p className={`text-xl font-black ${m.color}`}>{m.value}</p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
+
+                {/* Dynamic Fields */}
+                {editingReport.fieldValues && editingReport.fieldValues.length > 0 && (
+                  <div className="space-y-4">
+                    <h4 className="text-[11px] font-black uppercase text-slate-400 tracking-[0.2em] flex items-center gap-2">
+                      <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
+                      Extended Data Fields
+                    </h4>
+                    <div className="grid grid-cols-2 gap-4">
+                      {editingReport.fieldValues.map((fv: any) => (
+                        <div key={fv.id} className="p-4 bg-white border border-slate-100 rounded-xl hover:shadow-sm transition-all">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{fv.formField.label}</p>
+                          <p className="text-base font-bold text-slate-700">{fv.value}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
               
-              <form onSubmit={handleUpdate} className="space-y-6">
-                <div className="grid grid-cols-2 gap-6">
-                  {[
-                    { label: 'Suspected (24h)', name: 'suspected24h' },
-                    { label: 'Confirmed (24h)', name: 'confirmed24h' },
-                    { label: 'Suspected Death', name: 'suspectedDeath24h' },
-                    { label: 'Confirmed Death', name: 'confirmedDeath24h' },
-                    { label: 'Admitted (24h)', name: 'admitted24h' },
-                    { label: 'Discharged (24h)', name: 'discharged24h' }
-                  ].map((field) => (
-                    <div key={field.name} className="space-y-2">
-                       <label className="text-[11px] font-black uppercase text-slate-500 tracking-widest ml-1">{field.label}</label>
-                       <input 
-                         type="number" 
-                         name={field.name} 
-                         value={editingReport[field.name as keyof Report] as number} 
-                         onChange={handleEditChange} 
-                         className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-5 text-sm font-bold text-slate-800 transition-all focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none" 
-                       />
+              <div className="flex gap-4 pt-8 mt-4 border-t border-slate-100">
+                <button 
+                  onClick={() => handlePublish(editingReport)}
+                  className={`flex-1 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all active:scale-95 ${
+                    editingReport.published 
+                      ? 'bg-amber-50 text-amber-700 hover:bg-amber-100' 
+                      : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-lg shadow-emerald-500/20'
+                  }`}
+                >
+                  {editingReport.published ? 'Retract Draft' : 'Approve & Publish'}
+                </button>
+                <button 
+                  onClick={() => setEditingReport(null)}
+                  className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-200 transition-all active:scale-95"
+                >
+                  Close Preview
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Create Modal */}
+      <AnimatePresence mode="wait">
+        {isCreating && (
+          <motion.div 
+            initial={{ opacity: 0 }} 
+            animate={{ opacity: 1 }} 
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[110] p-4"
+            onClick={() => setIsCreating(false)}
+          >
+            <motion.div 
+              initial={{ scale: 0.95, y: 20 }} 
+              animate={{ scale: 1, y: 0 }} 
+              exit={{ scale: 0.95, y: 20 }}
+              className={`bg-white rounded-[2.5rem] p-10 shadow-2xl border border-white/20 relative overflow-hidden flex flex-col max-h-[90vh] transition-all duration-500 ${selectedFacilityId ? 'max-w-4xl w-full' : 'max-w-lg w-full'}`}
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-8">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-lg">
+                    <Edit2 className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-2xl font-black text-slate-900 tracking-tight">Manual Submission</h3>
+                    <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">Administrative Overload</p>
+                  </div>
+                </div>
+                <button onClick={() => setIsCreating(false)} className="w-10 h-10 flex items-center justify-center bg-slate-100 hover:bg-slate-200 rounded-full transition-colors"><X className="w-5 h-5 text-slate-600" /></button>
+              </div>
+
+              {!selectedFacilityId ? (
+                <div className="space-y-6">
+                  <div className="space-y-2">
+                    <label className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">1. Select Context</label>
+                    <OutbreakSelector onSelect={(id) => setSelectedOutbreakId(id)} />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">2. Division</label>
+                      <select 
+                        value={creationDivision} 
+                        onChange={(e) => { setCreationDivision(e.target.value); setCreationDistrict(""); setSelectedFacilityId(""); }}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3 px-4 text-sm focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all outline-none"
+                      >
+                        <option value="">Select Division</option>
+                        {DIVISIONS.map(d => <option key={d} value={d}>{d}</option>)}
+                      </select>
                     </div>
-                  ))}
+                    <div className="space-y-2">
+                      <label className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">3. District</label>
+                      <select 
+                        value={creationDistrict} 
+                        onChange={(e) => { setCreationDistrict(e.target.value); setSelectedFacilityId(""); }}
+                        disabled={!creationDivision}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3 px-4 text-sm focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all outline-none disabled:opacity-50"
+                      >
+                        <option value="">Select District</option>
+                        {(DISTRICTS_BY_DIVISION[creationDivision] || []).map(d => <option key={d} value={d}>{d}</option>)}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">4. Facility</label>
+                    <select 
+                      value={selectedFacilityId} 
+                      onChange={(e) => setSelectedFacilityId(e.target.value)}
+                      disabled={!creationDistrict || !selectedOutbreakId}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3 px-4 text-sm focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all outline-none disabled:opacity-50"
+                    >
+                      <option value="">Select Facility</option>
+                      {creationFacilities.map(f => <option key={f.id} value={f.id}>{f.facilityName}</option>)}
+                    </select>
+                    {(!selectedOutbreakId && creationDistrict) && (
+                      <p className="text-[10px] text-rose-500 font-bold italic mt-1">* Please select an outbreak context first</p>
+                    )}
+                  </div>
                 </div>
-                
-                <div className="flex gap-4 pt-4">
-                  <button onClick={() => setEditingReport(null)} type="button" className="flex-1 px-4 py-4 bg-slate-100 text-slate-600 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-200 transition-all active:scale-95">Discard Changes</button>
-                  <button type="submit" className="flex-[1.5] px-4 py-4 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-emerald-600 transition-all shadow-xl shadow-emerald-600/10 active:scale-95">Update Record</button>
+              ) : (
+                <div className="overflow-y-auto pr-2 custom-scrollbar flex-1">
+                  <div className="bg-slate-900 text-white p-6 rounded-3xl mb-6 flex items-center justify-between border border-slate-800 shadow-xl">
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center">
+                        <Building2 className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-sm tracking-tight">{creationFacilities.find(f => f.id === selectedFacilityId)?.facilityName}</h4>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{creationDistrict}, {creationDivision}</p>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => setSelectedFacilityId("")}
+                      className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-white transition-colors"
+                    >
+                      Change Facility
+                    </button>
+                  </div>
+
+                  <UnifiedReportForm 
+                    outbreakId={selectedOutbreakId}
+                    facilityId={selectedFacilityId}
+                    onSuccess={() => {
+                      setIsCreating(false);
+                      setSelectedFacilityId("");
+                      fetchReports();
+                    }}
+                  />
                 </div>
-              </form>
+              )}
             </motion.div>
           </motion.div>
         )}

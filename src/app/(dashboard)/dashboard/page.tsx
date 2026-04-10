@@ -56,34 +56,17 @@ import OutbreakMap from '@/components/OutbreakMap';
 import EpiInsights from '@/components/EpiInsights';
 import { generateGovtPDF } from '@/lib/pdf-report-generator';
 import OutbreakSelector from '@/components/OutbreakSelector';
+import { getBdDateString, getBdTime } from '@/lib/timezone';
 
-interface DailyReport {
-  id: string;
-  reportingDate: string;
-  suspected24h: number;
-  confirmed24h: number;
-  suspectedDeath24h: number;
-  confirmedDeath24h: number;
-  admitted24h: number;
-  discharged24h: number;
-  serumSent24h: number;
-  facility?: {
-    facilityName: string;
-    division: string;
-    district: string;
-  };
-  outbreak?: {
-    name: string;
-  };
-}
+import { DailyReport } from '@/types/report';
 
 export default function DashboardPage() {
   const { data: session } = useSession();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [allReports, setAllReports] = useState<DailyReport[]>([]);
   const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState<'all' | 'today'>('all');
-  const [filterDate, setFilterDate] = useState(new Date().toISOString().split('T')[0]);
+  const [viewMode, setViewMode] = useState<'all' | 'today'>('today');
+  const [filterDate, setFilterDate] = useState(getBdDateString());
   const [dateRange, setDateRange] = useState({ from: '', to: '' });
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
   const [editingReport, setEditingReport] = useState<DailyReport | null>(null);
@@ -97,10 +80,10 @@ export default function DashboardPage() {
   const [userStats, setUserStats] = useState({ totalUsers: 0, activeToday: 0, submissionRate: 0 });
 
   useEffect(() => {
-    const now = new Date();
-    const bdTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Dhaka' }));
+    // Correctly set last update time based on real server time
+    const bdTime = getBdTime();
     setLastSync(bdTime.toLocaleString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) + ' BST');
-  }, []);
+  }, [allReports]);
 
   useEffect(() => {
     fetchReports();
@@ -158,7 +141,7 @@ export default function DashboardPage() {
     }
   };
 
-const filteredReports = useMemo(() => {
+  const filteredReports = useMemo(() => {
     let filtered = [...allReports];
     if (searchTerm) {
       filtered = filtered.filter(r => 
@@ -177,34 +160,6 @@ const filteredReports = useMemo(() => {
 
   const totalPages = Math.ceil(filteredReports.length / itemsPerPage);
 
-  const clearFilters = () => {
-    setSearchTerm("");
-    setCurrentPage(1);
-  };
-
-  const handleUpdateReport = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingReport) return;
-    try {
-      const res = await fetch(`/api/reports/${editingReport.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(editingReport),
-      });
-      if (res.ok) {
-        fetchReports();
-        setEditingReport(null);
-      }
-    } catch (err) {
-      console.error("Update failed");
-    }
-  };
-
-  const handleEditChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setEditingReport((prev: any) => ({ ...prev, [name]: Number(value) }));
-  };
-
   const totals = useMemo(() => {
     return allReports.reduce((acc, report) => ({
       suspected: acc.suspected + report.suspected24h,
@@ -222,18 +177,19 @@ const filteredReports = useMemo(() => {
     return { cfr, confirmationRate, hospitalizationEfficiency };
   }, [totals]);
 
-  const monthlyData = useMemo(() => {
+  // Daily Trend Data (Datewise instead of Monthly)
+  const trendData = useMemo(() => {
     const data: Record<string, any> = {};
     allReports.forEach(report => {
-      const month = new Date(report.reportingDate).toLocaleString('en-US', { month: 'short', year: '2-digit' });
-      if (!data[month]) {
-        data[month] = { name: month, suspected: 0, confirmed: 0, deaths: 0 };
+      const date = new Date(report.reportingDate).toLocaleDateString(i18n.language === 'bn' ? 'bn-BD' : 'en-GB', { day: '2-digit', month: 'short' });
+      if (!data[date]) {
+        data[date] = { name: date, suspected: 0, confirmed: 0, deaths: 0, sortKey: new Date(report.reportingDate).getTime() };
       }
-      data[month].suspected += report.suspected24h;
-      data[month].confirmed += report.confirmed24h;
-      data[month].deaths += report.confirmedDeath24h + report.suspectedDeath24h;
+      data[date].suspected += report.suspected24h;
+      data[date].confirmed += report.confirmed24h;
+      data[date].deaths += report.confirmedDeath24h + report.suspectedDeath24h;
     });
-    return Object.values(data).reverse();
+    return Object.values(data).sort((a: any, b: any) => a.sortKey - b.sortKey);
   }, [allReports]);
 
   const divisionData = useMemo(() => {
@@ -312,22 +268,35 @@ const filteredReports = useMemo(() => {
     generateGovtPDF(selectedReports, filterDate);
   };
 
+  const dynamicFilterParams = useMemo(() => {
+    const params = new URLSearchParams();
+    if (viewMode === 'today') params.set('date', filterDate);
+    else if (dateRange.from && dateRange.to) {
+      params.set('from', dateRange.from);
+      params.set('to', dateRange.to);
+    }
+    if (selectedOutbreakId) params.set('outbreakId', selectedOutbreakId);
+    if (selectedDivision) params.set('division', selectedDivision);
+    if (selectedDistrict) params.set('district', selectedDistrict);
+    return params.toString();
+  }, [viewMode, filterDate, dateRange, selectedOutbreakId, selectedDivision, selectedDistrict]);
+
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-8 pb-16">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
           <h1 className="text-3xl font-black text-slate-900 tracking-tight uppercase">
-            {allReports[0]?.outbreak?.name || "Outbreak"} Surveillance Dashboard
+            {allReports[0]?.outbreak?.name || (i18n.language === 'bn' ? 'প্রাদুর্ভাব' : "Outbreak")} {t('dashboard.title')}
           </h1>
           <p className="text-slate-500 mt-1 font-medium italic">
-            Real-time monitoring • Multi-disease coordination • Bangladesh
+            {t('dashboard.subtitle')}
           </p>
         </div>
 
         <div className="flex flex-col items-end gap-2">
-          <div className="bg-slate-100 px-4 py-2 rounded-xl border border-slate-200 flex flex-col items-end shadow-sm">
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Data as of: {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-            <span className="text-xs font-black text-indigo-600">Last updated: {lastSync || '06:00 AM BST'}</span>
+          <div className="bg-white px-4 py-2 rounded-xl border border-slate-200 flex flex-col items-end shadow-sm">
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{t('publicSubmit.lastUpdated')} {new Date(filterDate).toLocaleDateString(i18n.language === 'bn' ? 'bn-BD' : 'en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+            <span className="text-xs font-black text-indigo-600">{t('dailyReport.bdTime')}: {lastSync}</span>
           </div>
         </div>
       </div>
@@ -342,7 +311,7 @@ const filteredReports = useMemo(() => {
                 : 'text-slate-500 hover:text-slate-700'
             }`}
           >
-            Today
+            {i18n.language === 'bn' ? 'আজ' : 'Today'}
           </button>
           <button
             onClick={() => { setViewMode('all'); setDateRange({ from: '', to: '' }); }}
@@ -352,9 +321,22 @@ const filteredReports = useMemo(() => {
                 : 'text-slate-500 hover:text-slate-700'
             }`}
           >
-            All Time
+            {i18n.language === 'bn' ? 'সব' : 'Cumulative'}
           </button>
         </div>
+
+        {viewMode === 'today' && (
+          <div className="flex items-center gap-2 px-4 py-2 bg-slate-50 rounded-xl border border-slate-100">
+             <Calendar className="w-4 h-4 text-indigo-500" />
+             <input 
+                type="date" 
+                value={filterDate} 
+                onChange={(e) => setFilterDate(e.target.value)} 
+                max={getBdDateString()}
+                className="bg-transparent border-none focus:ring-0 text-slate-700 text-xs font-bold cursor-pointer"
+              />
+          </div>
+        )}
 
         {viewMode === 'all' && (
           <div className="flex items-center gap-2 px-4 py-2 bg-slate-50 rounded-xl border border-slate-100">
@@ -384,7 +366,7 @@ const filteredReports = useMemo(() => {
             onChange={(e) => { setSelectedDivision(e.target.value || null); setSelectedDistrict(null); }}
             className="bg-transparent border-none focus:ring-0 text-slate-700 text-xs font-bold cursor-pointer"
           >
-            <option value="">All Divisions / সকল বিভাগ</option>
+            <option value="">All Divisions</option>
             {DIVISIONS.map(div => (
               <option key={div} value={div}>{div}</option>
             ))}
@@ -398,7 +380,7 @@ const filteredReports = useMemo(() => {
               onChange={(e) => setSelectedDistrict(e.target.value || null)}
               className="bg-transparent border-none focus:ring-0 text-slate-700 text-xs font-bold cursor-pointer"
             >
-              <option value="">All Districts / সকল জেলা</option>
+              <option value="">All Districts</option>
               {DISTRICTS[selectedDivision]?.map(dist => (
                 <option key={dist} value={dist}>{dist}</option>
               ))}
@@ -409,15 +391,15 @@ const filteredReports = useMemo(() => {
         <div className="flex items-center gap-2 px-4 py-2 bg-slate-50 rounded-xl border border-slate-100 min-w-[200px]">
           <Activity className="w-4 h-4 text-indigo-500" />
           <div className="flex-1">
-            <OutbreakSelector onSelect={(id) => setSelectedOutbreakId(id)} />
+            <OutbreakSelector onSelect={(id) => setSelectedOutbreakId(id)} defaultValue={selectedOutbreakId || undefined} />
           </div>
         </div>
 
         <button 
           onClick={fetchReports}
-          className="w-full sm:w-auto ml-auto bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-md shadow-indigo-200"
+          className="w-full sm:w-auto ml-auto bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-md active:scale-95"
         >
-          Filter
+          Update Filters
         </button>
       </div>
 
@@ -442,49 +424,43 @@ const filteredReports = useMemo(() => {
         {/* KPI Section */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
           <KPICard 
-            title="Suspected Cases (YTD)" 
-            bnTitle="সন্দেহজনক রোগী"
-            value={totals.suspected.toLocaleString()} 
-            subValue="↑ 12% vs prior week"
+            title={t('stats.suspected')} 
+            value={totals.suspected.toLocaleString(i18n.language === 'bn' ? 'bn-BD' : 'en-US')} 
+            subValue={i18n.language === 'bn' ? 'পিওড মোট' : "Period Total"}
             icon={<Users />} 
             color="#F59E0B"
-            trend="up"
           />
           <KPICard 
-            title="Lab-Confirmed Cases" 
-            bnTitle="ল্যাব-নিশ্চিত রোগী"
-            value={totals.confirmed.toLocaleString()} 
-            subValue={`${indicators.confirmationRate.toFixed(1)}% confirmation rate`}
+            title={t('stats.confirmed')} 
+            value={totals.confirmed.toLocaleString(i18n.language === 'bn' ? 'bn-BD' : 'en-US')} 
+            subValue={`${indicators.confirmationRate.toFixed(1)}% ${i18n.language === 'bn' ? 'নিশ্চিত হার' : 'confirmation rate'}`}
             icon={<Edit />} 
             color="#EF4444"
           />
           <KPICard 
-            title="Admitted in Hospital" 
-            bnTitle="হাসপাতালে ভর্তি"
-            value={totals.hospitalized.toLocaleString()} 
-            subValue={`${indicators.hospitalizationEfficiency.toFixed(1)}% of suspected`}
+            title={t('stats.hospitalized')}
+            value={totals.hospitalized.toLocaleString(i18n.language === 'bn' ? 'bn-BD' : 'en-US')} 
+            subValue={`${indicators.hospitalizationEfficiency.toFixed(1)}% ${i18n.language === 'bn' ? 'সন্দেহভাজনদের' : 'of suspected'}`}
             icon={<PlusSquare />} 
             color="#3B82F6"
           />
           <KPICard 
-            title="Reported Deaths" 
-            bnTitle="প্রতিবেদিত মৃত্যু"
-            value={totals.deaths.toLocaleString()} 
+            title={t('stats.mortality')}
+            value={totals.deaths.toLocaleString(i18n.language === 'bn' ? 'bn-BD' : 'en-US')} 
             subValue={`CFR: ${indicators.cfr.toFixed(2)}%`}
             icon={<ActivitySquare />} 
             color="#0F172A"
           />
           <KPICard 
-            title="Submission Rate" 
-            bnTitle="জমার হার"
+            title={i18n.language === 'bn' ? 'রিপোর্টিং স্যাটাস' : "Reporting Status"}
             value={`${userStats.submissionRate}%`} 
-            subValue={`${userStats.activeToday} of ${userStats.totalUsers} facilities submitted`}
+            subValue={`${userStats.activeToday} ${i18n.language === 'bn' ? 'জমা পাওয়া গেছে' : 'submissions received'}`}
             icon={<Users />} 
             color="#8B5CF6"
           />
         </div>
 
-        {/* Daily trend area */}
+        {/* Datewise trend area */}
         <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden relative">
           <div className="flex items-center justify-between mb-8">
             <div className="flex items-center gap-3">
@@ -492,22 +468,22 @@ const filteredReports = useMemo(() => {
                 <TrendingUp className="w-5 h-5 text-orange-600" />
               </div>
               <div>
-                <h3 className="text-xl font-black text-slate-800 tracking-tight">Daily suspected & confirmed cases</h3>
-                <p className="text-sm text-slate-400 font-medium">Trends over the last reporting period <span className="text-slate-300 ml-2">/ দৈনিক প্রবণতা</span></p>
+                <h3 className="text-xl font-black text-slate-800 tracking-tight">{t('epi.dailyCases')}</h3>
+                <p className="text-sm text-slate-400 font-medium whitespace-nowrap">{t('epi.diseaseTrends')} <span className="text-slate-300 ml-2">/ দৈনিক প্রবণতা</span></p>
               </div>
             </div>
-            <div className="bg-orange-100 text-orange-700 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border border-orange-200 shadow-sm shadow-orange-500/10">Epidemic curve</div>
+            <div className="bg-orange-100 text-orange-700 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border border-orange-200 shadow-sm">Reporting Period Trend</div>
           </div>
           <div className="h-[350px] w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={monthlyData}>
+              <LineChart data={trendData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 11, fontWeight: 'bold'}} />
                 <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 11, fontWeight: 'bold'}} />
                 <Tooltip contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }} />
                 <Legend verticalAlign="top" align="left" height={36} iconType="circle" wrapperStyle={{ paddingBottom: '20px', fontSize: '12px', fontWeight: 'bold' }} />
-                <Line type="monotone" dataKey="suspected" name="Suspected cases" stroke="#F59E0B" strokeWidth={4} dot={{ r: 6, fill: '#F59E0B', strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 8, strokeWidth: 0 }} />
-                <Line type="monotone" dataKey="confirmed" name="Lab-confirmed (dashed)" stroke="#3B82F6" strokeWidth={3} strokeDasharray="5 5" dot={{ r: 5, fill: '#3B82F6', strokeWidth: 2, stroke: '#fff' }} />
+                <Line type="monotone" dataKey="suspected" name="Suspected" stroke="#F59E0B" strokeWidth={4} dot={{ r: 4, fill: '#F59E0B', strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 6, strokeWidth: 0 }} />
+                <Line type="monotone" dataKey="confirmed" name="Confirmed" stroke="#3B82F6" strokeWidth={3} strokeDasharray="5 5" dot={{ r: 3, fill: '#3B82F6', strokeWidth: 2, stroke: '#fff' }} />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -518,91 +494,77 @@ const filteredReports = useMemo(() => {
           <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden">
             <div className="p-8 border-b border-slate-100 flex items-center justify-between">
               <h3 className="text-xl font-black text-slate-800 tracking-tight">
-                {selectedDivision && selectedDistrict ? `Confirmed cases by ${selectedDistrict}` : (selectedDivision ? `Confirmed cases by ${selectedDivision} division` : 'Confirmed cases by division')} 
-                <span className="text-slate-400 text-sm ml-2 font-medium">/ {selectedDivision && selectedDistrict ? `${selectedDistrict} স্বাস্থ্য কেন্দ্র` : (selectedDivision ? `${selectedDivision} বিভাগ` : 'বিভাগ ভিত্তিক রোগী')}</span>
+                {selectedDivision && selectedDistrict ? `${t('stats.confirmed')} ${i18n.language === 'bn' ? 'দ্বারা' : 'by'} ${selectedDistrict}` : (selectedDivision ? `${t('stats.confirmed')} ${i18n.language === 'bn' ? 'দ্বারা' : 'by'} ${selectedDivision}` : t('charts.geographicDistribution'))} 
+                <span className="text-slate-400 text-sm ml-2 font-medium">/ {i18n.language === 'bn' ? 'ভৌগোলিক তথ্যাদি' : 'geographical data'}</span>
               </h3>
-              <div className="flex gap-2">
-                 <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-red-500"/> <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">High</span></div>
-                 <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-emerald-500"/> <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Low</span></div>
-              </div>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left">
                 <thead>
                   <tr className="bg-slate-50/50 text-slate-400 text-[10px] font-black uppercase tracking-widest border-b border-slate-100">
-                    <th className="px-8 py-4">{selectedDivision && selectedDistrict ? 'Facility' : (selectedDivision ? 'District' : 'Division')}</th>
-                    <th className="px-6 py-4 text-center">Suspected</th>
-                    <th className="px-6 py-4 text-center">Confirmed</th>
-                    <th className="px-8 py-4 text-right">Risk</th>
+                    <th className="px-8 py-4">{selectedDivision && selectedDistrict ? (i18n.language === 'bn' ? 'ফ্যাসিলিটি' : 'Facility') : (selectedDivision ? t('map.district') : t('map.division'))}</th>
+                    <th className="px-6 py-4 text-center">{t('stats.suspected')}</th>
+                    <th className="px-6 py-4 text-center">{t('stats.confirmed')}</th>
+                    <th className="px-8 py-4 text-right">{i18n.language === 'bn' ? 'স্থিতি' : 'Status'}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
                   {[...currentChartData].sort((a,b) => b.confirmed - a.confirmed).map((item) => (
                     <tr key={item.name} className="hover:bg-slate-50 transition-colors">
                       <td className="px-8 py-5 font-bold text-slate-700">{item.name}</td>
-                      <td className="px-6 py-5 text-center text-slate-500 font-bold tabular-nums">{item.suspected.toLocaleString()}</td>
-                      <td className="px-6 py-5 text-center text-slate-900 font-extrabold tabular-nums">{item.confirmed.toLocaleString()}</td>
+                      <td className="px-6 py-5 text-center text-slate-500 font-bold tabular-nums">{item.suspected.toLocaleString(i18n.language === 'bn' ? 'bn-BD' : 'en-US')}</td>
+                      <td className="px-6 py-5 text-center text-slate-900 font-extrabold tabular-nums">{item.confirmed.toLocaleString(i18n.language === 'bn' ? 'bn-BD' : 'en-US')}</td>
                       <td className="px-8 py-5 text-right">
                         <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${item.confirmed > 200 ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-emerald-50 text-emerald-600 border border-emerald-100'}`}>
-                          {item.confirmed > 200 ? 'High' : 'Low'}
+                          {item.confirmed > 200 ? (i18n.language === 'bn' ? 'সতর্কতা' : 'Alert') : (i18n.language === 'bn' ? 'স্থিতিশীল' : 'Stable')}
                         </span>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+              {currentChartData.length === 0 && <div className="p-10 text-center text-slate-300 font-black uppercase text-[10px] tracking-widest">{t('charts.noReports')}</div>}
             </div>
           </div>
 
-          {/* Suspected cases horizontal bar chart */}
           <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm">
             <h3 className="text-xl font-black text-slate-800 tracking-tight mb-8">
-              {selectedDivision && selectedDistrict ? `Suspected cases by ${selectedDistrict}` : (selectedDivision ? `Suspected cases by ${selectedDivision} district` : 'Suspected cases by division')} 
-              <span className="text-slate-400 text-sm ml-2 font-medium">/ {selectedDivision && selectedDistrict ? `${selectedDistrict} স্বাস্থ্য কেন্দ্র` : (selectedDivision ? `${selectedDivision} জেলা ভিত্তিক` : 'প্রাক্কলিত তথ্যাদি')}</span>
+              {selectedDivision && selectedDistrict ? `Trend by ${selectedDistrict}` : (selectedDivision ? `Trend by ${selectedDivision} districts` : 'Suspected cases distribution')} 
             </h3>
             <div className="h-[400px] w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={currentChartData} layout="vertical" margin={{ left: 20 }}>
+                <BarChart data={currentChartData} layout="vertical" margin={{ left: 20, right: 30, top: 10 }}>
                   <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
                   <XAxis type="number" hide />
-                  <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 11, fontWeight: 'bold'}} />
-                    <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }} />
-                  <XAxis type="number" hide />
-                  <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 11, fontWeight: 'bold'}} interval={0} />
+                  <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 10, fontWeight: 'bold'}} interval={0} width={120} />
                   <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }} />
-                  <Bar dataKey="suspected" fill="#FFC38B" radius={[0, 4, 4, 0]} barSize={20} />
-                  <Bar dataKey="confirmed" fill="#EF4444" radius={[0, 4, 4, 0]} barSize={20} />
+                  <Legend verticalAlign="top" align="right" height={36} iconType="circle" />
+                  <Bar dataKey="suspected" name={t('stats.suspected')} fill="#FFC38B" radius={[0, 4, 4, 0]} barSize={12} />
+                  <Bar dataKey="confirmed" name={t('stats.confirmed')} fill="#EF4444" radius={[0, 4, 4, 0]} barSize={12} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
           </div>
         </div>
 
-         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Map Legend & Distribution */}
-            <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm">
-              <h3 className="text-xl font-black text-slate-800 tracking-tight mb-8">Map bubble legend <span className="text-slate-400 text-sm ml-2 font-medium">/ মানচিত্রের সূচক</span></h3>
-              {(() => {
-                const divisionConfirmed = divisionData.filter(d => d.confirmed > 0).sort((a, b) => b.confirmed - a.confirmed);
-                const highDivs = divisionConfirmed.filter(d => d.confirmed > 200).map(d => d.name);
-                const mediumDivs = divisionConfirmed.filter(d => d.confirmed > 40 && d.confirmed <= 200).map(d => d.name);
-                const lowDivs = divisionConfirmed.filter(d => d.confirmed <= 40 && d.confirmed > 0).map(d => d.name);
-                return (
-                  <div className="flex flex-col md:flex-row items-center gap-12">
-                    <div className="space-y-6 flex-1">
-                      <div className="p-5 bg-blue-50/50 rounded-2xl border border-blue-100 space-y-4">
-                        <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Intensity by confirmed cases</p>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+           <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm">
+              <h3 className="text-xl font-black text-slate-800 tracking-tight mb-8">National Risk Perspective</h3>
+              <div className="flex flex-col md:flex-row items-center gap-12">
+                   <div className="space-y-6 flex-1">
+                      <div className="p-5 bg-blue-50/50 rounded-2xl border border-blue-100 space-y-4 w-full">
+                        <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Confirmed Intensity</p>
                         <div className="flex items-center gap-4">
-                          <div className="w-10 h-10 rounded-full bg-blue-700 shadow-lg shadow-blue-500/20" />
-                          <p className="text-sm font-bold text-slate-700">High (&gt;200 confirmed) <span className="text-slate-400 font-medium ml-2">{highDivs.length > 0 ? `— ${highDivs.join(', ')}` : '— None'}</span></p>
+                          <div className="w-8 h-8 rounded-full bg-blue-700 shadow-lg" />
+                          <p className="text-sm font-bold text-slate-700 whitespace-nowrap">High Incidence (&gt;200)</p>
                         </div>
                         <div className="flex items-center gap-4">
-                          <div className="w-7 h-7 rounded-full bg-blue-500 shadow-lg shadow-blue-400/20" />
-                          <p className="text-sm font-bold text-slate-700">Medium (40–200) <span className="text-slate-400 font-medium ml-2">{mediumDivs.length > 0 ? `— ${mediumDivs.join(', ')}` : '— None'}</span></p>
+                          <div className="w-6 h-6 rounded-full bg-blue-500 shadow-lg" />
+                          <p className="text-sm font-bold text-slate-700 whitespace-nowrap">Moderate (40–200)</p>
                         </div>
                         <div className="flex items-center gap-4">
-                          <div className="w-4 h-4 rounded-full bg-blue-300 shadow-lg shadow-blue-300/20" />
-                          <p className="text-sm font-bold text-slate-700">Low (&lt;40) <span className="text-slate-400 font-medium ml-2">{lowDivs.length > 0 ? `— ${lowDivs.join(', ')}` : '— None'}</span></p>
+                          <div className="w-4 h-4 rounded-full bg-blue-300 shadow-lg" />
+                          <p className="text-sm font-bold text-slate-700 whitespace-nowrap">Low Incidence (&lt;40)</p>
                         </div>
                       </div>
                     </div>
@@ -625,50 +587,38 @@ const filteredReports = useMemo(() => {
                          </PieChart>
                        </ResponsiveContainer>
                        <div className="absolute inset-0 flex items-center justify-center flex-col">
-                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Conf.</p>
+                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total</p>
                          <p className="text-2xl font-black text-slate-800">{totals.confirmed}</p>
                        </div>
-                       <div className="flex justify-center gap-4 mt-2">
-                         <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded bg-blue-500"/> <span className="text-[9px] font-bold text-slate-500 uppercase">Confirmed</span></div>
-                         <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded bg-slate-200"/> <span className="text-[9px] font-bold text-slate-500 uppercase">Unconfirmed</span></div>
-                       </div>
                     </div>
-                  </div>
-                );
-              })()}
+              </div>
             </div>
 
-           {/* Hospitalization chart */}
            <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm">
-             <h3 className="text-xl font-black text-slate-800 tracking-tight mb-8">Hospitalization — admitted vs discharged <span className="text-slate-400 text-sm ml-2 font-medium">/ হাসপাতালে ভর্তি ও ছুটি</span></h3>
+             <h3 className="text-xl font-black text-slate-800 tracking-tight mb-8">Hospital Resource Monitoring</h3>
              <div className="h-[250px] w-full mb-8">
                <ResponsiveContainer width="100%" height="100%">
-                 <BarChart data={monthlyData}>
+                 <BarChart data={trendData.slice(-7)}>
                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 11, fontWeight: 'bold'}} />
                    <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 11, fontWeight: 'bold'}} />
                    <Tooltip cursor={{fill: '#f8fafc'}} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }} />
                    <Bar dataKey="confirmed" name="Admitted" fill="#3B82F6" radius={[4, 4, 0, 0]} barSize={24} />
-                   <Bar dataKey="deaths" name="Discharged" fill="#10B981" radius={[4, 4, 0, 0]} barSize={24} />
+                   <Bar dataKey="deaths" name="Mortality" fill="#1e293b" radius={[4, 4, 0, 0]} barSize={24} />
                  </BarChart>
                </ResponsiveContainer>
              </div>
              <div className="bg-[#ECFDF5] p-6 rounded-3xl border border-[#D1FAE5] relative overflow-hidden group">
-               <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform">
-                 <Info className="w-12 h-12 text-[#10B981]" />
-               </div>
-               <p className="text-[10px] font-black text-[#10B981] uppercase tracking-widest mb-1">Serum Samples Sent (YTD)</p>
+               <p className="text-[10px] font-black text-[#10B981] uppercase tracking-widest mb-1">Serum Samples Tracked</p>
                <p className="text-4xl font-black text-[#065F46] mb-2">{allReports.reduce((acc, r) => acc + (r.serumSent24h || 0), 0).toLocaleString()}</p>
-               <div className="text-xs font-bold text-[#10B981] flex items-center gap-1.5"><TrendingUp className="w-4 h-4" /> Processing rate stable <span className="text-[#065F46]/60 ml-1 font-medium italic">/ কার্যক্রম স্বাভাবিক</span></div>
+               <div className="text-xs font-bold text-[#10B981] flex items-center gap-1.5 font-black uppercase tracking-widest">Laboratory Network Active</div>
              </div>
            </div>
          </div>
 
-          {/* Keeping existing sections */}
-          <OutbreakMap apiEndpoint="/api/reports/geo" />
-          <EpiInsights apiEndpoint="/api/reports/timeseries" />
+          <OutbreakMap apiEndpoint={`/api/reports/geo?${dynamicFilterParams}`} />
+          <EpiInsights apiEndpoint={`/api/reports/timeseries?${dynamicFilterParams}`} />
 
-        {/* Reports Table Section */}
         <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden">
           <div className="px-8 py-6 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-50/30">
             <div className="flex items-center gap-3">
@@ -677,7 +627,7 @@ const filteredReports = useMemo(() => {
                </div>
                <div>
                  <h3 className="text-xl font-black text-slate-800 tracking-tight">Facility Reporting Details</h3>
-                 <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Detailed Submissions Listing / বিস্তারিত প্রতিবেদন তালিকা</p>
+                 <p className="text-xs font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">Detailed submissions listing</p>
                </div>
             </div>
             <div className="flex flex-wrap items-center gap-3">
@@ -685,15 +635,15 @@ const filteredReports = useMemo(() => {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
                 <input 
                   type="text" 
-                  placeholder="Facility, District..." 
+                  placeholder={i18n.language === 'bn' ? 'ফ্যাসিলিটি, জেলা...' : "Facility, District..."} 
                   value={searchTerm}
                   onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
                   className="pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-2xl text-sm font-bold focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all w-64"
                 />
               </div>
               <div className="flex gap-2">
-                <button onClick={handleExportPDF} className="flex items-center gap-2 bg-[#1e293b] hover:bg-black text-white px-5 py-2.5 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-slate-900/10"><FileText className="w-4 h-4" /> PDF</button>
-                <button onClick={handleExportExcel} className="flex items-center gap-2 bg-[#10b981] hover:bg-emerald-600 text-white px-5 py-2.5 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-emerald-500/10"><Download className="w-4 h-4" /> Excel</button>
+                <button onClick={handleExportPDF} className="bg-slate-900 text-white px-5 py-2.5 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg">{t('common.pdf')}</button>
+                <button onClick={handleExportExcel} className="bg-emerald-600 text-white px-5 py-2.5 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg">{t('common.excel')}</button>
               </div>
             </div>
           </div>
@@ -702,8 +652,8 @@ const filteredReports = useMemo(() => {
               <thead>
                 <tr className="bg-slate-50/50 text-slate-400 uppercase text-[10px] font-black tracking-widest border-b border-slate-100">
                   <th className="px-8 py-5 w-12 text-center">Export</th>
-                  <th className="px-6 py-5">Geography / ভৌগোলিক অবস্থান</th>
-                  <th className="px-6 py-5">Facility / স্বাস্থ্য কেন্দ্র</th>
+                  <th className="px-6 py-5">Geography</th>
+                  <th className="px-6 py-5">Facility</th>
                   <th className="px-6 py-5 text-center">Susp. (24h)</th>
                   <th className="px-6 py-5 text-center">Conf. (24h)</th>
                   <th className="px-6 py-5 text-center">Deaths (24h)</th>
@@ -730,49 +680,39 @@ const filteredReports = useMemo(() => {
                 ))}
               </tbody>
             </table>
-            {loading && <div className="p-24 text-center"><div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" /><p className="text-slate-400 font-bold uppercase tracking-widest text-xs">Synchronizing Database...</p></div>}
-            {!loading && filteredReports.length === 0 && <div className="p-24 text-center text-slate-400 font-medium flex flex-col items-center gap-4"><CloudOff className="w-16 h-16 text-slate-200" /><p className="font-black uppercase tracking-widest text-xs">No records found for the selection</p></div>}
+            {loading && <div className="p-24 text-center"><div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" /><p className="text-slate-400 font-black uppercase tracking-widest text-[10px]">Filtering Data Analysis...</p></div>}
+            {!loading && filteredReports.length === 0 && <div className="p-24 text-center text-slate-400 font-medium flex flex-col items-center gap-4"><CloudOff className="w-16 h-16 text-slate-100" /><p className="font-black uppercase tracking-widest text-[10px]">No records match selected parameters</p></div>}
           </div>
           
           {totalPages > 1 && (
             <div className="px-8 py-6 border-t border-slate-100 flex items-center justify-between bg-slate-50/20">
-              <div className="text-xs font-bold text-slate-400 uppercase tracking-widest">
-                Showing {((currentPage - 1) * itemsPerPage) + 1}- {Math.min(currentPage * itemsPerPage, filteredReports.length)} <span className="text-slate-300">of</span> {filteredReports.length}
+              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                Showing {((currentPage - 1) * itemsPerPage) + 1} - {Math.min(currentPage * itemsPerPage, filteredReports.length)} of {filteredReports.length}
               </div>
               <div className="flex items-center gap-2">
-                <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="w-10 h-10 flex items-center justify-center rounded-xl border border-slate-200 hover:bg-white hover:shadow-md disabled:opacity-30 disabled:hover:shadow-none transition-all"><ChevronLeft className="w-4 h-4" /></button>
-                <div className="bg-white border border-slate-200 rounded-xl px-4 py-2 text-xs font-black text-blue-600 shadow-sm">{currentPage} <span className="text-slate-300 mx-1">/</span> {totalPages}</div>
-                <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="w-10 h-10 flex items-center justify-center rounded-xl border border-slate-200 hover:bg-white hover:shadow-md disabled:opacity-30 disabled:hover:shadow-none transition-all"><ChevronRight className="w-4 h-4" /></button>
+                <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="w-10 h-10 flex items-center justify-center rounded-xl border border-slate-200 hover:bg-white hover:shadow-md disabled:opacity-30 transition-all"><ChevronLeft className="w-4 h-4" /></button>
+                <div className="bg-white border border-slate-200 rounded-xl px-4 py-2 text-xs font-black text-indigo-600 shadow-sm">{currentPage} / {totalPages}</div>
+                <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="w-10 h-10 flex items-center justify-center rounded-xl border border-slate-200 hover:bg-white hover:shadow-md disabled:opacity-30 transition-all"><ChevronRight className="w-4 h-4" /></button>
               </div>
             </div>
           )}
         </div>
-
       </div>
 
-      {/* Modal */}
       <AnimatePresence>
         {editingReport && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md">
             <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} className="bg-white rounded-[3rem] shadow-2xl w-full max-w-xl overflow-hidden border border-slate-100">
                <div className="px-10 py-8 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
                  <div>
-                   <h2 className="text-2xl font-black text-slate-800 tracking-tight">{t('dashboard.editEntry')}</h2>
+                   <h2 className="text-2xl font-black text-slate-800 tracking-tight">{i18n.language === 'bn' ? 'রেকর্ড পরিবর্তন করুন' : 'Modify Record'}</h2>
                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">{editingReport?.facility?.facilityName}</p>
                  </div>
                  <button onClick={() => setEditingReport(null)} className="w-12 h-12 bg-white hover:bg-slate-100 rounded-2xl flex items-center justify-center shadow-sm border border-slate-100 transition-all"><X className="w-6 h-6 text-slate-400" /></button>
                </div>
-               <form onSubmit={handleUpdateReport} className="p-10 space-y-8">
-                 <div className="grid grid-cols-2 gap-6">
-                    <EditInput label={t('report.fields.suspected24h')} name="suspected24h" value={editingReport?.suspected24h || 0} onChange={handleEditChange} />
-                    <EditInput label={t('report.fields.confirmed24h')} name="confirmed24h" value={editingReport?.confirmed24h || 0} onChange={handleEditChange} />
-                    <EditInput label={t('report.fields.suspectedDeath24h')} name="suspectedDeath24h" value={editingReport?.suspectedDeath24h || 0} onChange={handleEditChange} />
-                    <EditInput label={t('report.fields.confirmedDeath24h')} name="confirmedDeath24h" value={editingReport?.confirmedDeath24h || 0} onChange={handleEditChange} />
-                    <EditInput label={t('report.fields.admitted24h')} name="admitted24h" value={editingReport?.admitted24h || 0} onChange={handleEditChange} />
-                    <EditInput label={t('report.fields.discharged24h')} name="discharged24h" value={editingReport?.discharged24h || 0} onChange={handleEditChange} />
-                 </div>
-                 <button type="submit" className="w-full bg-[#1e293b] hover:bg-black text-white font-black uppercase tracking-widest py-5 rounded-3xl flex items-center justify-center gap-3 transition-all shadow-xl shadow-slate-900/20 active:scale-95"><Check className="w-6 h-6" /> Save Changes / তথ্য সংরক্ষণ</button>
-               </form>
+               <div className="p-10 text-center text-slate-400 font-bold uppercase text-xs">
+                 {i18n.language === 'bn' ? 'নজরদারি ভিউতে সম্পাদনা করার ক্ষমতা সীমাবদ্ধ' : 'Edit capability restricted in surveillance view'}
+               </div>
             </motion.div>
           </div>
         )}
@@ -798,27 +738,13 @@ function KPICard({ title, bnTitle, value, subValue, icon, color, trend }: any) {
            </div>
         )}
       </div>
-        <div className="relative z-10">
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] mb-1">{title}</p>
-          <p className="text-[10px] font-bold text-slate-300 mb-2">{bnTitle}</p>
-          <p className="text-4xl font-black text-slate-800 tabular-nums tracking-tighter">{value}</p>
-          <div className="text-[10px] font-bold text-slate-400 mt-2 flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full" style={{backgroundColor: color}}/> {subValue}</div>
-        </div>
+      <div className="relative z-10">
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">{title}</p>
+          <div className="flex flex-col">
+            <h4 className="text-3xl font-black text-slate-900 tracking-tight">{value}</h4>
+          </div>
+          <p className="text-[10px] font-bold text-slate-400 mt-2 uppercase tracking-tight">{subValue}</p>
+      </div>
     </motion.div>
-  );
-}
-
-function EditInput({ label, name, value, onChange }: { label: string; name: string; value: number; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void }) {
-  return (
-    <div className="space-y-1.5">
-      <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">{label}</label>
-      <input 
-        type="number" 
-        name={name} 
-        value={value} 
-        onChange={onChange} 
-        className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" 
-      />
-    </div>
   );
 }

@@ -35,7 +35,8 @@ export default function EpiInsights({ apiEndpoint = '/api/reports/timeseries' }:
   useEffect(() => {
     const fetchTimeseries = async () => {
       try {
-        const res = await fetch(`${apiEndpoint}?days=${range}`);
+        const connector = apiEndpoint.includes('?') ? '&' : '?';
+        const res = await fetch(`${apiEndpoint}${connector}days=${range}`);
         const json = await res.json();
         setData(json);
       } catch (err) {
@@ -179,8 +180,8 @@ export default function EpiInsights({ apiEndpoint = '/api/reports/timeseries' }:
                 <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} />
                 <Tooltip />
                 <Legend />
-                <Line type="monotone" dataKey="suspected" stroke="#6366f1" strokeWidth={2} dot={false} name={t('epi.suspectedCases')} />
-                <Line type="monotone" dataKey="confirmed" stroke="#8b5cf6" strokeWidth={2} dot={false} name={t('epi.confirmedCases')} />
+                <Line type="monotone" dataKey="suspected" stroke="#F59E0B" strokeWidth={3} dot={false} name={t('epi.suspectedCases')} />
+                <Line type="monotone" dataKey="confirmed" stroke="#6366f1" strokeWidth={3} dot={false} name={t('epi.confirmedCases')} />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -203,7 +204,7 @@ export default function EpiInsights({ apiEndpoint = '/api/reports/timeseries' }:
         </div>
 
         {/* Moving Average */}
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm lg:col-span-2">
+        {/* <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm lg:col-span-2">
           <h4 className="text-lg font-bold text-slate-800 mb-4">{t('epi.movingAverage')}</h4>
           <div className="h-[280px]">
             <ResponsiveContainer width="100%" height="100%">
@@ -212,13 +213,79 @@ export default function EpiInsights({ apiEndpoint = '/api/reports/timeseries' }:
                 <XAxis dataKey="date" stroke="#94a3b8" fontSize={10} tickLine={false} />
                 <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} />
                 <Tooltip />
-                <Legend />
-                <Line type="monotone" dataKey="raw" stroke="#cbd5e1" strokeWidth={1.5} dot={false} strokeDasharray="4 4" name={t('epi.dailyCases')} />
-                <Line type="monotone" dataKey="movingAvg" stroke="#8b5cf6" strokeWidth={2.5} dot={false} name={t('epi.movingAverage')} />
+                <Legend verticalAlign="top" height={36}/>
+                <Line type="monotone" dataKey="raw" stroke="#94a3b8" strokeWidth={1.5} dot={{ r: 2 }} strokeDasharray="3 3" name={t('epi.dailyCases')} />
+                <Line type="monotone" dataKey="movingAvg" stroke="#6366f1" strokeWidth={3} dot={false} name={t('epi.movingAverage')} />
               </LineChart>
             </ResponsiveContainer>
           </div>
-        </div>
+        </div> */}
+        <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm lg:col-span-2">
+  <h4 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
+    <span className="w-1 h-5 bg-indigo-500 rounded-full"></span>
+    {t('epi.movingAverage')}
+  </h4>
+  <div className="h-[300px]">
+    <ResponsiveContainer width="100%" height="100%">
+      <LineChart data={formattedMA} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+        {/* Subtle Horizontal Grid Only */}
+        <CartesianGrid strokeDasharray="0" vertical={false} stroke="#f1f5f9" />
+        
+        <XAxis 
+          dataKey="date" 
+          stroke="#94a3b8" 
+          fontSize={11} 
+          tickLine={false} 
+          axisLine={false}
+          dy={10}
+        />
+        
+        <YAxis 
+          stroke="#94a3b8" 
+          fontSize={11} 
+          tickLine={false} 
+          axisLine={false} 
+        />
+        
+        {/* Custom Styled Tooltip */}
+        <Tooltip 
+          contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+        />
+        
+        <Legend 
+          verticalAlign="top" 
+          align="right" 
+          iconType="circle"
+          wrapperStyle={{ paddingBottom: '20px', fontSize: '12px', fontWeight: 500 }}
+        />
+
+        {/* Daily Cases: Background Noise (Lighter) */}
+        <Line 
+          type="monotone" 
+          dataKey="raw" 
+          stroke="#cbd5e1" // Slate-300
+          strokeWidth={2} 
+          dot={false} 
+          strokeDasharray="4 4" 
+          name={t('epi.dailyCases')} 
+          animationDuration={1500}
+        />
+
+        {/* Moving Average: The Hero (Vibrant) */}
+        <Line 
+          type="monotone" 
+          dataKey="movingAvg" 
+          stroke="#6366f1" // Indigo-500
+          strokeWidth={4} 
+          dot={false} 
+          activeDot={{ r: 6, strokeWidth: 0 }}
+          name={t('epi.movingAverage')} 
+          animationDuration={2000}
+        />
+      </LineChart>
+    </ResponsiveContainer>
+  </div>
+</div>
       </div>
     </div>
   );

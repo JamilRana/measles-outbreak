@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { motion } from "motion/react";
 import Breadcrumbs from "@/components/Breadcrumbs";
+import { ArrowLeft } from "lucide-react";
 
 export default function AdminPage() {
   const { data: session } = useSession();
@@ -30,6 +31,32 @@ export default function AdminPage() {
 
   const isAdmin = role === "ADMIN";
   const isManager = role === "MANAGER";
+
+  if (role && !isAdmin && !isManager) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
+        <div className="bg-white p-12 rounded-[3rem] shadow-xl max-w-md text-center border border-slate-100 relative overflow-hidden">
+           <div className="absolute top-0 right-0 p-10 opacity-[0.03] -rotate-12">
+              <ShieldAlert className="w-48 h-48" />
+           </div>
+           <div className="w-20 h-20 bg-amber-50 text-amber-500 rounded-3xl flex items-center justify-center mx-auto mb-8 relative z-10">
+              <ShieldAlert className="w-10 h-10" />
+           </div>
+           <h1 className="text-3xl font-black text-slate-800 mb-3 tracking-tight">Admin Restricted</h1>
+           <p className="text-slate-500 font-medium mb-10 leading-relaxed">
+              Your account privileges do not allow access to administrative tools. Please return to the surveillance dashboard.
+           </p>
+           <button 
+             onClick={() => window.location.href = '/dashboard'} 
+             className="bg-slate-900 hover:bg-black text-white px-10 py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-slate-200 transition-all flex items-center justify-center gap-3 w-full"
+           >
+              <ArrowLeft className="w-4 h-4" />
+              Return to Dashboard
+           </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-8">
@@ -49,8 +76,15 @@ export default function AdminPage() {
             <AdminCard 
               href="/admin/submissions" 
               title="Reporting Hub" 
-              description="Monitor submissions, track missing units, and manage daily data records"
+              description="Monitor real-time status and track daily missing units"
               icon={<ClipboardCheck className="w-6 h-6" />}
+              color="indigo"
+            />
+            <AdminCard 
+              href="/admin/submission" 
+              title="Submission Logs" 
+              description="Detailed historical logs with pagination and gap analysis"
+              icon={<History className="w-6 h-6" />}
               color="indigo"
             />
             <AdminCard 
@@ -66,6 +100,7 @@ export default function AdminPage() {
         {isManager && (
           <>
             <AdminCard 
+              hidden={true} 
               href="/admin/audit-log" 
               title="Audit Trail" 
               description="View activity logs and changes"
@@ -78,6 +113,7 @@ export default function AdminPage() {
         {isAdmin && (
           <>
             <AdminCard 
+            hidden={true} 
               href="/admin/outbreaks" 
               title="Outbreak Management" 
               description="Manage outbreak events and backlog reporting" 
@@ -85,6 +121,7 @@ export default function AdminPage() {
               color="rose"
             />
             <AdminCard 
+              hidden={true} 
               href="/admin/indicators" 
               title="Indicator Engine" 
               description="Define and manage dynamic health metrics" 
@@ -98,7 +135,8 @@ export default function AdminPage() {
               icon={<History className="w-6 h-6" />}
               color="slate"
             />
-            <AdminCard 
+            <AdminCard
+              hidden={true} 
               href="/admin/form-fields" 
               title="Report Form Fields" 
               description="Configure form fields for outbreak reports" 
@@ -106,6 +144,7 @@ export default function AdminPage() {
               color="emerald"
             />
             <AdminCard 
+              hidden={true} 
               href="/admin/recipients" 
               title={t('adminPanel.emailRecipients')} 
               description={t('adminPanel.emailRecipientsDesc')} 
@@ -126,7 +165,8 @@ export default function AdminPage() {
               icon={<Clock className="w-6 h-6" />}
               color="amber"
             />
-            <AdminCard 
+            <AdminCard
+              hidden={true} 
               href="/admin/data-management" 
               title={t('adminPanel.systemMaintenance')} 
               description={t('adminPanel.systemMaintenanceDesc')} 
@@ -140,7 +180,7 @@ export default function AdminPage() {
   );
 }
 
-function AdminCard({ href, title, description, icon, color, disabled = false }: { href: string; title: string; description: string; icon: React.ReactNode; color: string; disabled?: boolean }) {
+function AdminCard({ href, title, description, icon, color, disabled = false, hidden = false }: { href: string; title: string; description: string; icon: React.ReactNode; color: string; disabled?: boolean, hidden?: boolean }) {
   const colors: Record<string, string> = {
     indigo: "bg-indigo-50 text-indigo-600 border-indigo-100",
     emerald: "bg-emerald-50 text-emerald-600 border-emerald-100",
@@ -158,6 +198,10 @@ function AdminCard({ href, title, description, icon, color, disabled = false }: 
         <p className="text-slate-400 text-sm mt-1">{description}</p>
       </div>
     );
+  }
+
+  if (hidden) {
+    return null;
   }
 
   return (

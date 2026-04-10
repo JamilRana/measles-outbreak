@@ -26,7 +26,7 @@ export default function Navbar() {
         <div className="flex items-center justify-between h-16">
           <Link href="/" className="flex items-center gap-3">
             <div className="bg-white p-1 rounded-lg shadow-sm">
-              <Image src="/dghs_logo.svg" alt="DGHS Logo" width={36} height={36} className="w-9 h-9" />
+              <Image src="/logo_mohfw.png" alt="DGHS Logo" width={36} height={36} className="w-9 h-9" />
             </div>
             <span className="text-xl font-bold tracking-tight hidden md:inline">{t('app.title')}</span>
           </Link>
@@ -34,7 +34,7 @@ export default function Navbar() {
           <div className="flex items-center gap-3">
             <button
               onClick={toggleLanguage}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-indigo-100 hover:text-white transition-all text-sm font-semibold"
+              className="flex hidden items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-indigo-100 hover:text-white transition-all text-sm font-semibold"
               title="Switch language"
             >
               <Globe className="w-4 h-4" />

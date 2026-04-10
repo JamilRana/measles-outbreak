@@ -18,10 +18,12 @@ import {
   Phone,
   Save,
   ToggleLeft,
-  ToggleRight
+  ToggleRight,
+  Pencil
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Breadcrumbs from '@/components/Breadcrumbs';
+import { DIVISIONS, DISTRICTS_BY_DIVISION } from '@/lib/constants';
 
 interface User {
   id: string;
@@ -38,8 +40,7 @@ interface User {
   createdAt: string;
 }
 
-const ROLE_OPTIONS = ["USER", "ADMIN", "VIEWER"];
-const DIVISIONS = ["Dhaka", "Chittagong", "Khulna", "Rajshahi", "Rangpur", "Sylhet", "Barisal", "Mymensingh"];
+const ROLE_OPTIONS = ["USER", "EDITOR", "ADMIN", "VIEWER"];
 
 export default function UserManagementPage() {
   const [users, setUsers] = useState<User[]>([]);
@@ -297,6 +298,8 @@ export default function UserManagementPage() {
                       className={`inline-flex items-center px-4 py-1.5 rounded-xl text-xs font-extrabold transition-all ${
                         user.role === 'ADMIN' 
                           ? 'bg-purple-100 text-purple-700 hover:bg-purple-200' 
+                          : user.role === 'EDITOR'
+                          ? 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200'
                           : user.role === 'VIEWER'
                           ? 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200'
                           : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -312,14 +315,7 @@ export default function UserManagementPage() {
                         className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
                         title="Edit User"
                       >
-                        <Shield className="w-5 h-5" />
-                      </button>
-                      <button 
-                        onClick={() => toggleVerification(user)}
-                        title={user.emailVerified ? "Unverify Email" : "Verify Email"}
-                        className={`p-2 rounded-xl transition-all ${user.emailVerified ? 'text-rose-500 hover:bg-rose-50' : 'text-emerald-500 hover:bg-emerald-50'}`}
-                      >
-                        {user.emailVerified ? <UserX className="w-5 h-5" /> : <UserCheck className="w-5 h-5" />}
+                        <Pencil className="w-5 h-5" />
                       </button>
                       <button 
                         onClick={() => deleteUser(user.id)}
@@ -492,7 +488,7 @@ function UserModal({
               <label className="block text-sm font-medium text-slate-700 mb-2">Division</label>
               <select
                 value={formData.division}
-                onChange={(e) => setFormData({ ...formData, division: e.target.value })}
+                onChange={(e) => setFormData({ ...formData, division: e.target.value, district: '' })}
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 transition-all"
               >
                 <option value="">Select Division</option>
@@ -504,12 +500,17 @@ function UserModal({
 
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-2">District</label>
-              <input
-                type="text"
+              <select
                 value={formData.district}
                 onChange={(e) => setFormData({ ...formData, district: e.target.value })}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 transition-all"
-              />
+                disabled={!formData.division}
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 transition-all disabled:opacity-50"
+              >
+                <option value="">Select District</option>
+                {formData.division && DISTRICTS_BY_DIVISION[formData.division]?.map(dist => (
+                  <option key={dist} value={dist}>{dist}</option>
+                ))}
+              </select>
             </div>
 
             <div>

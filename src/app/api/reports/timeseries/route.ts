@@ -4,16 +4,24 @@ import { prisma } from "@/lib/prisma";
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const days = parseInt(searchParams.get("days") || "30", 10);
+  const outbreakId = searchParams.get("outbreakId");
+  const division = searchParams.get("division");
+  const district = searchParams.get("district");
 
   try {
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
     startDate.setHours(0, 0, 0, 0);
 
+    const where: any = {
+      reportingDate: { gte: startDate },
+    };
+    if (outbreakId) where.outbreakId = outbreakId;
+    if (division) where.facility = { ...where.facility, division };
+    if (district) where.facility = { ...where.facility, district };
+
     const reports = await prisma.dailyReport.findMany({
-      where: {
-        reportingDate: { gte: startDate },
-      },
+      where,
       include: {
         fieldValues: {
           include: { formField: true }

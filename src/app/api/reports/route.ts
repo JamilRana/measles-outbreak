@@ -19,6 +19,9 @@ export async function GET(request: Request) {
     const facilityId = searchParams.get('facilityId');
     const division = searchParams.get('division');
     const district = searchParams.get('district');
+    const page = parseInt(searchParams.get('page') || '1');
+    const limit = parseInt(searchParams.get('limit') || '10');
+    const skip = (page - 1) * limit;
 
     const where: any = {};
     
@@ -103,9 +106,12 @@ export async function GET(request: Request) {
       where.facility = { ...where.facility, district };
     }
 
+    const total = await prisma.dailyReport.count({ where });
     const reports = await prisma.dailyReport.findMany({
       where,
       orderBy: { reportingDate: 'desc' },
+      skip: skip,
+      take: limit,
       include: {
         facility: {
           select: {
@@ -129,7 +135,15 @@ export async function GET(request: Request) {
       }
     });
 
-    return NextResponse.json(reports);
+    return NextResponse.json({
+      reports,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit)
+      }
+    });
   } catch (error) {
     console.error('Reports GET error:', error);
     return NextResponse.json({ error: 'Failed to fetch reports' }, { status: 500 });
