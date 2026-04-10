@@ -66,17 +66,17 @@ export default function OutbreakSelector({ onSelect, defaultValue }: OutbreakSel
       <div className="absolute left-3 top-1/2 -translate-y-1/2 text-indigo-400 group-focus-within:text-indigo-600 transition-colors pointer-events-none">
         <Activity className="w-4 h-4" />
       </div>
-      <select
-        value={selectedId}
-        onChange={handleChange}
-        className="w-full pl-9 pr-10 py-2.5 bg-white/10 dark:bg-gray-800/50 backdrop-blur-sm border border-white/20 dark:border-gray-700/50 rounded-xl text-white appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all font-medium"
-      >
-        {outbreaks.map((ob) => (
-          <option key={ob.id} value={ob.id} className="text-gray-900 bg-white">
-            {ob.name} ({ob.disease.name})
-          </option>
-        ))}
-      </select>
+<select
+  value={selectedId}
+  onChange={handleChange}
+  className="w-full pl-9 pr-10 py-2.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-medium"
+>
+  {outbreaks.map((ob) => (
+    <option key={ob.id} value={ob.id}>
+      {ob.name} ({ob.disease.name})
+    </option>
+  ))}
+</select>
       <div className="absolute right-3 top-1/2 -translate-y-1/2 text-indigo-400 pointer-events-none transition-transform group-focus-within:rotate-180">
         <ChevronDown className="w-4 h-4" />
       </div>

@@ -1,5 +1,6 @@
 @import "tailwindcss";
 
+
 @theme {
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
 }
@@ -105,6 +106,11 @@ body {
   font-family: 'Inter', system-ui, -apple-system, sans-serif !important;
   border-radius: 1rem;
   z-index: 1;
+}
+
+.leaflet-container img {
+  max-width: none !important;
+  max-height: none !important;
 }
 
 .leaflet-popup-content-wrapper {

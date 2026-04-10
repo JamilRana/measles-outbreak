@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getBdTime, getBdStartOfDay, getBdEndOfDay } from "@/lib/timezone";
+import { getBdTime, getBdStartOfDay, getBdEndOfDay, getBdDateString } from "@/lib/timezone";
 
 async function getSettings() {
   const settings = await prisma.settings.findFirst();
@@ -13,6 +13,14 @@ async function getSettings() {
   };
 }
 
+async function getOutbreakBacklog(outbreakId: string) {
+  const outbreak = await prisma.outbreak.findUnique({
+    where: { id: outbreakId },
+    select: { allowBacklogReporting: true, backlogStartDate: true, backlogEndDate: true }
+  });
+  return outbreak || { allowBacklogReporting: false, backlogStartDate: null, backlogEndDate: null };
+}
+
 function checkIsEditable(deadlineHour: number, deadlineMinute: number): boolean {
   const now = getBdTime();
   const deadline = new Date(now);
@@ -20,8 +28,20 @@ function checkIsEditable(deadlineHour: number, deadlineMinute: number): boolean 
   return now <= deadline;
 }
 
+function isWithinBacklog(backlog: { allowBacklogReporting: boolean; backlogStartDate: Date | null; backlogEndDate: Date | null }, reportDate: Date): boolean {
+  if (!backlog.allowBacklogReporting) return false;
+  const start = backlog.backlogStartDate ? new Date(backlog.backlogStartDate) : null;
+  const end = backlog.backlogEndDate ? new Date(backlog.backlogEndDate) : null;
+  if (start && reportDate < start) return false;
+  if (end && reportDate > end) return false;
+  return true;
+}
+
 export async function POST(request: Request) {
   try {
+    const { searchParams } = new URL(request.url);
+    const existingId = searchParams.get("existingId");
+
     const body = await request.json();
     const { 
       facilityId,
@@ -34,7 +54,8 @@ export async function POST(request: Request) {
       admitted24h, 
       discharged24h, 
       serumSent24h,
-      dynamicFields
+      dynamicFields,
+      reportingDate
     } = body;
 
     const settings = await getSettings();
@@ -44,9 +65,62 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "No active outbreak selected" }, { status: 400 });
     }
 
-    const now = getBdTime();
-    const startOfDay = getBdStartOfDay();
-    const endOfDay = getBdEndOfDay();
+    // Get outbreak-specific backlog settings
+    const outbreakBacklog = await getOutbreakBacklog(targetOutbreakId);
+
+    if (existingId) {
+      const report = await prisma.dailyReport.findUnique({ where: { id: existingId } });
+      if (!report || (report as any).isLocked) {
+        return NextResponse.json({ error: "Report is locked or not found" }, { status: 403 });
+      }
+
+      const reportDateObj = new Date(report.reportingDate);
+      const isBacklogAllowed = isWithinBacklog(outbreakBacklog, reportDateObj);
+
+      if (!isBacklogAllowed && !checkIsEditable(settings.editDeadlineHour, settings.editDeadlineMinute)) {
+        return NextResponse.json({ error: "Edit deadline passed" }, { status: 400 });
+      }
+
+      await prisma.$transaction(async (tx) => {
+        await tx.dailyReport.update({
+          where: { id: existingId },
+          data: {
+            suspected24h: Number(suspected24h) || 0,
+            confirmed24h: Number(confirmed24h) || 0,
+            suspectedDeath24h: Number(suspectedDeath24h) || 0,
+            confirmedDeath24h: Number(confirmedDeath24h) || 0,
+            admitted24h: Number(admitted24h) || 0,
+            discharged24h: Number(discharged24h) || 0,
+            serumSent24h: Number(serumSent24h) || 0,
+          }
+        });
+
+        if (dynamicFields && typeof dynamicFields === 'object') {
+          for (const [formFieldId, value] of Object.entries(dynamicFields)) {
+            await tx.reportFieldValue.upsert({
+              where: { reportId_formFieldId: { reportId: existingId, formFieldId } },
+              update: { value: String(value) },
+              create: { reportId: existingId, formFieldId, value: String(value) },
+            });
+          }
+        }
+      });
+
+      return NextResponse.json({ success: true, id: existingId, message: "Report updated", mode: "EDIT" });
+    }
+
+    const targetDate = reportingDate ? new Date(reportingDate) : getBdTime();
+    const startOfTargetDay = new Date(targetDate);
+    startOfTargetDay.setHours(0, 0, 0, 0);
+    const endOfTargetDay = new Date(targetDate);
+    endOfTargetDay.setHours(23, 59, 59, 999);
+
+    const isBacklogRequested = getBdDateString(targetDate) !== getBdDateString();
+    const isBacklogAllowed = isWithinBacklog(outbreakBacklog, targetDate);
+
+    if (isBacklogRequested && !isBacklogAllowed) {
+      return NextResponse.json({ error: "Backlog reporting is not enabled for this date" }, { status: 403 });
+    }
 
     let facility;
     if (facilityId) {
@@ -63,7 +137,7 @@ export async function POST(request: Request) {
       where: {
         facilityId: facility.id,
         outbreakId: targetOutbreakId as any,
-        reportingDate: { gte: startOfDay, lte: endOfDay }
+        reportingDate: { gte: startOfTargetDay, lte: endOfTargetDay }
       }
     });
 
@@ -86,10 +160,12 @@ export async function POST(request: Request) {
       });
     }
 
-    // Check submission cutoff
+    const now = getBdTime();
     const cutoff = new Date(now);
     cutoff.setHours(settings.cutoffHour, settings.cutoffMinute, 0, 0);
-    if (now > cutoff) {
+    
+    // Bypass cutoff if backlog is allowed for this date
+    if (!isBacklogAllowed && now > cutoff) {
       return NextResponse.json({ 
         error: `Submission deadline has passed (${String(settings.cutoffHour).padStart(2, '0')}:${String(settings.cutoffMinute).padStart(2, '0')}).`,
         mode: "VIEW"
@@ -104,7 +180,7 @@ export async function POST(request: Request) {
     const report = await prisma.$transaction(async (tx) => {
       const newReport = await tx.dailyReport.create({
         data: {
-          reportingDate: new Date(),
+          reportingDate: targetDate,
           facilityId: facility.id,
           userId: adminUser?.id || "public-submission",
           outbreakId: targetOutbreakId,
@@ -140,9 +216,11 @@ export async function POST(request: Request) {
 
 export async function PUT(request: Request) {
   try {
+    const { searchParams } = new URL(request.url);
+    const existingId = searchParams.get("existingId");
+    
     const body = await request.json();
     const { 
-      reportId,
       suspected24h, 
       confirmed24h, 
       suspectedDeath24h, 
@@ -152,6 +230,12 @@ export async function PUT(request: Request) {
       serumSent24h,
       dynamicFields
     } = body;
+    
+    const reportId = body.reportId || existingId;
+
+    if (!reportId) {
+      return NextResponse.json({ error: "Missing report ID" }, { status: 400 });
+    }
 
     const report = await prisma.dailyReport.findUnique({ where: { id: reportId } });
     if (!report || (report as any).isLocked) {

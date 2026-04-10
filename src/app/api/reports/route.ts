@@ -7,54 +7,42 @@ import { hasPermission } from '@/lib/rbac';
 
 export async function GET(request: Request) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const { searchParams } = new URL(request.url);
+    const summary = searchParams.get('summary') === 'true';
+    const session = await getServerSession(authOptions);
+
+    // Filters
     const outbreakId = searchParams.get('outbreakId');
     const date = searchParams.get('date');
+    const from = searchParams.get('from');
+    const to = searchParams.get('to');
     const facilityId = searchParams.get('facilityId');
     const division = searchParams.get('division');
     const district = searchParams.get('district');
-    const from = searchParams.get('from');
-    const to = searchParams.get('to');
 
     const where: any = {};
     
     // RBAC Data Scoping
-    if (session.user.role === 'USER') {
-      where.facilityId = session.user.facilityId;
-    } else if (session.user.role === 'EDITOR') {
-      const managedDivs = session.user.managedDivisions || [];
-      const managedDist = session.user.managedDistricts || [];
-      
-      where.facility = {};
-      if (managedDivs.length > 0) {
-        where.facility.division = { in: managedDivs };
-      }
-      if (managedDist.length > 0) {
-        where.facility.district = { in: managedDist };
-      }
-      
-      // If none explicitly managed, fallback to their own facility's division
-      if (managedDivs.length === 0 && managedDist.length === 0) {
-        where.facility.division = session.user.division;
+    if (session?.user) {
+      if (session.user.role === 'USER') {
+        where.facilityId = session.user.facilityId;
+      } else if (session.user.role === 'EDITOR') {
+        const managedDivs = session.user.managedDivisions || [];
+        const managedDist = session.user.managedDistricts || [];
+        where.facility = {};
+        if (managedDivs.length > 0) where.facility.division = { in: managedDivs };
+        if (managedDist.length > 0) where.facility.district = { in: managedDist };
+        if (managedDivs.length === 0 && managedDist.length === 0) where.facility.division = session.user.division;
       }
     }
 
-    // Filters
     if (outbreakId) {
       where.outbreakId = outbreakId;
     } else {
-      // If no outbreak is specified, try to use default from settings
       const settings = await prisma.settings.findFirst();
-      if (settings?.defaultOutbreakId) {
-        where.outbreakId = settings.defaultOutbreakId;
-      }
+      if (settings?.defaultOutbreakId) where.outbreakId = settings.defaultOutbreakId;
     }
-    
+
     if (date) {
       const startOfDay = new Date(date);
       startOfDay.setHours(0, 0, 0, 0);
@@ -62,7 +50,39 @@ export async function GET(request: Request) {
       endOfDay.setHours(23, 59, 59, 999);
       where.reportingDate = { gte: startOfDay, lte: endOfDay };
     }
-    
+
+    if (summary) {
+      const reports = await prisma.dailyReport.findMany({
+        where,
+        include: {
+          fieldValues: {
+            include: { formField: true }
+          }
+        }
+      });
+
+      const totals = reports.reduce((acc, r) => {
+        const dynamicSuspected = r.fieldValues.find(f => f.formField.fieldKey === 'suspected24h')?.value;
+        const dynamicConfirmed = r.fieldValues.find(f => f.formField.fieldKey === 'confirmed24h')?.value;
+        const dynamicSDeath = r.fieldValues.find(f => f.formField.fieldKey === 'suspectedDeath24h')?.value;
+        const dynamicCDeath = r.fieldValues.find(f => f.formField.fieldKey === 'confirmedDeath24h')?.value;
+        const dynamicAdmitted = r.fieldValues.find(f => f.formField.fieldKey === 'admitted24h')?.value;
+
+        acc.suspected += dynamicSuspected ? Number(dynamicSuspected) : r.suspected24h;
+        acc.confirmed += dynamicConfirmed ? Number(dynamicConfirmed) : r.confirmed24h;
+        acc.deaths += (dynamicSDeath ? Number(dynamicSDeath) : r.suspectedDeath24h) + 
+                      (dynamicCDeath ? Number(dynamicCDeath) : r.confirmedDeath24h);
+        acc.hospitalized += dynamicAdmitted ? Number(dynamicAdmitted) : r.admitted24h;
+        return acc;
+      }, { suspected: 0, confirmed: 0, deaths: 0, hospitalized: 0 });
+
+      return NextResponse.json({ totals });
+    }
+
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     if (from && to) {
       const startDate = new Date(from);
       startDate.setHours(0, 0, 0, 0);
@@ -71,11 +91,11 @@ export async function GET(request: Request) {
       where.reportingDate = { gte: startDate, lte: endDate };
     }
 
-    if (facilityId && session.user.role !== 'USER') {
+    if (facilityId && session?.user?.role !== 'USER') {
       where.facilityId = facilityId;
     }
     
-    if (division && session.user.role === 'ADMIN') {
+    if (division && session?.user?.role === 'ADMIN') {
       where.facility = { ...where.facility, division };
     }
     

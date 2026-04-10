@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import "leaflet/dist/leaflet.css";
+
 import { authOptions } from "@/lib/auth";
 import { getServerSession } from "next-auth";
 import AuthProvider from "@/components/AuthProvider";

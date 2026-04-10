@@ -24,6 +24,9 @@ export async function GET(request: Request) {
           lte: endOfDay,
         },
       },
+      include: {
+        fieldValues: true
+      }
     });
 
     return NextResponse.json({ report });

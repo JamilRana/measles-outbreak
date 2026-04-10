@@ -132,8 +132,13 @@ export default function DashboardPage() {
         return;
       }
       
-      setAllReports(data);
-      setSelectedRows(new Set(data.map((r: DailyReport) => r.id)));
+      if (Array.isArray(data)) {
+        setAllReports(data);
+        setSelectedRows(new Set(data.map((r: DailyReport) => r.id)));
+      } else {
+        setAllReports([]);
+        setSelectedRows(new Set());
+      }
     } catch (error) {
       console.error("Error fetching reports:", error);
     } finally {
@@ -327,7 +332,7 @@ const filteredReports = useMemo(() => {
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-4 p-4 bg-white rounded-2xl border border-slate-200 shadow-sm">
+      <div className="flex flex-col sm:flex-row flex-wrap items-center gap-4 p-4 bg-white rounded-2xl border border-slate-200 shadow-sm">
         <div className="flex items-center gap-1 px-1 py-1 bg-slate-100 rounded-xl border border-slate-200">
           <button
             onClick={() => setViewMode('today')}
@@ -410,9 +415,9 @@ const filteredReports = useMemo(() => {
 
         <button 
           onClick={fetchReports}
-          className="ml-auto bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-md shadow-indigo-200"
+          className="w-full sm:w-auto ml-auto bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-md shadow-indigo-200"
         >
-          Update View
+          Filter
         </button>
       </div>
 

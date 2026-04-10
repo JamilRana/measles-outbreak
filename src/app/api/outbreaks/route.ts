@@ -36,6 +36,37 @@ export async function GET(req: Request) {
   }
 }
 
+export async function PATCH(req: Request) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session || !hasPermission(session.user.role, 'outbreak:manage')) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const body = await req.json();
+    const { id, allowBacklogReporting, backlogStartDate, backlogEndDate, ...updateData } = body;
+
+    if (!id) {
+      return NextResponse.json({ error: "Outbreak ID required" }, { status: 400 });
+    }
+
+    const outbreak = await prisma.outbreak.update({
+      where: { id },
+      data: {
+        ...updateData,
+        ...(allowBacklogReporting !== undefined && { allowBacklogReporting }),
+        ...(backlogStartDate && { backlogStartDate: new Date(backlogStartDate) }),
+        ...(backlogEndDate && { backlogEndDate: new Date(backlogEndDate) }),
+      },
+    });
+
+    return NextResponse.json(outbreak);
+  } catch (error) {
+    console.error("Update outbreak error:", error);
+    return NextResponse.json({ error: "Failed to update outbreak" }, { status: 500 });
+  }
+}
+
 export async function POST(req: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -43,7 +74,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const { name, diseaseId, startDate, endDate, status } = await req.json();
+    const body = await req.json();
+    const { name, diseaseId, startDate, endDate, status, isActive, allowBacklogReporting, backlogStartDate, backlogEndDate } = body;
 
     if (!name || !diseaseId || !startDate) {
       return NextResponse.json({ error: "Name, Disease, and Start Date are required" }, { status: 400 });
@@ -56,7 +88,10 @@ export async function POST(req: Request) {
         startDate: new Date(startDate),
         endDate: endDate ? new Date(endDate) : null,
         status: status || 'DRAFT',
-        isActive: true,
+        isActive: isActive ?? true,
+        allowBacklogReporting: allowBacklogReporting ?? false,
+        backlogStartDate: allowBacklogReporting && backlogStartDate ? new Date(backlogStartDate) : null,
+        backlogEndDate: allowBacklogReporting && backlogEndDate ? new Date(backlogEndDate) : null,
       },
     });
 

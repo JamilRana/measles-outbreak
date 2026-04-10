@@ -11,6 +11,9 @@ export async function GET() {
             district: true,
             division: true,
           }
+        },
+        fieldValues: {
+          include: { formField: true }
         }
       },
     });
@@ -36,9 +39,20 @@ export async function GET() {
           hospitalized: 0,
         };
       }
-      byDistrict[district].confirmed += r.confirmed24h;
-      byDistrict[district].deaths += r.suspectedDeath24h + r.confirmedDeath24h;
-      byDistrict[district].hospitalized += r.admitted24h;
+
+      // Map dynamic fields
+      const dynamicConfirmed = r.fieldValues.find(f => f.formField.fieldKey === 'confirmed24h')?.value;
+      const dynamicSDeath = r.fieldValues.find(f => f.formField.fieldKey === 'suspectedDeath24h')?.value;
+      const dynamicCDeath = r.fieldValues.find(f => f.formField.fieldKey === 'confirmedDeath24h')?.value;
+      const dynamicAdmitted = r.fieldValues.find(f => f.formField.fieldKey === 'admitted24h')?.value;
+
+      byDistrict[district].confirmed += dynamicConfirmed ? Number(dynamicConfirmed) : r.confirmed24h;
+      
+      const deaths = (dynamicSDeath ? Number(dynamicSDeath) : r.suspectedDeath24h) + 
+                     (dynamicCDeath ? Number(dynamicCDeath) : r.confirmedDeath24h);
+      byDistrict[district].deaths += deaths;
+      
+      byDistrict[district].hospitalized += dynamicAdmitted ? Number(dynamicAdmitted) : r.admitted24h;
     });
 
     const geoData = Object.values(byDistrict)

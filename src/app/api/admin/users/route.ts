@@ -17,6 +17,7 @@ export async function GET(req: Request) {
       include: {
         facility: {
           select: {
+            id: true,
             facilityName: true,
             facilityCode: true,
             facilityType: true,
@@ -30,6 +31,7 @@ export async function GET(req: Request) {
     return NextResponse.json(users.map((u: any) => ({
       id: u.id,
       email: u.email,
+      phone: u.phone,
       name: u.name,
       role: u.role,
       isActive: u.isActive,
@@ -69,7 +71,6 @@ export async function POST(req: Request) {
         nameNormalized: (name || email).toLowerCase().replace(/[^a-z0-9]/g, "_"),
         facilityId,
         role,
-        emailVerified: new Date(),
         isActive: true,
       },
     });

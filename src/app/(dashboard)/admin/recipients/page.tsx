@@ -13,6 +13,7 @@ import {
   AlertCircle 
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import Breadcrumbs from "@/components/Breadcrumbs";
 
 interface Recipient {
   id: string;
@@ -108,6 +109,7 @@ export default function RecipientsPage() {
 
   return (
     <div className="p-8 max-w-6xl mx-auto space-y-8">
+      <Breadcrumbs />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Email Recipients</h1>

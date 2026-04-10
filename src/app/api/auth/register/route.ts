@@ -43,7 +43,6 @@ export async function POST(req: Request) {
         name: name || facilityName,
         nameNormalized: normalized,
         facilityId: facility.id,
-        phone,
         role: "USER",
       },
     });

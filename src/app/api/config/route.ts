@@ -1,11 +1,28 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url);
+    const outbreakId = searchParams.get("outbreakId");
+
     const settings = await prisma.settings.findFirst();
     
-    // Default values
+    let outbreakBacklog = null;
+    if (outbreakId) {
+      const outbreak = await prisma.outbreak.findUnique({
+        where: { id: outbreakId },
+        select: { allowBacklogReporting: true, backlogStartDate: true, backlogEndDate: true }
+      }) as any;
+      if (outbreak) {
+        outbreakBacklog = {
+          allowBacklogReporting: outbreak.allowBacklogReporting,
+          backlogStartDate: outbreak.backlogStartDate ? outbreak.backlogStartDate.toISOString().split('T')[0] : null,
+          backlogEndDate: outbreak.backlogEndDate ? outbreak.backlogEndDate.toISOString().split('T')[0] : null,
+        };
+      }
+    }
+
     const response = {
       cutoffHour: settings?.cutoffHour ?? 14,
       cutoffMinute: settings?.cutoffMinute ?? 0,
@@ -14,6 +31,7 @@ export async function GET() {
       publishTimeHour: settings?.publishTimeHour ?? 9,
       publishTimeMinute: settings?.publishTimeMinute ?? 0,
       controlRoomContact: process.env.NEXT_PUBLIC_CONTROL_ROOM_CONTACT || "MIS, DGHS",
+      outbreakBacklog,
     };
 
     return NextResponse.json(response);

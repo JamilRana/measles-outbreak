@@ -1,13 +1,16 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
-  ClipboardList, 
   AlertCircle, 
   CheckCircle2, 
   ChevronRight,
-  Info,
-  Loader2
+  Loader2,
+  Activity,
+  Hospital,
+  FlaskConical,
+  AlertTriangle,
+  Users
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useTranslation } from 'react-i18next';
@@ -15,110 +18,144 @@ import { useTranslation } from 'react-i18next';
 interface FormField {
   id: string;
   label: string;
-  labelBn: string | null;
+  labelBn?: string;
   fieldKey: string;
-  fieldType: 'NUMBER' | 'TEXT' | 'SELECT' | 'DATE' | 'BOOLEAN';
-  isRequired: boolean;
-  section: string | null;
+  fieldType: string;
   options?: string;
+  section?: string;
+  isRequired: boolean;
+  sortOrder: number;
 }
 
 interface UnifiedReportFormProps {
   outbreakId: string;
   facilityId?: string;
-  facilityCode?: string;
   initialData?: any;
   mode?: 'CREATE' | 'EDIT' | 'VIEW';
   onSuccess?: (reportId: string) => void;
 }
 
-const InputGroup = ({ 
-  label, 
-  labelBn, 
-  name, 
+const DynamicInput = ({ 
+  field, 
   value, 
   onChange, 
-  type = "number",
-  disabled = false,
-  required = true,
-}: any) => (
-  <div className="flex flex-col">
-    <label className="text-sm font-semibold text-slate-700 mb-1">
-      {label} {required && <span className="text-red-500">*</span>}
-    </label>
-    {labelBn && <span className="text-xs text-slate-500 mb-2 leading-tight">{labelBn}</span>}
-    <input
-      type={type}
-      name={name}
-      value={value}
-      onChange={onChange}
-      required={required}
-      disabled={disabled}
-      inputMode={type === "number" ? "numeric" : "text"}
-      className="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm py-2.5 px-3 border bg-white placeholder-slate-300 transition-all disabled:bg-slate-100 disabled:text-slate-500"
-      placeholder={type === "number" ? "0" : ""}
-    />
-  </div>
-);
+  disabled, 
+  t 
+}: { 
+  field: FormField; 
+  value: string; 
+  onChange: (name: string, val: string) => void; 
+  disabled: boolean;
+  t: any;
+}) => {
+  const label = field.label;
+  
+  if (field.fieldType === 'SELECT' && field.options) {
+    let opts: string[] = [];
+    try { opts = JSON.parse(field.options); } catch (e) { opts = []; }
+    return (
+      <div className="flex flex-col">
+        <label className="text-sm font-semibold text-slate-700 mb-1">
+          {field.section === 'cases' && <Users className="w-4 h-4 inline mr-1 text-slate-400" />}
+          {field.section === 'mortality' && <AlertTriangle className="w-4 h-4 inline mr-1 text-slate-400" />}
+          {field.section === 'hospitalization' && <Hospital className="w-4 h-4 inline mr-1 text-slate-400" />}
+          {field.section === 'lab' && <FlaskConical className="w-4 h-4 inline mr-1 text-slate-400" />}
+          {label} {field.isRequired && <span className="text-red-500">*</span>}
+        </label>
+        <select
+          value={value}
+          onChange={(e) => onChange(field.fieldKey, e.target.value)}
+          disabled={disabled}
+          className="block w-full rounded-lg border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm py-2.5 px-3 border bg-white text-slate-800 disabled:bg-slate-100 disabled:text-slate-500"
+        >
+          <option value="">Select</option>
+          {opts.map((opt: string) => (
+            <option key={opt} value={opt}>{opt}</option>
+          ))}
+        </select>
+      </div>
+    );
+  }
+  
+  return (
+    <div className="flex flex-col">
+      <label className="text-sm font-semibold text-slate-700 mb-1">
+        {field.section === 'cases' && <Activity className="w-4 h-4 inline mr-1 text-slate-400" />}
+        {field.section === 'mortality' && <AlertTriangle className="w-4 h-4 inline mr-1 text-slate-400" />}
+        {field.section === 'hospitalization' && <Hospital className="w-4 h-4 inline mr-1 text-slate-400" />}
+        {field.section === 'lab' && <FlaskConical className="w-4 h-4 inline mr-1 text-slate-400" />}
+        {label} {field.isRequired && <span className="text-red-500">*</span>}
+      </label>
+      <input
+        type={field.fieldType === 'NUMBER' ? 'number' : 'text'}
+        value={value}
+        onChange={(e) => onChange(field.fieldKey, e.target.value)}
+        disabled={disabled}
+        readOnly={disabled}
+        inputMode="numeric"
+        min="0"
+        required={field.isRequired}
+        className={`block w-full rounded-lg border shadow-sm sm:text-sm py-2.5 px-3 border bg-white placeholder-slate-400 transition-all text-slate-900 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+          disabled 
+            ? 'bg-slate-100 text-slate-500 cursor-not-allowed border-slate-200' 
+            : 'border-slate-300 focus:border-indigo-500 focus:ring-indigo-500'
+        }`}
+        placeholder={disabled ? '—' : '0'}
+      />
+    </div>
+  );
+};
 
 export default function UnifiedReportForm({ 
   outbreakId, 
   facilityId, 
-  facilityCode, 
   initialData, 
   mode: initialMode = 'CREATE',
   onSuccess 
 }: UnifiedReportFormProps) {
   const { t, i18n } = useTranslation();
   const [mode, setMode] = useState(initialMode);
-  const [dynamicFields, setDynamicFields] = useState<FormField[]>([]);
-  const [formData, setFormData] = useState({
-    suspected24h: initialData?.suspected24h || '',
-    confirmed24h: initialData?.confirmed24h || '',
-    suspectedDeath24h: initialData?.suspectedDeath24h || '',
-    confirmedDeath24h: initialData?.confirmedDeath24h || '',
-    admitted24h: initialData?.admitted24h || '',
-    discharged24h: initialData?.discharged24h || '',
-    serumSent24h: initialData?.serumSent24h || '',
-    dynamicValues: initialData?.dynamicValues || {}
-  });
-
-  const [isLoadingFields, setIsLoadingFields] = useState(false);
+  const [fields, setFields] = useState<FormField[]>([]);
+  const [formData, setFormData] = useState<Record<string, string>>({});
+  const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!outbreakId) return;
-
+    
     async function fetchFields() {
-      setIsLoadingFields(true);
+      setIsLoading(true);
       try {
-        const res = await fetch(`/api/outbreaks/${outbreakId}/fields`);
+        const res = await fetch(`/api/public/fields?outbreakId=${outbreakId}`);
         if (res.ok) {
-          const fields = await res.json();
-          setDynamicFields(fields);
+          const data = await res.json();
+          setFields(data);
+          
+          const values: Record<string, string> = {};
+          data.forEach((f: FormField) => {
+            values[f.fieldKey] = initialData?.[f.fieldKey] || '';
+          });
+          if (initialData?.fieldValues) {
+            initialData.fieldValues.forEach((fv: any) => {
+              const field = data.find((df: FormField) => df.id === fv.formFieldId);
+              if (field) values[field.fieldKey] = fv.value;
+            });
+          }
+          setFormData(values);
         }
       } catch (err) {
-        console.error("Failed to fetch dynamic fields:", err);
+        console.error("Failed to fetch fields:", err);
       } finally {
-        setIsLoadingFields(false);
+        setIsLoading(false);
       }
     }
     fetchFields();
   }, [outbreakId]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
+  const handleChange = (name: string, value: string) => {
     setFormData(prev => ({ ...prev, [name]: value }));
-    setError(null);
-  };
-
-  const handleDynamicChange = (fieldId: string, value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      dynamicValues: { ...prev.dynamicValues, [fieldId]: value }
-    }));
     setError(null);
   };
 
@@ -130,13 +167,18 @@ export default function UnifiedReportForm({
     setError(null);
 
     try {
-      const payload = {
+      const dynamicFields: Record<string, string> = {};
+      fields.forEach(f => { if (formData[f.fieldKey]) dynamicFields[f.id] = formData[f.fieldKey]; });
+      
+      const numericFields: Record<string, number> = {};
+      fields.forEach(f => { if (formData[f.fieldKey]) numericFields[f.fieldKey] = parseInt(formData[f.fieldKey]) || 0; });
+      
+      const payload: Record<string, any> = { 
         outbreakId,
         facilityId,
-        facilityCode,
-        ...formData,
-        dynamicFields: formData.dynamicValues,
-        reportingDate: new Date().toISOString()
+        dynamicFields, 
+        reportingDate: new Date().toISOString(), 
+        ...numericFields 
       };
 
       const res = await fetch('/api/public/submit', {
@@ -161,15 +203,25 @@ export default function UnifiedReportForm({
     }
   };
 
-  // Group dynamic fields by section
-  const sections = dynamicFields.reduce((acc: any, field) => {
-    const sectionName = field.section || "Additional Information";
-    if (!acc[sectionName]) acc[sectionName] = [];
-    acc[sectionName].push(field);
-    return acc;
-  }, {});
+  const groupedFields = useMemo(() => {
+    const groups: Record<string, FormField[]> = {};
+    fields.forEach(f => { 
+      const s = f.section || 'other'; 
+      if (!groups[s]) groups[s] = []; 
+      groups[s].push(f); 
+    });
+    Object.keys(groups).forEach(k => groups[k].sort((a, b) => a.sortOrder - b.sortOrder));
+    return groups;
+  }, [fields]);
 
-  if (isLoadingFields) {
+  const sectionInfo: Record<string, { title: string; icon: any; gradient: string; color: string }> = {
+    cases: { title: 'Cases', icon: Users, gradient: 'from-blue-50 to-indigo-50', color: 'text-blue-600' },
+    mortality: { title: 'Mortality', icon: AlertTriangle, gradient: 'from-red-50 to-rose-50', color: 'text-red-600' },
+    hospitalization: { title: 'Hospitalization', icon: Hospital, gradient: 'from-amber-50 to-orange-50', color: 'text-amber-600' },
+    lab: { title: 'Laboratory', icon: FlaskConical, gradient: 'from-purple-50 to-violet-50', color: 'text-purple-600' }
+  };
+
+  if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center py-20 space-y-4">
         <Loader2 className="w-10 h-10 text-indigo-500 animate-spin" />
@@ -191,7 +243,9 @@ export default function UnifiedReportForm({
             <div className="w-16 h-16 bg-emerald-500 rounded-full flex items-center justify-center mx-auto mb-6">
               <CheckCircle2 className="w-8 h-8 text-white" />
             </div>
-            <h2 className="text-2xl font-bold text-slate-800 mb-2">Submission Successful</h2>
+            <h2 className="text-2xl font-bold text-slate-800 mb-2">
+              {mode === 'EDIT' ? 'Report Updated' : 'Submission Successful'}
+            </h2>
             <p className="text-slate-600 mb-8">Your report has been captured in the monitoring platform.</p>
             <button 
               onClick={() => setIsSuccess(false)}
@@ -206,7 +260,7 @@ export default function UnifiedReportForm({
             onSubmit={handleSubmit}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="space-y-8"
+            className="space-y-6"
           >
             {error && (
               <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-xl flex items-center gap-3">
@@ -215,45 +269,38 @@ export default function UnifiedReportForm({
               </div>
             )}
 
-            {/* Core Fields */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-              <div className="md:col-span-2 pb-2 border-b border-slate-100">
-                <h3 className="font-bold text-slate-800">Core Surveillance Fields</h3>
-              </div>
-              <InputGroup label={t('dailyReport.fields.suspected24h')} name="suspected24h" value={formData.suspected24h} onChange={handleChange} disabled={mode === 'VIEW'} />
-              <InputGroup label={t('dailyReport.fields.confirmed24h')} name="confirmed24h" value={formData.confirmed24h} onChange={handleChange} disabled={mode === 'VIEW'} />
-              <InputGroup label="Suspected Deaths (24h)" name="suspectedDeath24h" value={formData.suspectedDeath24h} onChange={handleChange} disabled={mode === 'VIEW'} />
-              <InputGroup label="Confirmed Deaths (24h)" name="confirmedDeath24h" value={formData.confirmedDeath24h} onChange={handleChange} disabled={mode === 'VIEW'} />
-            </div>
-
-            {/* Dynamic Sections */}
-            {Object.entries(sections).map(([sectionName, fields]: [string, any]) => (
-              <div key={sectionName} className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                <div className="md:col-span-2 pb-2 border-b border-slate-100 uppercase tracking-wider text-xs font-black text-indigo-600">
-                  {sectionName}
+            {Object.entries(groupedFields).map(([section, sectionFields]) => {
+              const info = sectionInfo[section] || { title: section, icon: Activity, gradient: 'from-slate-50 to-slate-100', color: 'text-slate-600' };
+              return (
+                <div key={section} className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+                  <div className={`px-6 py-4 border-b border-slate-100 bg-gradient-to-r ${info.gradient}`}>
+                    <h3 className="font-semibold text-slate-800 flex items-center gap-2">
+                      <info.icon className={`w-5 h-5 ${info.color}`} />
+                      {info.title}
+                    </h3>
+                  </div>
+                  <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {(sectionFields as FormField[]).map(field => (
+                      <DynamicInput 
+                        key={field.id} 
+                        field={field} 
+                        value={formData[field.fieldKey] || ''} 
+                        onChange={handleChange} 
+                        disabled={mode === 'VIEW'}
+                        t={t}
+                      />
+                    ))}
+                  </div>
                 </div>
-                {fields.map((field: FormField) => (
-                  <InputGroup 
-                    key={field.id}
-                    label={i18n.language === 'bn' && field.labelBn ? field.labelBn : field.label}
-                    labelBn={i18n.language === 'en' ? field.labelBn : null}
-                    name={field.fieldKey}
-                    value={formData.dynamicValues[field.id] || ""}
-                    onChange={(e: any) => handleDynamicChange(field.id, e.target.value)}
-                    type={field.fieldType === 'NUMBER' ? 'number' : 'text'}
-                    required={field.isRequired}
-                    disabled={mode === 'VIEW'}
-                  />
-                ))}
-              </div>
-            ))}
+              );
+            })}
 
             {mode !== 'VIEW' && (
               <div className="flex justify-end pt-4">
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-400 text-white font-bold py-4 px-12 rounded-2xl shadow-xl shadow-indigo-600/20 transition-all flex items-center text-lg active:scale-95"
+                  className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 disabled:bg-slate-400 text-white font-bold py-4 px-12 rounded-2xl shadow-xl shadow-indigo-600/20 transition-all flex items-center text-lg active:scale-95"
                 >
                   {isSubmitting ? (
                     <Loader2 className="w-6 h-6 animate-spin mr-2" />

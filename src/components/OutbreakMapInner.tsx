@@ -1,7 +1,7 @@
 "use client";
 
+import React from 'react';
 import { MapContainer, TileLayer, CircleMarker, Popup } from 'react-leaflet';
-import 'leaflet/dist/leaflet.css';
 
 interface GeoData {
   district: string;
@@ -43,7 +43,7 @@ export default function OutbreakMapInner({ geoData, showDeaths, showConfirmed, s
       />
 
       {geoData.map((item) => (
-        <span key={item.district}>
+        <React.Fragment key={item.district}>
           {/* Deaths — Red */}
           {showDeaths && item.deaths > 0 && (
             <CircleMarker
@@ -112,7 +112,7 @@ export default function OutbreakMapInner({ geoData, showDeaths, showConfirmed, s
               </Popup>
             </CircleMarker>
           )}
-        </span>
+        </React.Fragment>
       ))}
     </MapContainer>
   );

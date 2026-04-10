@@ -98,6 +98,9 @@ model Outbreak {
   isActive   Boolean        @default(true)
   createdAt  DateTime       @default(now())
   updatedAt  DateTime       @updatedAt
+  allowBacklogReporting    Boolean  @default(false)
+  backlogStartDate         DateTime?
+  backlogEndDate           DateTime?
   reports    DailyReport[]
   formFields FormField[]
   disease    Disease        @relation(fields: [diseaseId], references: [id])
@@ -216,4 +219,17 @@ model Settings {
   createdAt                DateTime @default(now())
   updatedAt                DateTime @updatedAt
   defaultOutbreakId        String?
+}
+
+model Indicator {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  numerator   String   // Formula or field key
+  denominator String?  // Optional denominator for rates
+  multiplier  Float    @default(100)
+  unit        String?  // %, per 1000, etc.
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }

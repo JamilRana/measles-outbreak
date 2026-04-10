@@ -13,9 +13,15 @@ import {
   Upload,
   Clock,
   ClipboardCheck,
-  FileWarning
+  FileWarning,
+  FileText,
+  RotateCcw,
+  Activity,
+  Calculator,
+  History
 } from "lucide-react";
 import { motion } from "motion/react";
+import Breadcrumbs from "@/components/Breadcrumbs";
 
 export default function AdminPage() {
   const { data: session } = useSession();
@@ -27,6 +33,7 @@ export default function AdminPage() {
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-8">
+      <Breadcrumbs />
       <div>
         <h1 className="text-3xl font-bold text-slate-900">
           {isAdmin ? t('adminPanel.title') : isManager ? 'Manager Dashboard' : 'Dashboard'}
@@ -40,18 +47,11 @@ export default function AdminPage() {
         {(isAdmin || isManager) && (
           <>
             <AdminCard 
-              href="/admin/reports" 
-              title="Report Management" 
-              description="View, search and manage submitted reports"
-              icon={<Search className="w-6 h-6" />}
-              color="indigo"
-            />
-            <AdminCard 
               href="/admin/submissions" 
-              title="Submission Status" 
-              description="Track who submitted and who hasn't"
+              title="Reporting Hub" 
+              description="Monitor submissions, track missing units, and manage daily data records"
               icon={<ClipboardCheck className="w-6 h-6" />}
-              color="emerald"
+              color="indigo"
             />
             <AdminCard 
               href="/admin/bulk-data" 
@@ -77,6 +77,34 @@ export default function AdminPage() {
 
         {isAdmin && (
           <>
+            <AdminCard 
+              href="/admin/outbreaks" 
+              title="Outbreak Management" 
+              description="Manage outbreak events and backlog reporting" 
+              icon={<Activity className="w-6 h-6" />}
+              color="rose"
+            />
+            <AdminCard 
+              href="/admin/indicators" 
+              title="Indicator Engine" 
+              description="Define and manage dynamic health metrics" 
+              icon={<Calculator className="w-6 h-6" />}
+              color="indigo"
+            />
+            <AdminCard 
+              href="/admin/audit-logs" 
+              title="Audit Infrastructure" 
+              description="Monitor immutable system activity logs" 
+              icon={<History className="w-6 h-6" />}
+              color="slate"
+            />
+            <AdminCard 
+              href="/admin/form-fields" 
+              title="Report Form Fields" 
+              description="Configure form fields for outbreak reports" 
+              icon={<FileText className="w-6 h-6" />}
+              color="emerald"
+            />
             <AdminCard 
               href="/admin/recipients" 
               title={t('adminPanel.emailRecipients')} 

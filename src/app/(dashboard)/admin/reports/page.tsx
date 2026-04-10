@@ -33,6 +33,7 @@ interface Report {
   division: string;
   district: string;
   facilityName: string;
+  facilityCode?: string;
   suspected24h: number;
   suspectedYTD: number;
   confirmed24h: number;
@@ -169,7 +170,18 @@ export default function AdminReportsPage() {
 
       const res = await fetch(url);
       const data = await res.json();
-      setReports(data);
+      
+      if (Array.isArray(data)) {
+        setReports(data.map((r: any) => ({
+          ...r,
+          facilityName: r.facility?.facilityName || 'N/A',
+          division: r.facility?.division || 'N/A',
+          district: r.facility?.district || 'N/A',
+          facilityCode: r.facility?.facilityCode || 'N/A'
+        })));
+      } else {
+        setReports([]);
+      }
     } catch {
       console.error("Failed to fetch reports");
     } finally {
@@ -517,7 +529,14 @@ export default function AdminReportsPage() {
                                 <Building2 className="w-5 h-5 text-slate-400 group-hover:text-indigo-500 transition-colors" />
                               </div>
                               <div className="flex flex-col min-w-0">
-                                <span className="font-bold text-slate-800 text-sm truncate">{report.facilityName}</span>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-bold text-slate-800 text-sm truncate">{report.facilityName}</span>
+                                  {report.facilityCode && (
+                                    <span className="px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded text-[9px] font-black uppercase tracking-tighter">
+                                      #{report.facilityCode}
+                                    </span>
+                                  )}
+                                </div>
                                 <div className="flex items-center gap-2 mt-0.5">
                                   <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider flex items-center gap-1">
                                     <MapPin className="w-2.5 h-2.5" /> {report.district}

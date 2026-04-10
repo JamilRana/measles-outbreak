@@ -20,7 +20,7 @@ export async function GET(req: Request) {
 
     await prisma.user.update({
       where: { email: verificationToken.email },
-      data: { emailVerified: new Date() },
+      data: { isActive: true },
     });
 
     await prisma.verificationToken.delete({

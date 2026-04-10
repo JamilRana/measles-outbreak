@@ -21,6 +21,7 @@ import {
   ToggleRight
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import Breadcrumbs from '@/components/Breadcrumbs';
 
 interface User {
   id: string;
@@ -193,12 +194,13 @@ export default function UserManagementPage() {
   };
 
   const filteredUsers = users.filter(u => 
-    u.facilityName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    u.email.toLowerCase().includes(searchTerm.toLowerCase())
+    u.facilityName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    u.email?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-8 pb-16">
+      <Breadcrumbs />
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
           <h1 className="text-3xl font-bold text-slate-900">User Management</h1>

@@ -23,17 +23,30 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       return NextResponse.json({ error: "Report not found" }, { status: 404 });
     }
 
-    const report = await prisma.dailyReport.update({
-      where: { id },
-      data: {
-        suspected24h: Number(data.suspected24h) || 0,
-        confirmed24h: Number(data.confirmed24h) || 0,
-        suspectedDeath24h: Number(data.suspectedDeath24h) || 0,
-        confirmedDeath24h: Number(data.confirmedDeath24h) || 0,
-        admitted24h: Number(data.admitted24h) || 0,
-        discharged24h: Number(data.discharged24h) || 0,
-        serumSent24h: Number(data.serumSent24h) || 0,
-      },
+    const report = await prisma.$transaction(async (tx) => {
+      const updated = await tx.dailyReport.update({
+        where: { id },
+        data: {
+          suspected24h: Number(data.suspected24h) || 0,
+          confirmed24h: Number(data.confirmed24h) || 0,
+          suspectedDeath24h: Number(data.suspectedDeath24h) || 0,
+          confirmedDeath24h: Number(data.confirmedDeath24h) || 0,
+          admitted24h: Number(data.admitted24h) || 0,
+          discharged24h: Number(data.discharged24h) || 0,
+          serumSent24h: Number(data.serumSent24h) || 0,
+        },
+      });
+
+      if (data.dynamicFields && typeof data.dynamicFields === 'object') {
+        for (const [formFieldId, value] of Object.entries(data.dynamicFields)) {
+          await tx.reportFieldValue.upsert({
+            where: { reportId_formFieldId: { reportId: id, formFieldId } },
+            update: { value: String(value) },
+            create: { reportId: id, formFieldId, value: String(value) },
+          });
+        }
+      }
+      return updated;
     });
 
     await createAuditLog({

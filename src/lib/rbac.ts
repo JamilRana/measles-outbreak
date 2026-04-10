@@ -21,6 +21,7 @@ export const PERMISSIONS = {
   'user:manage':      ['ADMIN' as Role],
   'settings:manage':  ['ADMIN' as Role],
   'outbreak:manage':  ['ADMIN' as Role],
+  'formfield:view':   ['ADMIN' as Role, 'EDITOR' as Role],
   'formfield:manage': ['ADMIN' as Role],
   'data:manage':      ['ADMIN' as Role, 'EDITOR' as Role],
 

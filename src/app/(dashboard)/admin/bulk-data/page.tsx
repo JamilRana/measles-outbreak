@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Upload, FileText, Download, CheckCircle, XCircle, AlertCircle, Plus, Edit2, Trash2, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { DIVISIONS, DISTRICTS_BY_DIVISION } from '@/lib/constants';
+import Breadcrumbs from '@/components/Breadcrumbs';
 
 interface User {
   id: string;
@@ -148,6 +149,7 @@ export default function BulkDataPage() {
 
   return (
     <div className="p-8 max-w-4xl mx-auto space-y-8">
+      <Breadcrumbs />
       <div>
         <h1 className="text-3xl font-bold text-slate-900">Data Entry</h1>
         <p className="text-slate-500 mt-1">Upload historical or add single report data</p>

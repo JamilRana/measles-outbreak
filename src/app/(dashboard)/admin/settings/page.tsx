@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Settings, Clock, Save, CheckCircle, XCircle, Globe, Mail } from 'lucide-react';
 import { motion } from 'motion/react';
+import Breadcrumbs from '@/components/Breadcrumbs';
 
 interface SettingsData {
   cutoffHour: number;
@@ -13,6 +14,9 @@ interface SettingsData {
   publishTimeMinute: number;
   enablePublicView: boolean;
   enableEmailNotifications: boolean;
+  allowBacklogReporting: boolean;
+  backlogStartDate: string | null;
+  backlogEndDate: string | null;
 }
 
 const defaultSettings: SettingsData = {
@@ -24,6 +28,9 @@ const defaultSettings: SettingsData = {
   publishTimeMinute: 0,
   enablePublicView: true,
   enableEmailNotifications: true,
+  allowBacklogReporting: false,
+  backlogStartDate: null,
+  backlogEndDate: null,
 };
 
 export default function SettingsPage() {
@@ -83,6 +90,7 @@ export default function SettingsPage() {
 
   return (
     <div className="p-8 max-w-4xl mx-auto space-y-8">
+      <Breadcrumbs />
       <div>
         <h1 className="text-3xl font-bold text-slate-900">System Settings</h1>
         <p className="text-slate-500 mt-1">Configure platform behavior and time settings</p>

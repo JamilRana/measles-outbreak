@@ -14,6 +14,11 @@ export async function GET(req: Request) {
       where: {
         reportingDate: { gte: startDate },
       },
+      include: {
+        fieldValues: {
+          include: { formField: true }
+        }
+      },
       orderBy: { reportingDate: "asc" },
     });
 
@@ -24,10 +29,23 @@ export async function GET(req: Request) {
       if (!byDate[dateKey]) {
         byDate[dateKey] = { suspected: 0, confirmed: 0, deaths: 0, hospitalized: 0 };
       }
-      byDate[dateKey].suspected += r.suspected24h;
-      byDate[dateKey].confirmed += r.confirmed24h;
-      byDate[dateKey].deaths += r.suspectedDeath24h + r.confirmedDeath24h;
-      byDate[dateKey].hospitalized += r.admitted24h;
+
+      // Map dynamic fields
+      const dynamicSuspected = r.fieldValues.find(f => f.formField.fieldKey === 'suspected24h')?.value;
+      const dynamicConfirmed = r.fieldValues.find(f => f.formField.fieldKey === 'confirmed24h')?.value;
+      const dynamicSDeath = r.fieldValues.find(f => f.formField.fieldKey === 'suspectedDeath24h')?.value;
+      const dynamicCDeath = r.fieldValues.find(f => f.formField.fieldKey === 'confirmedDeath24h')?.value;
+      const dynamicAdmitted = r.fieldValues.find(f => f.formField.fieldKey === 'admitted24h')?.value;
+
+      // prioritize dynamic fields, fallback to columns
+      byDate[dateKey].suspected += dynamicSuspected ? Number(dynamicSuspected) : r.suspected24h;
+      byDate[dateKey].confirmed += dynamicConfirmed ? Number(dynamicConfirmed) : r.confirmed24h;
+      
+      const deaths = (dynamicSDeath ? Number(dynamicSDeath) : r.suspectedDeath24h) + 
+                     (dynamicCDeath ? Number(dynamicCDeath) : r.confirmedDeath24h);
+      byDate[dateKey].deaths += deaths;
+      
+      byDate[dateKey].hospitalized += dynamicAdmitted ? Number(dynamicAdmitted) : r.admitted24h;
     });
 
     const timeseries = Object.entries(byDate)
