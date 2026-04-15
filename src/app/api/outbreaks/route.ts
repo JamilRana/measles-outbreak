@@ -7,17 +7,17 @@ import { hasPermission } from "@/lib/rbac";
 export async function GET(req: Request) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
+    // Public access for outbreak enumeration (needed for reporting)
+    
     const { searchParams } = new URL(req.url);
     const status = searchParams.get("status");
     const diseaseId = searchParams.get("diseaseId");
+    const onlyActive = searchParams.get("active") === 'true';
 
-    const where: any = { isActive: true };
+    const where: any = {};
     if (status) where.status = status;
     if (diseaseId) where.diseaseId = diseaseId;
+    if (onlyActive) where.isActive = true;
 
     const outbreaks = await prisma.outbreak.findMany({
       where,
@@ -36,37 +36,6 @@ export async function GET(req: Request) {
   }
 }
 
-export async function PATCH(req: Request) {
-  try {
-    const session = await getServerSession(authOptions);
-    if (!session || !hasPermission(session.user.role, 'outbreak:manage')) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
-
-    const body = await req.json();
-    const { id, allowBacklogReporting, backlogStartDate, backlogEndDate, ...updateData } = body;
-
-    if (!id) {
-      return NextResponse.json({ error: "Outbreak ID required" }, { status: 400 });
-    }
-
-    const outbreak = await prisma.outbreak.update({
-      where: { id },
-      data: {
-        ...updateData,
-        ...(allowBacklogReporting !== undefined && { allowBacklogReporting }),
-        ...(backlogStartDate && { backlogStartDate: new Date(backlogStartDate) }),
-        ...(backlogEndDate && { backlogEndDate: new Date(backlogEndDate) }),
-      },
-    });
-
-    return NextResponse.json(outbreak);
-  } catch (error) {
-    console.error("Update outbreak error:", error);
-    return NextResponse.json({ error: "Failed to update outbreak" }, { status: 500 });
-  }
-}
-
 export async function POST(req: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -75,7 +44,10 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { name, diseaseId, startDate, endDate, status, isActive, allowBacklogReporting, backlogStartDate, backlogEndDate } = body;
+    const { 
+      name, diseaseId, startDate, endDate, status, isActive, 
+      allowBacklogReporting, backlogStartDate, backlogEndDate
+    } = body;
 
     if (!name || !diseaseId || !startDate) {
       return NextResponse.json({ error: "Name, Disease, and Start Date are required" }, { status: 400 });
@@ -90,8 +62,18 @@ export async function POST(req: Request) {
         status: status || 'DRAFT',
         isActive: isActive ?? true,
         allowBacklogReporting: allowBacklogReporting ?? false,
-        backlogStartDate: allowBacklogReporting && backlogStartDate ? new Date(backlogStartDate) : null,
-        backlogEndDate: allowBacklogReporting && backlogEndDate ? new Date(backlogEndDate) : null,
+        backlogStartDate: (allowBacklogReporting && backlogStartDate) ? new Date(backlogStartDate) : null,
+        backlogEndDate: (allowBacklogReporting && backlogEndDate) ? new Date(backlogEndDate) : null,
+        reportingFrequency: body.reportingFrequency || 'DAILY',
+        cutoffHour: body.submissionCutoff ? parseInt(body.submissionCutoff.split(':')[0]) : 14,
+        cutoffMinute: body.submissionCutoff ? parseInt(body.submissionCutoff.split(':')[1]) : 0,
+        editDeadlineHour: body.editDeadline ? parseInt(body.editDeadline.split(':')[0]) : 10,
+        editDeadlineMinute: body.editDeadline ? parseInt(body.editDeadline.split(':')[1]) : 0,
+        publishTimeHour: body.publishTime ? parseInt(body.publishTime.split(':')[0]) : 9,
+        publishTimeMinute: body.publishTime ? parseInt(body.publishTime.split(':')[1]) : 0,
+        targetDivisions: body.targetDivisions || [],
+        targetDistricts: body.targetDistricts || [],
+        targetFacilityTypeIds: body.targetFacilityTypeIds || [],
       },
     });
 

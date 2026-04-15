@@ -18,16 +18,18 @@ export default function AuthenticatedReportPage() {
   const [selectedOutbreakId, setSelectedOutbreakId] = useState('');
   const [selectedDate, setSelectedDate] = useState(getBdDateString());
   const [selectedFacilityId, setSelectedFacilityId] = useState('');
+  const [windowStatus, setWindowStatus] = useState<any>(null);
   const [settings, setSettings] = useState<any>(null);
   const [currentTime, setCurrentTime] = useState<Date>(getBdTime());
   const [mounted, setMounted] = useState(false);
+  const [formMode, setFormMode] = useState<'CREATE' | 'EDIT' | 'VIEW'>('CREATE');
 
   const canSubmit = hasPermission(session?.user?.role || "", 'report:create');
 
   useEffect(() => { setMounted(true); }, []);
 
   useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(getBdTime()), 1000);
+    const timer = setInterval(() => setCurrentTime(getBdTime()), 30000);
     return () => clearInterval(timer);
   }, []);
 
@@ -51,6 +53,21 @@ export default function AuthenticatedReportPage() {
     };
     fetchConfig();
   }, [selectedOutbreakId]);
+
+  useEffect(() => {
+    const fetchWindowStatus = async () => {
+      if (!selectedOutbreakId || !selectedFacilityId || !selectedDate) return;
+      try {
+        const url = `/api/submission/open-window?outbreakId=${selectedOutbreakId}&facilityId=${selectedFacilityId}&date=${selectedDate}`;
+        const res = await fetch(url);
+        if (res.ok) {
+           const d = await res.json();
+           setWindowStatus(d);
+        }
+      } catch (err) { console.error("Failed to fetch window status:", err); }
+    };
+    fetchWindowStatus();
+  }, [selectedOutbreakId, selectedFacilityId, selectedDate]);
 
   const deadlineInfo = useMemo(() => {
     if (!settings) return null;
@@ -124,7 +141,7 @@ export default function AuthenticatedReportPage() {
                   cutoffMinute={settings.cutoffMinute}
                   editDeadlineHour={settings.editDeadlineHour}
                   editDeadlineMinute={settings.editDeadlineMinute}
-                  mode="CREATE"
+                  mode={formMode}
                   isPastEditDeadline={deadlineInfo.isPastEditDeadline}
                   isPastCutoff={deadlineInfo.isPastCutoff}
                   isToday={deadlineInfo.isToday}
@@ -132,6 +149,7 @@ export default function AuthenticatedReportPage() {
                   backlogStartDate={settings.outbreakBacklog?.backlogStartDate}
                   backlogEndDate={settings.outbreakBacklog?.backlogEndDate}
                   selectedDate={selectedDate}
+                  windowStatus={windowStatus}
                 />
               )}
 
@@ -140,6 +158,7 @@ export default function AuthenticatedReportPage() {
                    outbreakId={selectedOutbreakId}
                    facilityId={selectedFacilityId}
                    onDateChange={setSelectedDate}
+                   onModeChange={setFormMode}
                    onSuccess={() => {}}
                  />
               </div>

@@ -19,7 +19,10 @@ import {
   Save,
   ToggleLeft,
   ToggleRight,
-  Pencil
+  Pencil,
+  PlusCircle,
+  Globe,
+  Loader2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Breadcrumbs from '@/components/Breadcrumbs';
@@ -28,22 +31,33 @@ import { DIVISIONS, DISTRICTS_BY_DIVISION } from '@/lib/constants';
 interface User {
   id: string;
   email: string;
+  name: string;
   facilityName: string;
   facilityCode?: string;
   facilityType?: string;
   division?: string | null;
   district?: string | null;
-  upazila?: string | null;
   role: string;
-  emailVerified: string | null;
   isActive: boolean;
   createdAt: string;
+  facilityId: string | null;
+  managedDivisions: string[];
+  managedDistricts: string[];
+}
+
+interface Facility {
+  id: string;
+  facilityName: string;
+  facilityCode: string;
+  division: string;
+  district: string;
 }
 
 const ROLE_OPTIONS = ["USER", "EDITOR", "ADMIN", "VIEWER"];
 
 export default function UserManagementPage() {
   const [users, setUsers] = useState<User[]>([]);
+  const [facilities, setFacilities] = useState<Facility[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [showModal, setShowModal] = useState(false);
@@ -51,18 +65,17 @@ export default function UserManagementPage() {
   const [formData, setFormData] = useState({
     email: "",
     password: "",
-    facilityName: "",
-    facilityCode: "",
-    facilityType: "",
-    division: "",
-    district: "",
-    upazila: "",
+    name: "",
     role: "USER",
+    facilityId: "",
+    managedDivisions: [] as string[],
+    managedDistricts: [] as string[]
   });
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     fetchUsers();
+    fetchFacilities();
   }, []);
 
   const fetchUsers = async () => {
@@ -78,18 +91,26 @@ export default function UserManagementPage() {
     }
   };
 
+  const fetchFacilities = async () => {
+    try {
+      const res = await fetch("/api/admin/facilities");
+      const data = await res.json();
+      setFacilities(data);
+    } catch (e) {
+      console.error("Failed to fetch facilities");
+    }
+  };
+
   const openCreateModal = () => {
     setEditingUser(null);
     setFormData({
       email: "",
       password: "",
-      facilityName: "",
-      facilityCode: "",
-      facilityType: "",
-      division: "",
-      district: "",
-      upazila: "",
+      name: "",
       role: "USER",
+      facilityId: "",
+      managedDivisions: [],
+      managedDistricts: []
     });
     setShowModal(true);
   };
@@ -99,13 +120,11 @@ export default function UserManagementPage() {
     setFormData({
       email: user.email,
       password: "",
-      facilityName: user.facilityName,
-      facilityCode: user.facilityCode || "",
-      facilityType: user.facilityType || "",
-      division: user.division || "",
-      district: user.district || "",
-      upazila: user.upazila || "",
+      name: user.name || "",
       role: user.role,
+      facilityId: user.facilityId || "",
+      managedDivisions: user.managedDivisions || [],
+      managedDistricts: user.managedDistricts || []
     });
     setShowModal(true);
   };
@@ -117,9 +136,11 @@ export default function UserManagementPage() {
     try {
       const url = "/api/admin/users";
       const method = editingUser ? "PATCH" : "POST";
-      const body = editingUser 
-        ? { id: editingUser.id, ...formData }
-        : formData;
+      const body = {
+        ...formData,
+        id: editingUser?.id,
+        facilityId: formData.facilityId === "" ? null : formData.facilityId
+      };
 
       const res = await fetch(url, {
         method,
@@ -127,76 +148,41 @@ export default function UserManagementPage() {
         body: JSON.stringify(body),
       });
 
-      if (!res.ok) {
-        const error = await res.json();
-        alert(error.error || "Failed to save user");
-        return;
+      if (res.ok) {
+        setShowModal(false);
+        fetchUsers();
+      } else {
+        const err = await res.json();
+        alert(err.error);
       }
-
-      setShowModal(false);
-      fetchUsers();
-    } catch {
-      console.error("Save failed");
     } finally {
       setSaving(false);
     }
   };
 
-  const toggleRole = async (user: User) => {
-    const newRole = user.role === "ADMIN" ? "USER" : "ADMIN";
-    try {
-      const res = await fetch("/api/admin/users", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: user.id, role: newRole }),
-      });
-      if (res.ok) fetchUsers();
-    } catch {
-      console.error("Update failed");
-    }
-  };
-
-  const toggleVerification = async (user: User) => {
-    const isVerified = !!user.emailVerified;
-    try {
-      const res = await fetch("/api/admin/users", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: user.id, emailVerified: !isVerified }),
-      });
-      if (res.ok) fetchUsers();
-    } catch {
-      console.error("Update failed");
-    }
-  };
-
   const toggleActive = async (user: User) => {
-    const newStatus = !user.isActive;
     try {
       const res = await fetch("/api/admin/users", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: user.id, isActive: newStatus }),
+        body: JSON.stringify({ id: user.id, isActive: !user.isActive }),
       });
       if (res.ok) fetchUsers();
-    } catch {
-      console.error("Update failed");
-    }
+    } catch (e) { console.error(e); }
   };
 
   const deleteUser = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this user? This action cannot be undone.")) return;
+    if (!confirm("Are you sure?")) return;
     try {
       const res = await fetch(`/api/admin/users?id=${id}`, { method: "DELETE" });
       if (res.ok) fetchUsers();
-    } catch {
-      console.error("Delete failed");
-    }
+    } catch (e) { console.error(e); }
   };
 
   const filteredUsers = users.filter(u => 
-    u.facilityName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    u.email?.toLowerCase().includes(searchTerm.toLowerCase())
+    u.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    u.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    u.facilityName?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
@@ -204,358 +190,139 @@ export default function UserManagementPage() {
       <Breadcrumbs />
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">User Management</h1>
-          <p className="text-slate-500 mt-1">Manage facility accounts, roles, and verifications</p>
+          <h1 className="text-3xl font-bold text-slate-900">User Identity Hub</h1>
+          <p className="text-slate-500 mt-1">Manage personnel access, facility linking, and administrative scopes</p>
         </div>
         <div className="flex items-center gap-4">
           <div className="relative group w-full md:w-72">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 focus:text-indigo-500 transition-colors" />
             <input 
               type="text" 
-              placeholder="Search..." 
+              placeholder="Search user or facility..." 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full bg-white border border-slate-200 rounded-2xl py-3 pl-12 pr-4 text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all shadow-sm"
+              className="w-full bg-white border border-slate-200 rounded-2xl py-3 pl-12 pr-4 text-slate-700 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all shadow-sm"
             />
           </div>
-          <button 
-            onClick={openCreateModal}
-            className="flex items-center gap-2 px-5 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-2xl shadow-lg shadow-indigo-600/20 transition-all active:scale-[0.98]"
-          >
-            <Plus className="w-5 h-5" />
-            Add User
+          <button onClick={openCreateModal} className="flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-black rounded-2xl shadow-xl transition-all active:scale-95">
+            <PlusCircle className="w-5 h-5" /> Account
           </button>
         </div>
       </div>
 
-      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-[2rem] border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-slate-50/50 text-slate-500 uppercase text-[10px] font-black tracking-[0.1em]">
-                <th className="px-8 py-5">Facility & Contact</th>
-                <th className="px-6 py-5">Location</th>
-                <th className="px-6 py-5 text-center">Status</th>
-                <th className="px-6 py-5 text-center">Role</th>
-                <th className="px-8 py-5 text-right">Actions</th>
+              <tr className="bg-slate-50/50 text-slate-400 uppercase text-[10px] font-black tracking-[0.2em]">
+                <th className="px-8 py-6">User Identity</th>
+                <th className="px-6 py-6">Reporting Entity</th>
+                <th className="px-6 py-6 text-center">Status</th>
+                <th className="px-6 py-6 text-center">Administrative Rank</th>
+                <th className="px-8 py-6 text-right">Scope</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-100 italic-last-row">
               {loading ? (
-                <tr><td colSpan={5} className="p-20 text-center"><Loader /></td></tr>
+                <tr><td colSpan={5} className="p-20 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-indigo-500" /></td></tr>
               ) : filteredUsers.map((user) => (
-                <tr key={user.id} className="hover:bg-slate-50/50 transition-colors group">
-                  <td className="px-8 py-5">
-                    <div className="flex items-center gap-4">
-                      <div className={`p-3 rounded-full ${user.role === 'ADMIN' ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-100 text-slate-500'}`}>
-                        <Shield className="w-5 h-5" />
-                      </div>
+                <tr key={user.id} className="hover:bg-slate-50/50 transition-colors">
+                  <td className="px-8 py-6">
+                    <div className="font-bold text-slate-900">{user.name || "System Managed"}</div>
+                    <div className="text-xs text-slate-500 flex items-center gap-1.5 mt-1 font-mono">{user.email}</div>
+                  </td>
+                  <td className="px-6 py-6">
+                    {user.facilityId ? (
                       <div>
-                        <div className="font-bold text-slate-900">{user.facilityName}</div>
-                        <div className="text-sm text-slate-500 flex items-center gap-2 mt-0.5">
-                          <Mail className="w-3.5 h-3.5" /> {user.email}
-                        </div>
+                        <div className="text-sm font-black text-slate-800 uppercase tracking-tight">{user.facilityName}</div>
+                        <div className="text-[10px] text-slate-500 mt-1 flex items-center gap-1"><MapPin className="w-3 h-3" /> {user.district}, {user.division}</div>
                       </div>
-                    </div>
+                    ) : (
+                      <div className="text-xs font-black text-rose-500 bg-rose-50 px-3 py-1.5 rounded-xl inline-flex items-center gap-1.5">
+                        <Globe className="w-3.5 h-3.5" /> High-Level Admin
+                      </div>
+                    )}
                   </td>
-                  <td className="px-6 py-5">
-                    <div className="text-sm font-semibold text-slate-700">{user.division || 'N/A'}</div>
-                    <div className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
-                      <MapPin className="w-3 h-3" /> {user.district || 'N/A'}
-                    </div>
-                  </td>
-                  <td className="px-6 py-5 text-center">
-                    <div className="flex flex-col items-center gap-2">
-                      {user.emailVerified ? (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-full text-xs font-bold">
-                          <CheckCircle2 className="w-3 h-3" /> Verified
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-50 text-amber-700 rounded-full text-xs font-bold">
-                          <XCircle className="w-3 h-3" /> Unverified
-                        </span>
-                      )}
-                      <button 
-                        onClick={() => toggleActive(user)}
-                        title={user.isActive ? "Deactivate User" : "Activate User"}
-                        className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
-                          user.isActive 
-                            ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' 
-                            : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                        }`}
-                      >
-                        {user.isActive ? (
-                          <><ToggleRight className="w-4 h-4" /> Active</>
-                        ) : (
-                          <><ToggleLeft className="w-4 h-4" /> Inactive</>
-                        )}
-                      </button>
-                    </div>
-                  </td>
-                  <td className="px-6 py-5 text-center">
-                    <button 
-                      onClick={() => toggleRole(user)}
-                      className={`inline-flex items-center px-4 py-1.5 rounded-xl text-xs font-extrabold transition-all ${
-                        user.role === 'ADMIN' 
-                          ? 'bg-purple-100 text-purple-700 hover:bg-purple-200' 
-                          : user.role === 'EDITOR'
-                          ? 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200'
-                          : user.role === 'VIEWER'
-                          ? 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200'
-                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                      }`}
-                    >
-                      {user.role}
+                  <td className="px-6 py-6 text-center">
+                    <button onClick={() => toggleActive(user)} className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${user.isActive ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20" : "bg-slate-100 text-slate-400 border border-slate-200"}`}>
+                      {user.isActive ? "Active" : "Disabled"}
                     </button>
                   </td>
-                  <td className="px-8 py-5 text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <button 
-                        onClick={() => openEditModal(user)}
-                        className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
-                        title="Edit User"
-                      >
-                        <Pencil className="w-5 h-5" />
-                      </button>
-                      <button 
-                        onClick={() => deleteUser(user.id)}
-                        className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
-                      >
-                        <Trash2 className="w-5 h-5" />
-                      </button>
+                  <td className="px-6 py-6 text-center">
+                     <span className={`px-4 py-1.5 rounded-xl text-[10px] font-black tracking-widest uppercase ${user.role === 'ADMIN' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                        {user.role}
+                     </span>
+                  </td>
+                  <td className="px-8 py-6 text-right">
+                    <div className="flex items-center justify-end gap-3">
+                      <button onClick={() => openEditModal(user)} className="p-2.5 bg-slate-100 text-slate-500 hover:bg-slate-900 hover:text-white rounded-xl transition-all"><Pencil className="w-5 h-5" /></button>
+                      <button onClick={() => deleteUser(user.id)} className="p-2.5 bg-rose-50 text-rose-500 hover:bg-rose-600 hover:text-white rounded-xl transition-all"><Trash2 className="w-5 h-5" /></button>
                     </div>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-          {!loading && filteredUsers.length === 0 && (
-            <div className="p-20 text-center text-slate-400 font-medium">No users found matching your search.</div>
-          )}
         </div>
       </div>
 
       <AnimatePresence>
         {showModal && (
-          <UserModal
-            formData={formData}
-            setFormData={setFormData}
-            onSubmit={handleSubmit}
-            onClose={() => setShowModal(false)}
-            saving={saving}
-            isEdit={!!editingUser}
-          />
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4">
+             <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="w-full max-w-2xl bg-white rounded-[3rem] shadow-2xl overflow-hidden border border-white/20">
+                <div className="p-10 pb-0 flex items-center justify-between">
+                   <h2 className="text-3xl font-black text-slate-900 tracking-tighter uppercase">{editingUser ? "Configure Account" : "Identity Provision"}</h2>
+                   <button onClick={() => setShowModal(false)} className="p-3 bg-slate-100 rounded-2xl hover:bg-rose-50 hover:text-rose-600 transition-all"><X /></button>
+                </div>
+                
+                <form onSubmit={handleSubmit} className="p-10 space-y-8 max-h-[70vh] overflow-y-auto custom-scrollbar">
+                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                      <div className="md:col-span-2 space-y-3">
+                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Primary Email Address</label>
+                         <input required type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl py-4 px-6 text-slate-800 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all" placeholder="name@dghs.gov.bd" />
+                      </div>
+
+                      <div className="space-y-3">
+                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Full Name</label>
+                         <input value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl py-4 px-6 focus:outline-none focus:border-indigo-500 transition-all" />
+                      </div>
+
+                      <div className="space-y-3">
+                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Access Role</label>
+                         <select required value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl py-4 px-6 focus:outline-none focus:border-indigo-500 transition-all">
+                            {ROLE_OPTIONS.map(r => <option key={r} value={r}>{r}</option>)}
+                         </select>
+                      </div>
+
+                      <div className="md:col-span-2 space-y-3">
+                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 flex items-center justify-between">
+                            <span>Reporting Facility Assignment</span>
+                            <span className="text-[9px] lowercase italic font-normal text-amber-500">Unset for regional/national roles</span>
+                         </label>
+                         <select value={formData.facilityId} onChange={e => setFormData({...formData, facilityId: e.target.value})} className="w-full bg-slate-950 border-2 border-slate-800 text-white rounded-3xl py-4 px-6 focus:outline-none focus:ring-4 focus:ring-indigo-500/20 transition-all">
+                            <option value="">-- No Local Facility Assigned --</option>
+                            {facilities.map(f => (
+                               <option key={f.id} value={f.id}>{f.facilityName} ({f.facilityCode}) · {f.district}</option>
+                            ))}
+                         </select>
+                      </div>
+                      
+                      <div className="md:col-span-2 space-y-3">
+                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Security Credential</label>
+                         <input type="password" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl py-4 px-6 focus:outline-none focus:border-indigo-500 transition-all" placeholder={editingUser ? "Leave blank to ignore" : "Secure Password"} />
+                      </div>
+                   </div>
+
+                   <div className="flex gap-4 pt-4 border-t border-slate-100">
+                      <button type="submit" disabled={saving} className="flex-1 bg-slate-900 hover:bg-black text-white py-5 rounded-3xl font-black uppercase tracking-[0.2em] shadow-2xl transition-all active:scale-95 disabled:opacity-50">
+                         {saving ? <Loader2 className="animate-spin mx-auto" /> : (editingUser ? "Apply Changes" : "Provision Identity")}
+                      </button>
+                   </div>
+                </form>
+             </motion.div>
+          </div>
         )}
       </AnimatePresence>
-    </div>
-  );
-}
-
-function UserModal({ 
-  formData, 
-  setFormData, 
-  onSubmit, 
-  onClose, 
-  saving,
-  isEdit 
-}: { 
-  formData: any; 
-  setFormData: (data: any) => void;
-  onSubmit: (e: React.FormEvent) => void;
-  onClose: () => void;
-  saving: boolean;
-  isEdit: boolean;
-}) {
-  return (
-    <motion.div 
-      initial={{ opacity: 0 }} 
-      animate={{ opacity: 1 }} 
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
-    >
-      <motion.div 
-        initial={{ scale: 0.95, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        exit={{ scale: 0.95, opacity: 0 }}
-        className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden"
-      >
-        <div className="flex items-center justify-between px-8 py-6 border-b border-slate-100">
-          <h2 className="text-xl font-bold text-slate-900">
-            {isEdit ? "Edit User" : "Create New User"}
-          </h2>
-          <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 transition-all">
-            <X className="w-6 h-6" />
-          </button>
-        </div>
-
-        <form onSubmit={onSubmit} className="p-8 space-y-6 max-h-[70vh] overflow-y-auto">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">Email *</label>
-              <div className="relative">
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                <input
-                  type="email"
-                  required
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 pl-12 pr-4 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 transition-all"
-                />
-              </div>
-            </div>
-
-            {!isEdit && (
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Password *</label>
-                <div className="relative">
-                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                  <input
-                    type="password"
-                    required
-                    value={formData.password}
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 pl-12 pr-4 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 transition-all"
-                  />
-                </div>
-              </div>
-            )}
-
-            {isEdit && (
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">New Password (leave blank to keep)</label>
-                <div className="relative">
-                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                  <input
-                    type="password"
-                    value={formData.password}
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 pl-12 pr-4 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 transition-all"
-                  />
-                </div>
-              </div>
-            )}
-
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">Facility Name *</label>
-              <div className="relative">
-                <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                <input
-                  type="text"
-                  required
-                  value={formData.facilityName}
-                  onChange={(e) => setFormData({ ...formData, facilityName: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 pl-12 pr-4 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 transition-all"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">Facility Code</label>
-              <input
-                type="text"
-                value={formData.facilityCode}
-                onChange={(e) => setFormData({ ...formData, facilityCode: e.target.value })}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 transition-all"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">Facility Type</label>
-              <input
-                type="text"
-                value={formData.facilityType}
-                onChange={(e) => setFormData({ ...formData, facilityType: e.target.value })}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 transition-all"
-                placeholder="e.g., Hospital, Clinic"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">Role *</label>
-              <select
-                required
-                value={formData.role}
-                onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 transition-all"
-              >
-                {ROLE_OPTIONS.map(role => (
-                  <option key={role} value={role}>{role}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">Division</label>
-              <select
-                value={formData.division}
-                onChange={(e) => setFormData({ ...formData, division: e.target.value, district: '' })}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 transition-all"
-              >
-                <option value="">Select Division</option>
-                {DIVISIONS.map(div => (
-                  <option key={div} value={div}>{div}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">District</label>
-              <select
-                value={formData.district}
-                onChange={(e) => setFormData({ ...formData, district: e.target.value })}
-                disabled={!formData.division}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 transition-all disabled:opacity-50"
-              >
-                <option value="">Select District</option>
-                {formData.division && DISTRICTS_BY_DIVISION[formData.division]?.map(dist => (
-                  <option key={dist} value={dist}>{dist}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">Upazila</label>
-              <input
-                type="text"
-                value={formData.upazila}
-                onChange={(e) => setFormData({ ...formData, upazila: e.target.value })}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 transition-all"
-              />
-            </div>
-          </div>
-
-          <div className="flex justify-end gap-4 pt-4 border-t border-slate-100">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-6 py-3 text-slate-600 font-medium hover:bg-slate-100 rounded-xl transition-all"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={saving}
-              className="flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl shadow-lg shadow-indigo-600/20 transition-all disabled:opacity-50"
-            >
-              {saving ? (
-                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              ) : (
-                <Save className="w-5 h-5" />
-              )}
-              {isEdit ? "Update User" : "Create User"}
-            </button>
-          </div>
-        </form>
-      </motion.div>
-    </motion.div>
-  );
-}
-
-function Loader() {
-  return (
-    <div className="flex flex-col items-center gap-4">
-      <div className="w-10 h-10 border-4 border-indigo-500/20 border-t-indigo-600 rounded-full animate-spin" />
-      <p className="text-slate-400 font-medium text-sm">Loading user database...</p>
     </div>
   );
 }

@@ -47,21 +47,46 @@ export async function PATCH(
 
     const { id } = await params;
     const body = await req.json();
-    const { name, diseaseId, startDate, endDate, status, isActive, allowBacklogReporting, backlogStartDate, backlogEndDate } = body;
+    
+    const data: any = {};
+    
+    // Core fields
+    if (body.name !== undefined) data.name = body.name;
+    if (body.diseaseId !== undefined) data.diseaseId = body.diseaseId;
+    if (body.status !== undefined) data.status = body.status;
+    if (body.isActive !== undefined) data.isActive = body.isActive;
+    if (body.reportingFrequency !== undefined) data.reportingFrequency = body.reportingFrequency;
+    
+    // Dates
+    if (body.startDate) data.startDate = new Date(body.startDate);
+    if (body.endDate !== undefined) data.endDate = body.endDate ? new Date(body.endDate) : null;
+    
+    // Backlog
+    if (body.allowBacklogReporting !== undefined) data.allowBacklogReporting = body.allowBacklogReporting;
+    if (body.backlogStartDate !== undefined) data.backlogStartDate = body.backlogStartDate ? new Date(body.backlogStartDate) : null;
+    if (body.backlogEndDate !== undefined) data.backlogEndDate = body.backlogEndDate ? new Date(body.backlogEndDate) : null;
+
+    // Time Mapping helpers (Frontend "HH:MM" -> DB hour/minute)
+    const mapTime = (timeStr: string | undefined, hourKey: string, minuteKey: string) => {
+      if (timeStr && timeStr.includes(':')) {
+        const [h, m] = timeStr.split(':').map(Number);
+        data[hourKey] = h;
+        data[minuteKey] = m;
+      }
+    };
+
+    mapTime(body.submissionCutoff, 'cutoffHour', 'cutoffMinute');
+    mapTime(body.editDeadline, 'editDeadlineHour', 'editDeadlineMinute');
+    mapTime(body.publishTime, 'publishTimeHour', 'publishTimeMinute');
+
+    // Targeting
+    if (body.targetDivisions !== undefined) data.targetDivisions = body.targetDivisions;
+    if (body.targetDistricts !== undefined) data.targetDistricts = body.targetDistricts;
+    if (body.targetFacilityTypeIds !== undefined) data.targetFacilityTypeIds = body.targetFacilityTypeIds;
 
     const outbreak = await prisma.outbreak.update({
       where: { id },
-      data: {
-        ...(name && { name }),
-        ...(diseaseId && { diseaseId }),
-        ...(startDate && { startDate: new Date(startDate) }),
-        ...(endDate !== undefined && { endDate: endDate ? new Date(endDate) : null }),
-        ...(status && { status }),
-        ...(isActive !== undefined && { isActive }),
-        ...(allowBacklogReporting !== undefined && { allowBacklogReporting }),
-        ...(backlogStartDate !== undefined && { backlogStartDate: backlogStartDate ? new Date(backlogStartDate) : null }),
-        ...(backlogEndDate !== undefined && { backlogEndDate: backlogEndDate ? new Date(backlogEndDate) : null }),
-      },
+      data
     });
 
     return NextResponse.json(outbreak);
@@ -83,12 +108,13 @@ export async function DELETE(
 
     const { id } = await params;
 
-    // Check if outbreak has reports
-    const reportCount = await prisma.dailyReport.count({
-      where: { outbreakId: id }
-    });
+    // Check if outbreak has reports in either legacy or modern tables
+    const [legacyCount, modernCount] = await Promise.all([
+      prisma.dailyReport.count({ where: { outbreakId: id } }),
+      prisma.report.count({ where: { outbreakId: id } })
+    ]);
 
-    if (reportCount > 0) {
+    if (legacyCount > 0 || modernCount > 0) {
       return NextResponse.json({ error: "Cannot delete outbreak with existing reports" }, { status: 400 });
     }
 

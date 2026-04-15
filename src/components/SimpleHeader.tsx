@@ -23,9 +23,15 @@ export default function SimpleHeader() {
     <header className="bg-white/80 backdrop-blur-md sticky top-0 z-50 border-b border-slate-100 py-4">
       <div className="max-w-4xl mx-auto px-6 flex items-center justify-between">
         <div className="flex items-center gap-4">
-            <div className="w-16 h-16 relative bg-white rounded-xl p-1.5 shadow-lg shadow-black/10 group-hover:shadow-xl transition-shadow">
-            <Image src="/logo_mohfw.png" alt="MOHFW Logo" fill sizes="64px" className="object-contain p-1" />
-          </div>
+<div className="w-16 h-16 relative bg-white rounded-full p-2 flex items-center justify-center shadow-md">
+  <Image 
+    src="/logo_mohfw.png" 
+    alt="MOHFW Logo" 
+    width={40} 
+    height={40} 
+    className="object-contain" 
+  />
+</div>
           <div>
             <h1 className="text-base font-black text-slate-800 leading-tight tracking-tight uppercase italic">
               <span className="text-indigo-600">Management Information System (MIS)</span>

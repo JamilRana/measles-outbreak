@@ -14,14 +14,27 @@ export async function PATCH(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const body = await request.json();
+    const { name, description, numerator, denominator, multiplier, unit, isActive } = await request.json();
+    
+    // Explicit mapping to schema field names
+    const updateData: any = {};
+    if (name !== undefined) updateData.name = name;
+    if (description !== undefined) updateData.description = description;
+    if (numerator !== undefined) updateData.numeratorKey = numerator;
+    if (denominator !== undefined) updateData.denominatorKey = denominator;
+    if (multiplier !== undefined) updateData.multiplier = multiplier;
+    if (unit !== undefined) updateData.unit = unit;
+    if (isActive !== undefined) updateData.isActive = isActive;
+
     const indicator = await prisma.indicator.update({
       where: { id },
-      data: body
+      data: updateData
     });
+    
     return NextResponse.json(indicator);
   } catch (error) {
-    return NextResponse.json({ error: 'Failed' }, { status: 500 });
+    console.error('Indicator PATCH error:', error);
+    return NextResponse.json({ error: 'Failed to update indicator' }, { status: 500 });
   }
 }
 
@@ -41,6 +54,6 @@ export async function DELETE(
     });
     return NextResponse.json({ success: true });
   } catch (error) {
-    return NextResponse.json({ error: 'Failed' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to delete indicator' }, { status: 500 });
   }
 }

@@ -1,0 +1,5 @@
+-- AlterTable
+ALTER TABLE "Outbreak" ADD COLUMN     "editDeadlineHour" INTEGER NOT NULL DEFAULT 10,
+ADD COLUMN     "editDeadlineMinute" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "publishTimeHour" INTEGER NOT NULL DEFAULT 9,
+ADD COLUMN     "publishTimeMinute" INTEGER NOT NULL DEFAULT 0;

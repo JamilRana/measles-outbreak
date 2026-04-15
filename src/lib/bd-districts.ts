@@ -1,8 +1,8 @@
 // Approximate lat/lng coordinates for all 64 districts of Bangladesh
 export const BD_DISTRICT_COORDS: Record<string, { lat: number; lng: number }> = {
-  // Barishal Division
+  // Barisal Division
   'Barguna': { lat: 22.1510, lng: 90.1266 },
-  'Barishal': { lat: 22.7010, lng: 90.3535 },
+  'Barisal': { lat: 22.7010, lng: 90.3535 },
   'Bhola': { lat: 22.6859, lng: 90.6482 },
   'Jhalokathi': { lat: 22.6406, lng: 90.1987 },
   'Patuakhali': { lat: 22.3596, lng: 90.3290 },

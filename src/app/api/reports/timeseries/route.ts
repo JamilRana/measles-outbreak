@@ -13,47 +13,60 @@ export async function GET(req: Request) {
     startDate.setDate(startDate.getDate() - days);
     startDate.setHours(0, 0, 0, 0);
 
-    const where: any = {
-      reportingDate: { gte: startDate },
+    // 1. Fetch from Modern table
+    const whereModern: any = {
+      periodStart: { gte: startDate },
+      status: "PUBLISHED"
     };
-    if (outbreakId) where.outbreakId = outbreakId;
-    if (division) where.facility = { ...where.facility, division };
-    if (district) where.facility = { ...where.facility, district };
+    if (outbreakId) whereModern.outbreakId = outbreakId;
+    if (division || district) {
+      whereModern.facility = {
+        ...(division && { division }),
+        ...(district && { district }),
+      };
+    }
 
-    const reports = await prisma.dailyReport.findMany({
-      where,
-      include: {
-        fieldValues: {
-          include: { formField: true }
-        }
-      },
-      orderBy: { reportingDate: "asc" },
-    });
+    // 2. Fetch from Legacy table
+    const whereLegacy: any = {
+      reportingDate: { gte: startDate },
+      published: true
+    };
+    if (outbreakId) whereLegacy.outbreakId = outbreakId;
+    if (division || district) {
+      whereLegacy.facility = {
+        ...(division && { division }),
+        ...(district && { district }),
+      };
+    }
+
+    const [modernReports, legacyReports] = await Promise.all([
+      prisma.report.findMany({ where: whereModern, select: { periodStart: true, dataSnapshot: true } }),
+      prisma.dailyReport.findMany({ where: whereLegacy })
+    ]);
 
     const byDate: Record<string, { suspected: number; confirmed: number; deaths: number; hospitalized: number }> = {};
 
-    reports.forEach((r) => {
+    // Process Modern
+    modernReports.forEach(r => {
+      const dateKey = r.periodStart.toISOString().split("T")[0];
+      if (!byDate[dateKey]) byDate[dateKey] = { suspected: 0, confirmed: 0, deaths: 0, hospitalized: 0 };
+      
+      const snap = r.dataSnapshot as any;
+      byDate[dateKey].suspected += (Number(snap.suspected24h) || 0);
+      byDate[dateKey].confirmed += (Number(snap.confirmed24h) || 0);
+      byDate[dateKey].deaths += (Number(snap.suspectedDeath24h) || 0) + (Number(snap.confirmedDeath24h) || 0);
+      byDate[dateKey].hospitalized += (Number(snap.admitted24h) || 0);
+    });
+
+    // Process Legacy
+    legacyReports.forEach((r) => {
       const dateKey = r.reportingDate.toISOString().split("T")[0];
-      if (!byDate[dateKey]) {
-        byDate[dateKey] = { suspected: 0, confirmed: 0, deaths: 0, hospitalized: 0 };
-      }
-
-      // Map dynamic fields
-      const dynamicSuspected = r.fieldValues.find(f => f.formField.fieldKey === 'suspected24h')?.value;
-      const dynamicConfirmed = r.fieldValues.find(f => f.formField.fieldKey === 'confirmed24h')?.value;
-      const dynamicSDeath = r.fieldValues.find(f => f.formField.fieldKey === 'suspectedDeath24h')?.value;
-      const dynamicCDeath = r.fieldValues.find(f => f.formField.fieldKey === 'confirmedDeath24h')?.value;
-      const dynamicAdmitted = r.fieldValues.find(f => f.formField.fieldKey === 'admitted24h')?.value;
-
-      // prioritize dynamic fields, fallback to columns
-      byDate[dateKey].suspected += dynamicSuspected ? Number(dynamicSuspected) : r.suspected24h;
-      byDate[dateKey].confirmed += dynamicConfirmed ? Number(dynamicConfirmed) : r.confirmed24h;
+      if (!byDate[dateKey]) byDate[dateKey] = { suspected: 0, confirmed: 0, deaths: 0, hospitalized: 0 };
       
-      const deaths = (dynamicSDeath ? Number(dynamicSDeath) : r.suspectedDeath24h) + 
-                     (dynamicCDeath ? Number(dynamicCDeath) : r.confirmedDeath24h);
-      byDate[dateKey].deaths += deaths;
-      
-      byDate[dateKey].hospitalized += dynamicAdmitted ? Number(dynamicAdmitted) : r.admitted24h;
+      byDate[dateKey].suspected += r.suspected24h;
+      byDate[dateKey].confirmed += r.confirmed24h;
+      byDate[dateKey].deaths += r.suspectedDeath24h + r.confirmedDeath24h;
+      byDate[dateKey].hospitalized += r.admitted24h;
     });
 
     const timeseries = Object.entries(byDate)

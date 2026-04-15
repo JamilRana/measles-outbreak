@@ -17,6 +17,7 @@ interface DeadlineCardProps {
   backlogEndDate?: string | null;
   selectedDate?: string;
   isToday?: boolean;
+  windowStatus?: { open: boolean; type: string | null; details: any } | null;
 }
 
 const CountdownTimer = ({ targetTime, label, urgency }: { targetTime: Date; label: string; urgency: 'low' | 'medium' | 'high' | 'expired' }) => {
@@ -67,7 +68,8 @@ export default function DeadlineCard({
   backlogStartDate,
   backlogEndDate,
   selectedDate,
-  isToday
+  isToday,
+  windowStatus
 }: DeadlineCardProps) {
   const targetTime = new Date();
   targetTime.setHours(cutoffHour, cutoffMinute, 0, 0);
@@ -80,6 +82,34 @@ export default function DeadlineCard({
   else if (timeUntilCutoff < 2 * 60 * 60 * 1000) urgency = 'medium';
 
   const getStatus = () => {
+    // Phase 4: Prioritize verified window overrides from gatekeeper
+    if (windowStatus?.open) {
+      if (windowStatus.type === 'BACKLOG') {
+        return {
+          title: 'Backlog Window Open',
+          message: 'This date is typically closed, but a special backlog reporting window is currently active for your location.',
+          color: 'indigo',
+          icon: CheckCircle2
+        };
+      }
+      if (windowStatus.type === 'WINDOW') {
+        const detail = windowStatus.details?.name || 'Administrative';
+        return {
+          title: `${detail} Window Open`,
+          message: 'An extended reporting window has been authorized for this session.',
+          color: 'emerald',
+          icon: CheckCircle2
+        };
+      }
+      // General open
+      return {
+        title: 'Reporting Window Open',
+        message: `Surveillance data is currently being accepted for ${new Date(selectedDate || '').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}.`,
+        color: 'emerald',
+        icon: CheckCircle2
+      };
+    }
+
     if (!isToday) {
        const dateToCheck = new Date(selectedDate || '');
        const start = backlogStartDate ? new Date(backlogStartDate) : null;
@@ -87,7 +117,7 @@ export default function DeadlineCard({
        const isInBacklog = allowBacklog && (!start || dateToCheck >= start) && (!end || dateToCheck <= end);
        
        if (isInBacklog) return {
-         title: 'Backlog Window Open',
+         title: 'Backlog Window Available',
          message: 'This is a past date, but backlog reporting is currently permitted for this period.',
          color: 'indigo',
          icon: CheckCircle2
@@ -106,18 +136,21 @@ export default function DeadlineCard({
       color: 'slate',
       icon: Clock
     };
-    if (isPastCutoff && !allowBacklog) return {
+
+    if (isPastCutoff) return {
       title: 'Standard Window Closed',
       message: `Daily submission closed at ${String(cutoffHour).padStart(2, '0')}:${String(cutoffMinute).padStart(2, '0')}. Contact admin for late reporting.`,
       color: 'amber',
       icon: AlertTriangle
     };
+
     if (urgency === 'high') return {
       title: 'Deadline Approaching',
       message: 'Please complete your submission quickly. The window is closing soon.',
       color: 'red',
       icon: AlertCircle
     };
+
     return {
       title: 'Reporting Window Open',
       message: `Submit your daily surveillance data by ${String(cutoffHour).padStart(2, '0')}:${String(cutoffMinute).padStart(2, '0')} BST.`,

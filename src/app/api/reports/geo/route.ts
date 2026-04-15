@@ -12,38 +12,60 @@ export async function GET(req: Request) {
     const from = searchParams.get("from");
     const to = searchParams.get("to");
 
-    const where: any = {};
-    if (outbreakId) where.outbreakId = outbreakId;
-    if (personDivision) where.facility = { ...where.facility, division: personDivision };
-    if (personDistrict) where.facility = { ...where.facility, district: personDistrict };
-
+    // 1. Construct Modern Where
+    const whereModern: any = { status: "PUBLISHED" };
+    if (outbreakId) whereModern.outbreakId = outbreakId;
+    if (personDivision || personDistrict) {
+      whereModern.facility = {
+        ...(personDivision && { division: personDivision }),
+        ...(personDistrict && { district: personDistrict }),
+      };
+    }
     if (date) {
       const d = new Date(date);
-      where.reportingDate = {
+      whereModern.periodStart = {
         gte: new Date(d.setHours(0, 0, 0, 0)),
         lte: new Date(d.setHours(23, 59, 59, 999)),
       };
     } else if (from && to) {
-      where.reportingDate = {
+      whereModern.periodStart = {
         gte: new Date(from),
         lte: new Date(new Date(to).setHours(23, 59, 59, 999)),
       };
     }
 
-    const reports = await prisma.dailyReport.findMany({
-      where,
-      include: {
-        facility: {
-          select: {
-            district: true,
-            division: true,
-          }
-        },
-        fieldValues: {
-          include: { formField: true }
-        }
-      },
-    });
+    // 2. Construct Legacy Where
+    const whereLegacy: any = { published: true };
+    if (outbreakId) whereLegacy.outbreakId = outbreakId;
+    if (personDivision || personDistrict) {
+      whereLegacy.facility = {
+        ...(personDivision && { division: personDivision }),
+        ...(personDistrict && { district: personDistrict }),
+      };
+    }
+    if (date) {
+      const d = new Date(date);
+      whereLegacy.reportingDate = {
+        gte: new Date(d.setHours(0, 0, 0, 0)),
+        lte: new Date(d.setHours(23, 59, 59, 999)),
+      };
+    } else if (from && to) {
+      whereLegacy.reportingDate = {
+        gte: new Date(from),
+        lte: new Date(new Date(to).setHours(23, 59, 59, 999)),
+      };
+    }
+
+    const [modernReports, legacyReports] = await Promise.all([
+      prisma.report.findMany({
+        where: whereModern,
+        include: { facility: { select: { district: true, division: true } } }
+      }),
+      prisma.dailyReport.findMany({
+        where: whereLegacy,
+        include: { facility: { select: { district: true, division: true } } }
+      })
+    ]);
 
     const byDistrict: Record<string, {
       district: string;
@@ -53,34 +75,28 @@ export async function GET(req: Request) {
       hospitalized: number;
     }> = {};
 
-    reports.forEach((r) => {
+    const processReport = (r: any, isModern: boolean) => {
       const district = r.facility.district || 'Unknown';
       const division = r.facility.division || 'Unknown';
       
       if (!byDistrict[district]) {
-        byDistrict[district] = {
-          district,
-          division,
-          confirmed: 0,
-          deaths: 0,
-          hospitalized: 0,
-        };
+        byDistrict[district] = { district, division, confirmed: 0, deaths: 0, hospitalized: 0 };
       }
 
-      // Map dynamic fields
-      const dynamicConfirmed = r.fieldValues.find(f => f.formField.fieldKey === 'confirmed24h')?.value;
-      const dynamicSDeath = r.fieldValues.find(f => f.formField.fieldKey === 'suspectedDeath24h')?.value;
-      const dynamicCDeath = r.fieldValues.find(f => f.formField.fieldKey === 'confirmedDeath24h')?.value;
-      const dynamicAdmitted = r.fieldValues.find(f => f.formField.fieldKey === 'admitted24h')?.value;
+      if (isModern) {
+        const snap = r.dataSnapshot as any;
+        byDistrict[district].confirmed += (Number(snap.confirmed24h) || 0);
+        byDistrict[district].deaths += (Number(snap.suspectedDeath24h) || 0) + (Number(snap.confirmedDeath24h) || 0);
+        byDistrict[district].hospitalized += (Number(snap.admitted24h) || 0);
+      } else {
+        byDistrict[district].confirmed += r.confirmed24h;
+        byDistrict[district].deaths += r.suspectedDeath24h + r.confirmedDeath24h;
+        byDistrict[district].hospitalized += r.admitted24h;
+      }
+    };
 
-      byDistrict[district].confirmed += dynamicConfirmed ? Number(dynamicConfirmed) : r.confirmed24h;
-      
-      const deaths = (dynamicSDeath ? Number(dynamicSDeath) : r.suspectedDeath24h) + 
-                     (dynamicCDeath ? Number(dynamicCDeath) : r.confirmedDeath24h);
-      byDistrict[district].deaths += deaths;
-      
-      byDistrict[district].hospitalized += dynamicAdmitted ? Number(dynamicAdmitted) : r.admitted24h;
-    });
+    modernReports.forEach(r => processReport(r, true));
+    legacyReports.forEach(r => processReport(r, false));
 
     const geoData = Object.values(byDistrict)
       .filter((d) => BD_DISTRICT_COORDS[d.district])

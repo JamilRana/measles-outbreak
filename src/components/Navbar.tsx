@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useSession, signOut } from "next-auth/react";
-import { LogOut, LayoutDashboard, ClipboardList, Settings, Globe, FileText, ActivitySquare, Zap, BarChart3 } from "lucide-react";
+import { LogOut, LayoutDashboard, ClipboardList, Settings, Globe, FileText, ActivitySquare, Zap, BarChart3, FileBarChart } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { hasPermission } from "@/lib/rbac";
 
@@ -25,8 +25,8 @@ export default function Navbar() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           <Link href="/" className="flex items-center gap-3">
-            <div className="bg-white p-1 rounded-lg shadow-sm">
-              <Image src="/logo_mohfw.png" alt="DGHS Logo" width={36} height={36} className="w-9 h-9" />
+            <div className="w-14 h-14 relative bg-white rounded-full p-2 flex items-center justify-center shadow-md">
+              <Image src="/logo_mohfw.png" alt="MOHFW Logo" width={40} height={40} className="object-contain" />
             </div>
             <span className="text-xl font-bold tracking-tight hidden md:inline">{t('app.title')}</span>
           </Link>
@@ -45,6 +45,7 @@ export default function Navbar() {
               <>
                 <div className="flex gap-1">
                   <NavLink href="/dashboard" icon={<LayoutDashboard className="w-4 h-4" />} label={t('nav.dashboard')} />
+                  <NavLink href="/bulletin" icon={<FileBarChart className="w-4 h-4" />} label="Bulletin" />
                   {canSubmit && (
                     <NavLink href="/report" icon={<Zap className="w-4 h-4" />} label={t('nav.report')} />
                   )}

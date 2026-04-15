@@ -1,252 +1,352 @@
-import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { createAuditLog, AuditActions } from '@/lib/audit';
-import { hasPermission } from '@/lib/rbac';
+import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { hasPermission } from "@/lib/rbac";
+import { rebuildSnapshot } from "@/lib/snapshot";
+import { ReportStatus } from "@prisma/client";
 
-export async function GET(request: Request) {
+/**
+ * GET /api/reports
+ * 
+ * Supports:
+ * - Pagination (page, limit)
+ * - Filtering (outbreakId, facilityId, division, district)
+ * - Date Range (from, to) or specific date (date)
+ * - Summary mode (summary=true)
+ * 
+ * Aggregates data from both modern 'Report' table and legacy 'DailyReport' table.
+ */
+export async function GET(req: Request) {
   try {
-    const { searchParams } = new URL(request.url);
-    const summary = searchParams.get('summary') === 'true';
     const session = await getServerSession(authOptions);
-
-    // Filters
-    const outbreakId = searchParams.get('outbreakId');
-    const date = searchParams.get('date');
-    const from = searchParams.get('from');
-    const to = searchParams.get('to');
-    const facilityId = searchParams.get('facilityId');
-    const division = searchParams.get('division');
-    const district = searchParams.get('district');
-    const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '10');
-    const skip = (page - 1) * limit;
-
-    const where: any = {};
+    const { searchParams } = new URL(req.url);
     
-    // RBAC Data Scoping
-    if (session?.user) {
-      if (session.user.role === 'USER') {
-        where.facilityId = session.user.facilityId;
-      } else if (session.user.role === 'EDITOR') {
-        const managedDivs = session.user.managedDivisions || [];
-        const managedDist = session.user.managedDistricts || [];
-        where.facility = {};
-        if (managedDivs.length > 0) where.facility.division = { in: managedDivs };
-        if (managedDist.length > 0) where.facility.district = { in: managedDist };
-        if (managedDivs.length === 0 && managedDist.length === 0) where.facility.division = session.user.division;
+    // Filtering parameters
+    const page = parseInt(searchParams.get("page") || "1");
+    const limit = parseInt(searchParams.get("limit") || "50");
+    const skip = (page - 1) * limit;
+    
+    const outbreakId = searchParams.get("outbreakId");
+    const facilityId = searchParams.get("facilityId");
+    const divisions = searchParams.get("divisions")?.split(',').filter(Boolean);
+    const districts = searchParams.get("districts")?.split(',').filter(Boolean);
+    const summary = searchParams.get("summary") === "true";
+    
+    const from = searchParams.get("from");
+    const to = searchParams.get("to");
+    let specificDate = searchParams.get("date");
+
+    // --- TEMPORAL VISIBILITY LOGIC ---
+    // This ensures dashboard/bulletin don't show today's data until publish time
+    const { getBdTime, getBdDateString } = require("@/lib/timezone");
+    const bdNow = getBdTime();
+    const todayStr = getBdDateString(bdNow);
+
+    let enforcePublishTime = false;
+    let effectiveOutbreakId = outbreakId;
+    let outbreak: any = null;
+
+    // Get default outbreak if none provided
+    if (!effectiveOutbreakId) {
+      const settings = await prisma.settings.findFirst();
+      if (settings?.defaultOutbreakId) {
+        effectiveOutbreakId = settings.defaultOutbreakId;
       }
     }
 
-    if (outbreakId) {
-      where.outbreakId = outbreakId;
-    } else {
-      const settings = await prisma.settings.findFirst();
-      if (settings?.defaultOutbreakId) where.outbreakId = settings.defaultOutbreakId;
+    if (effectiveOutbreakId) {
+      // 1. Auto-publish triggered on data fetch
+      const { autoPublishReports } = require("@/lib/publish-manager");
+      await autoPublishReports(effectiveOutbreakId);
+
+      // 2. Check if we should restrict "Today's" data
+      outbreak = await prisma.outbreak.findUnique({
+        where: { id: effectiveOutbreakId },
+        select: { publishTimeHour: true, publishTimeMinute: true }
+      });
+
+      if (outbreak) {
+        const publishTime = new Date(bdNow);
+        publishTime.setHours(outbreak.publishTimeHour, outbreak.publishTimeMinute, 0, 0);
+        
+        // Skip enforcement for admins/editors
+        const isAdmin = session?.user?.role === "ADMIN" || session?.user?.role === "EDITOR";
+        enforcePublishTime = (bdNow < publishTime) && !isAdmin;
+
+        // Handle specific date query
+        if (specificDate === todayStr && enforcePublishTime) {
+          const yesterday = new Date(bdNow);
+          yesterday.setDate(yesterday.getDate() - 1);
+          specificDate = getBdDateString(yesterday);
+        }
+
+        // Handle range query - adjust 'to' date if it includes today (done later in where clause)
+      }
     }
 
-    if (date) {
-      const startOfDay = new Date(date);
-      startOfDay.setHours(0, 0, 0, 0);
-      const endOfDay = new Date(date);
-      endOfDay.setHours(23, 59, 59, 999);
-      where.reportingDate = { gte: startOfDay, lte: endOfDay };
+    // Construct "where" for modern table
+    const where: any = {};
+    if (outbreakId) where.outbreakId = outbreakId;
+    if (facilityId) where.facilityId = facilityId;
+    
+    if ((divisions && divisions.length > 0) || (districts && districts.length > 0)) {
+      where.facility = {
+        ...(divisions && divisions.length > 0 && { division: { in: divisions } }),
+        ...(districts && districts.length > 0 && { district: { in: districts } }),
+      };
+    }
+    
+    // Build adjusted date range for temporal filtering (before constructing where clauses)
+    let adjustedFrom = from;
+    let adjustedTo = to;
+    if (enforcePublishTime && to === todayStr) {
+      const yesterday = new Date(bdNow);
+      yesterday.setDate(yesterday.getDate() - 1);
+      adjustedTo = getBdDateString(yesterday);
+    }
+    
+    if (specificDate) {
+      where.periodStart = {
+        gte: new Date(specificDate),
+        lt: new Date(new Date(specificDate).getTime() + 24 * 60 * 60 * 1000)
+      };
+    } else if (from && to) {
+      where.periodStart = { gte: new Date(from), lte: new Date(adjustedTo || to) };
     }
 
     if (summary) {
-      const reports = await prisma.dailyReport.findMany({
-        where,
-        include: {
-          fieldValues: {
-            include: { formField: true }
-          }
+      // 1. Fetch Modern Snapshots
+      const modernReports = await prisma.report.findMany({
+        where: { ...where, status: ReportStatus.PUBLISHED },
+        select: { dataSnapshot: true }
+      });
+
+      // 2. Fetch Legacy DailyReports
+      const legacyReports = await prisma.dailyReport.findMany({
+        where: {
+          ...(outbreakId && { outbreakId }),
+          ...(facilityId && { facilityId }),
+          ...((divisions && divisions.length > 0) || (districts && districts.length > 0) ? { 
+            facility: {
+              ...(divisions && divisions.length > 0 && { division: { in: divisions } }),
+              ...(districts && districts.length > 0 && { district: { in: districts } }),
+            }
+          } : {}),
+          ...(specificDate ? {
+             reportingDate: {
+               gte: new Date(specificDate),
+               lt: new Date(new Date(specificDate).getTime() + 24 * 60 * 60 * 1000)
+             }
+          } : adjustedFrom && adjustedTo ? {
+             reportingDate: { gte: new Date(adjustedFrom), lte: new Date(adjustedTo) }
+          } : {})
         }
       });
 
-      const totals = reports.reduce((acc, r) => {
-        const dynamicSuspected = r.fieldValues.find(f => f.formField.fieldKey === 'suspected24h')?.value;
-        const dynamicConfirmed = r.fieldValues.find(f => f.formField.fieldKey === 'confirmed24h')?.value;
-        const dynamicSDeath = r.fieldValues.find(f => f.formField.fieldKey === 'suspectedDeath24h')?.value;
-        const dynamicCDeath = r.fieldValues.find(f => f.formField.fieldKey === 'confirmedDeath24h')?.value;
-        const dynamicAdmitted = r.fieldValues.find(f => f.formField.fieldKey === 'admitted24h')?.value;
+      // 3. Dynamic Aggregation
+      const totals: Record<string, number> = {};
+      
+      // Process modern snapshots
+      modernReports.forEach(r => {
+        const snap = r.dataSnapshot as any;
+        if (!snap) return;
+        Object.entries(snap).forEach(([k, v]) => {
+          if (typeof v === 'number') totals[k] = (totals[k] || 0) + v;
+          else if (typeof v === 'string' && !isNaN(Number(v))) totals[k] = (totals[k] || 0) + Number(v);
+        });
+      });
 
-        acc.suspected += dynamicSuspected ? Number(dynamicSuspected) : r.suspected24h;
-        acc.confirmed += dynamicConfirmed ? Number(dynamicConfirmed) : r.confirmed24h;
-        acc.deaths += (dynamicSDeath ? Number(dynamicSDeath) : r.suspectedDeath24h) + 
-                      (dynamicCDeath ? Number(dynamicCDeath) : r.confirmedDeath24h);
-        acc.hospitalized += dynamicAdmitted ? Number(dynamicAdmitted) : r.admitted24h;
-        return acc;
-      }, { suspected: 0, confirmed: 0, deaths: 0, hospitalized: 0 });
+      // Process legacy fields (mapping to standard keys)
+      legacyReports.forEach(r => {
+        const keys = [
+          'suspected24h', 'confirmed24h', 'suspectedDeath24h', 
+          'confirmedDeath24h', 'admitted24h', 'discharged24h', 'serumSent24h'
+        ];
+        keys.forEach(k => {
+          const val = (r as any)[k];
+          if (typeof val === 'number') totals[k] = (totals[k] || 0) + val;
+        });
+      });
 
       return NextResponse.json({ totals });
     }
 
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    if (from && to) {
-      const startDate = new Date(from);
-      startDate.setHours(0, 0, 0, 0);
-      const endDate = new Date(to);
-      endDate.setHours(23, 59, 59, 999);
-      where.reportingDate = { gte: startDate, lte: endDate };
-    }
-
-    if (facilityId && session?.user?.role !== 'USER') {
-      where.facilityId = facilityId;
-    }
-    
-    if (division && session?.user?.role === 'ADMIN') {
-      where.facility = { ...where.facility, division };
-    }
-    
-    if (district) {
-      where.facility = { ...where.facility, district };
-    }
-
-    const total = await prisma.dailyReport.count({ where });
-    const reports = await prisma.dailyReport.findMany({
-      where,
-      orderBy: { reportingDate: 'desc' },
-      skip: skip,
-      take: limit,
-      include: {
+    // Construct "where" for legacy table
+    const legacyWhere: any = {
+      ...(outbreakId && { outbreakId }),
+      ...(facilityId && { facilityId }),
+      ...((divisions && divisions.length > 0) || (districts && districts.length > 0) ? { 
         facility: {
-          select: {
-            id: true,
-            facilityName: true,
-            division: true,
-            district: true,
-            facilityCode: true,
-          }
-        },
-        outbreak: {
-          select: { name: true }
-        },
-        fieldValues: {
-          include: {
-            formField: {
-              select: { label: true, fieldKey: true }
-            }
-          }
+          ...(divisions && divisions.length > 0 && { division: { in: divisions } }),
+          ...(districts && districts.length > 0 && { district: { in: districts } }),
         }
-      }
-    });
+      } : {}),
+      ...(specificDate ? {
+         reportingDate: {
+           gte: new Date(specificDate),
+           lt: new Date(new Date(specificDate).getTime() + 24 * 60 * 60 * 1000)
+         }
+      } : from && to ? {
+         reportingDate: { gte: new Date(from), lte: new Date(adjustedTo || to) }
+      } : {})
+    };
+
+    // LIST VIEW: Combined Fetch
+    const [modernReports, legacyReports, modernCount, legacyCount] = await Promise.all([
+      prisma.report.findMany({
+        where,
+        include: { 
+          facility: { select: { facilityName: true, division: true, district: true } },
+          outbreak: { select: { name: true } },
+          fieldValues: true
+        },
+        orderBy: { periodStart: "desc" },
+        take: limit,
+        skip: skip
+      }),
+      prisma.dailyReport.findMany({
+        where: legacyWhere,
+        include: { 
+          facility: { select: { facilityName: true, division: true, district: true } },
+          outbreak: { select: { name: true } }
+        },
+        orderBy: { reportingDate: "desc" },
+        take: limit,
+        skip: skip
+      }),
+      prisma.report.count({ where }),
+      prisma.dailyReport.count({ where: legacyWhere })
+    ]);
+
+    // Map modern to common structure (flattening snapshot)
+    const mappedModern = modernReports.map(r => ({
+      ...r,
+      reportingDate: r.periodStart,
+      published: r.status === ReportStatus.PUBLISHED,
+      ...(r.dataSnapshot as any) 
+    }));
+
+    const mappedLegacy = legacyReports.map(r => ({
+       ...r,
+       isModern: false
+    }));
+
+    // Simple interleaving or priority sort
+    const combined = [...mappedModern, ...mappedLegacy].sort((a, b) => 
+      new Date(b.reportingDate).getTime() - new Date(a.reportingDate).getTime()
+    );
+
+    const totalCount = modernCount + legacyCount;
+
+    // Build temporal metadata
+    let dataDate = to || specificDate || todayStr;
+    if (adjustedTo && to === todayStr) {
+      dataDate = adjustedTo;
+    }
 
     return NextResponse.json({
-      reports,
+      reports: combined.slice(0, limit),
       pagination: {
-        total,
+        total: totalCount,
         page,
         limit,
-        totalPages: Math.ceil(total / limit)
+        totalPages: Math.ceil(totalCount / limit)
+      },
+      temporal: {
+        dataDate,
+        isHistorical: enforcePublishTime || (adjustedTo && adjustedTo !== to),
+        publishTime: outbreak ? `${String(outbreak.publishTimeHour).padStart(2, '0')}:${String(outbreak.publishTimeMinute).padStart(2, '0')}` : null
       }
     });
+
   } catch (error) {
-    console.error('Reports GET error:', error);
-    return NextResponse.json({ error: 'Failed to fetch reports' }, { status: 500 });
+    console.error("Reports API Error:", error);
+    return NextResponse.json({ error: "Failed to fetch reports" }, { status: 500 });
   }
 }
 
-export async function POST(request: Request) {
+export async function POST(req: Request) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.user?.id || !session?.user?.facilityId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!session || (session.user.role !== "ADMIN" && session.user.role !== "EDITOR")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    if (!hasPermission(session.user.role, 'report:create')) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    const data = await req.json();
+    const { reportingDate, facilityId, outbreakId, userId } = data;
+
+    if (!reportingDate || !facilityId || !outbreakId) {
+      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    const body = await request.json();
-    const { 
-      outbreakId, 
-      reportingDate, 
-      suspected24h, 
-      confirmed24h, 
-      suspectedDeath24h, 
-      confirmedDeath24h, 
-      admitted24h, 
-      discharged24h, 
-      serumSent24h,
-      dynamicFields // Expected as { [fieldId]: value }
-    } = body;
-
-    if (!outbreakId) {
-      return NextResponse.json({ error: 'Outbreak ID is required' }, { status: 400 });
+    // Verify facility exists to prevent P2003
+    const facility = await prisma.facility.findUnique({ where: { id: facilityId } });
+    if (!facility) {
+      return NextResponse.json({ error: "Invalid facility selected" }, { status: 400 });
     }
 
-    const reportDate = new Date(reportingDate);
-    const startOfDay = new Date(reportDate);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(reportDate);
-    endOfDay.setHours(23, 59, 59, 999);
-
-    const existing = await prisma.dailyReport.findFirst({
+    // Check for existing
+    const existing = await prisma.report.findUnique({
       where: {
-        facilityId: session.user.facilityId,
-        outbreakId: outbreakId,
-        reportingDate: { gte: startOfDay, lte: endOfDay }
+        facilityId_outbreakId_periodStart: {
+          facilityId,
+          outbreakId,
+          periodStart: new Date(reportingDate)
+        }
       }
     });
 
     if (existing) {
-      return NextResponse.json({ 
-        error: 'Report already exists for this outbreak and date', 
-        existingId: existing.id,
-        mode: 'EDIT' 
-      }, { status: 400 });
+      return NextResponse.json({ error: "Report already exists for this date and facility" }, { status: 409 });
     }
 
-    // Create the report and field values in a transaction
+    // Identify core fields for this outbreak
+    const outbreakFields = await prisma.formField.findMany({
+      where: { outbreakId }
+    });
+
     const report = await prisma.$transaction(async (tx) => {
-      const newReport = await tx.dailyReport.create({
+      const newReport = await tx.report.create({
         data: {
-          reportingDate: reportDate,
-          facilityId: session.user.facilityId,
-          userId: session.user.id,
-          outbreakId: outbreakId,
-          suspected24h: Number(suspected24h) || 0,
-          confirmed24h: Number(confirmed24h) || 0,
-          suspectedDeath24h: Number(suspectedDeath24h) || 0,
-          confirmedDeath24h: Number(confirmedDeath24h) || 0,
-          admitted24h: Number(admitted24h) || 0,
-          discharged24h: Number(discharged24h) || 0,
-          serumSent24h: Number(serumSent24h) || 0,
+          outbreakId,
+          facilityId,
+          userId: userId || session.user.id,
+          periodStart: new Date(reportingDate),
+          periodEnd: new Date(reportingDate),
+          status: ReportStatus.SUBMITTED,
         }
       });
 
-      if (dynamicFields && typeof dynamicFields === 'object') {
-        const fieldValuesData = Object.entries(dynamicFields).map(([formFieldId, value]) => ({
-          reportId: newReport.id,
-          formFieldId: formFieldId,
-          value: String(value),
-        }));
-
-        if (fieldValuesData.length > 0) {
-          await tx.reportFieldValue.createMany({
-            data: fieldValuesData
+      // Optimized: Collect and batch create
+      const fieldValuesData = [];
+      for (const field of outbreakFields) {
+        let val = data[field.fieldKey];
+        if (val !== undefined) {
+          fieldValuesData.push({
+            modernReportId: newReport.id,
+            formFieldId: field.id,
+            value: String(val)
           });
         }
       }
 
-      return newReport;
-    });
+      if (fieldValuesData.length > 0) {
+        await tx.reportFieldValue.createMany({ data: fieldValuesData });
+      }
 
-    await createAuditLog({
-      userId: session.user.id,
-      action: AuditActions.REPORT_CREATE,
-      entityType: 'DailyReport',
-      entityId: report.id,
-      details: { reportingDate, outbreakId, suspected24h, confirmed24h },
+      const snapshot = await rebuildSnapshot(newReport.id, tx);
+      return await tx.report.update({
+        where: { id: newReport.id },
+        data: { dataSnapshot: snapshot as any }
+      });
+    }, {
+      timeout: 15000 // Increase timeout to 15s
     });
 
     return NextResponse.json(report);
   } catch (error) {
-    console.error('Report POST error:', error);
-    return NextResponse.json({ error: 'Failed to submit report' }, { status: 500 });
+    console.error("Manual Report Creation Error:", error);
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }

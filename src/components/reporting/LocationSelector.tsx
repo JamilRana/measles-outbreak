@@ -77,7 +77,6 @@ export default function LocationSelector({ onSelect, disabled }: LocationSelecto
               </div>
             </div>
           </div>
-
           <div className="space-y-1.5">
             <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest ml-1">{t('report.fields.district')} <span className="text-red-500">*</span></label>
             <div className="relative">

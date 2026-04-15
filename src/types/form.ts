@@ -8,4 +8,8 @@ export interface FormField {
   section?: string;
   isRequired: boolean;
   sortOrder: number;
+  isCoreField?: boolean;
+  activeFrom?: string;
+  activeTo?: string;
+  validationRules?: any[];
 }

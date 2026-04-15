@@ -8,12 +8,6 @@ export async function GET() {
     if (!settings) {
       settings = await prisma.settings.create({
         data: {
-          cutoffHour: 14,
-          cutoffMinute: 0,
-          editDeadlineHour: 10,
-          editDeadlineMinute: 0,
-          publishTimeHour: 9,
-          publishTimeMinute: 0,
           enablePublicView: true,
           enableEmailNotifications: true,
         }

@@ -96,101 +96,10 @@ export default function SettingsPage() {
         <p className="text-slate-500 mt-1">Configure platform behavior and time settings</p>
       </div>
 
-      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="px-8 py-6 border-b border-slate-100 flex items-center gap-3 bg-slate-50/50">
-          <div className="p-2 bg-indigo-50 rounded-lg"><Clock className="w-5 h-5 text-indigo-600" /></div>
-          <h2 className="text-xl font-bold text-slate-800">Time Configuration</h2>
-        </div>
-        
-        <div className="p-8 space-y-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="p-5 bg-amber-50/50 rounded-2xl border border-amber-100">
-              <div className="flex items-center gap-2 mb-3">
-                <Clock className="w-4 h-4 text-amber-600" />
-                <h3 className="font-bold text-amber-800">Report Submission Deadline</h3>
-              </div>
-              <p className="text-xs text-amber-600/70 mb-4">After this time, users cannot submit new reports for the day</p>
-              <div className="flex items-center gap-2">
-                <select
-                  value={settings.cutoffHour}
-                  onChange={(e) => setSettings({ ...settings, cutoffHour: Number(e.target.value) })}
-                  className="bg-white border border-amber-200 rounded-lg py-2 px-3 text-sm font-bold"
-                >
-                  {Array.from({ length: 24 }, (_, i) => (
-                    <option key={i} value={i}>{i.toString().padStart(2, '0')}</option>
-                  ))}
-                </select>
-                <span className="text-amber-800 font-bold">:</span>
-                <select
-                  value={settings.cutoffMinute}
-                  onChange={(e) => setSettings({ ...settings, cutoffMinute: Number(e.target.value) })}
-                  className="bg-white border border-amber-200 rounded-lg py-2 px-3 text-sm font-bold"
-                >
-                  {[0, 15, 30, 45].map(m => (
-                    <option key={m} value={m}>{m.toString().padStart(2, '0')}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="p-5 bg-blue-50/50 rounded-2xl border border-blue-100">
-              <div className="flex items-center gap-2 mb-3">
-                <Edit2 className="w-4 h-4 text-blue-600" />
-                <h3 className="font-bold text-blue-800">Edit Deadline</h3>
-              </div>
-              <p className="text-xs text-blue-600/70 mb-4">Deadline for users to edit their submitted reports</p>
-              <div className="flex items-center gap-2">
-                <select
-                  value={settings.editDeadlineHour}
-                  onChange={(e) => setSettings({ ...settings, editDeadlineHour: Number(e.target.value) })}
-                  className="bg-white border border-blue-200 rounded-lg py-2 px-3 text-sm font-bold"
-                >
-                  {Array.from({ length: 24 }, (_, i) => (
-                    <option key={i} value={i}>{i.toString().padStart(2, '0')}</option>
-                  ))}
-                </select>
-                <span className="text-blue-800 font-bold">:</span>
-                <select
-                  value={settings.editDeadlineMinute}
-                  onChange={(e) => setSettings({ ...settings, editDeadlineMinute: Number(e.target.value) })}
-                  className="bg-white border border-blue-200 rounded-lg py-2 px-3 text-sm font-bold"
-                >
-                  {[0, 15, 30, 45].map(m => (
-                    <option key={m} value={m}>{m.toString().padStart(2, '0')}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="p-5 bg-emerald-50/50 rounded-2xl border border-emerald-100">
-              <div className="flex items-center gap-2 mb-3">
-                <Globe className="w-4 h-4 text-emerald-600" />
-                <h3 className="font-bold text-emerald-800">Report Publish Time</h3>
-              </div>
-              <p className="text-xs text-emerald-600/70 mb-4">Time when reports become visible to public</p>
-              <div className="flex items-center gap-2">
-                <select
-                  value={settings.publishTimeHour}
-                  onChange={(e) => setSettings({ ...settings, publishTimeHour: Number(e.target.value) })}
-                  className="bg-white border border-emerald-200 rounded-lg py-2 px-3 text-sm font-bold"
-                >
-                  {Array.from({ length: 24 }, (_, i) => (
-                    <option key={i} value={i}>{i.toString().padStart(2, '0')}</option>
-                  ))}
-                </select>
-                <span className="text-emerald-800 font-bold">:</span>
-                <select
-                  value={settings.publishTimeMinute}
-                  onChange={(e) => setSettings({ ...settings, publishTimeMinute: Number(e.target.value) })}
-                  className="bg-white border border-emerald-200 rounded-lg py-2 px-3 text-sm font-bold"
-                >
-                  {[0, 15, 30, 45].map(m => (
-                    <option key={m} value={m}>{m.toString().padStart(2, '0')}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          </div>
+      <div className="bg-slate-50 border border-slate-200 rounded-3xl p-8 mb-8">
+        <div className="flex items-center gap-4 text-emerald-600 bg-emerald-50 p-4 rounded-2xl border border-emerald-100 mb-6">
+          <CheckCircle className="w-6 h-6" />
+          <p className="font-bold text-sm">Note: Reporting deadlines and submission windows are now managed individually for each outbreak in the Outbreak Orchestration section.</p>
         </div>
       </div>
 

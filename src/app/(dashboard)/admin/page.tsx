@@ -18,7 +18,8 @@ import {
   RotateCcw,
   Activity,
   Calculator,
-  History
+  History,
+  Building2
 } from "lucide-react";
 import { motion } from "motion/react";
 import Breadcrumbs from "@/components/Breadcrumbs";
@@ -76,15 +77,8 @@ export default function AdminPage() {
             <AdminCard 
               href="/admin/submissions" 
               title="Reporting Hub" 
-              description="Monitor real-time status and track daily missing units"
+              description="Unified console for real-time status, historical logs, and gap analysis"
               icon={<ClipboardCheck className="w-6 h-6" />}
-              color="indigo"
-            />
-            <AdminCard 
-              href="/admin/submission" 
-              title="Submission Logs" 
-              description="Detailed historical logs with pagination and gap analysis"
-              icon={<History className="w-6 h-6" />}
               color="indigo"
             />
             <AdminCard 
@@ -113,10 +107,9 @@ export default function AdminPage() {
         {isAdmin && (
           <>
             <AdminCard 
-            hidden={true} 
               href="/admin/outbreaks" 
               title="Outbreak Management" 
-              description="Manage outbreak events and backlog reporting" 
+              description="Manage outbreak events, thresholds, and reporting windows" 
               icon={<Activity className="w-6 h-6" />}
               color="rose"
             />
@@ -149,6 +142,13 @@ export default function AdminPage() {
               title={t('adminPanel.emailRecipients')} 
               description={t('adminPanel.emailRecipientsDesc')} 
               icon={<Mail className="w-6 h-6" />}
+              color="indigo"
+            />
+            <AdminCard 
+              href="/admin/facilities" 
+              title="Facility Registry" 
+              description="Manage official health facilities, DGHS codes, and geographic metadata" 
+              icon={<Building2 className="w-6 h-6" />}
               color="indigo"
             />
             <AdminCard 

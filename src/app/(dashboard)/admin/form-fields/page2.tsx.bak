@@ -1,0 +1,1324 @@
+"use client";
+
+import { useState, useEffect, useCallback, useRef } from "react";
+import { useSession } from "next-auth/react";
+import {
+  Plus, Trash2, GripVertical, AlertCircle, ChevronDown,
+  Eye, EyeOff, Hash, Type, List, Calendar, ToggleLeft,
+  Star, Copy, Settings, ChevronUp, Check, Loader2, Save,
+  RefreshCw, FileText, Zap, X, Info, LayoutTemplate
+} from "lucide-react";
+import {
+  DndContext, closestCenter, PointerSensor, KeyboardSensor,
+  useSensor, useSensors, DragEndEvent, DragOverlay, DragStartEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove, SortableContext, verticalListSortingStrategy,
+  useSortable, sortableKeyboardCoordinates,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { restrictToVerticalAxis, restrictToWindowEdges } from "@dnd-kit/modifiers";
+import { validateForm, ValidationError } from "@/lib/validation-engine";
+
+// ─── Rule Simulator Component ───────────────────────────────────────────────
+
+function RuleSimulator({ field, allFields }: { field: FormField; allFields: FormField[] }) {
+  const [testValues, setTestValues] = useState<Record<string, any>>({});
+  const [errors, setErrors] = useState<ValidationError[]>([]);
+  const [hasRun, setHasRun] = useState(false);
+
+  const runTest = () => {
+    const results = validateForm(testValues, allFields);
+    setErrors(results.filter(e => e.fieldId === field.id || e.relatedFieldIds?.includes(field.id)));
+    setHasRun(true);
+  };
+
+  const relatedFields = Array.from(new Set([
+    field.id,
+    ...(field.validationRules || []).flatMap((r: any) => {
+      const ids = [];
+      if (r.compareToFieldId) ids.push(r.compareToFieldId);
+      if (r.fieldIds) ids.push(...r.fieldIds);
+      if (r.expectedSumId) ids.push(r.expectedSumId);
+      return ids;
+    })
+  ])).map(id => allFields.find(f => f.id === id)).filter(Boolean) as FormField[];
+
+  return (
+    <div className="mt-8 p-6 bg-slate-900 rounded-2xl shadow-xl border border-slate-800 text-white">
+      <div className="flex items-center gap-2 mb-4">
+        <Zap className="w-4 h-4 text-amber-400" />
+        <h3 className="text-sm font-bold uppercase tracking-widest">Rule Simulator</h3>
+      </div>
+      <p className="text-[11px] text-slate-400 mb-6">Input dummy data to verify validation logic before publishing.</p>
+      
+      <div className="space-y-4 mb-6">
+        {relatedFields.map(f => (
+          <div key={f.id} className="space-y-1.5">
+            <label className="block text-[10px] font-bold text-slate-500 uppercase">{f.label || f.fieldKey}</label>
+            <input 
+              type="text"
+              placeholder="Enter test value..."
+              value={testValues[f.id] || ""}
+              onChange={e => setTestValues({ ...testValues, [f.id]: e.target.value })}
+              className="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500/50 outline-none transition-all"
+            />
+          </div>
+        ))}
+      </div>
+
+      <button 
+        onClick={runTest}
+        className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold uppercase tracking-widest transition-all active:scale-95"
+      >
+        Run Validation Test
+      </button>
+
+      {hasRun && (
+        <div className="mt-6 pt-6 border-t border-slate-800">
+          {errors.length === 0 ? (
+            <div className="flex items-center gap-3 text-emerald-400 bg-emerald-400/10 p-4 rounded-xl border border-emerald-400/20">
+              <Check className="w-5 h-5" />
+              <p className="text-xs font-bold uppercase tracking-wide">Logic Passed: No errors triggered</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {errors.map((err, idx) => (
+                <div key={idx} className={`flex items-start gap-3 p-4 rounded-xl border ${err.severity === 'error' ? 'bg-red-500/10 border-red-500/30 text-red-400' : 'bg-amber-500/10 border-amber-500/30 text-amber-400'}`}>
+                  <AlertCircle className="w-5 h-5 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wide">{err.severity === 'error' ? 'Validation Failed' : 'Warning Triggered'}</p>
+                    <p className="text-[11px] font-medium opacity-80 mt-1">{err.message}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Types ──────────────────────────────────────────────────────────────────
+
+type FieldType = "NUMBER" | "TEXT" | "SELECT" | "DATE" | "BOOLEAN";
+
+interface FormField {
+  id: string;
+  label: string;
+  labelBn: string;
+  fieldKey: string;
+  fieldType: FieldType;
+  options: string;         // JSON array string for SELECT
+  section: string;
+  isRequired: boolean;
+  isCoreField: boolean;
+  sortOrder: number;
+  activeFrom: string;
+  activeTo: string;
+  validationRules: any[]; // ValidationRule[]
+  // UI-only state
+  _isNew?: boolean;
+  _dirty?: boolean;
+  _collapsed?: boolean;
+}
+
+interface Outbreak {
+  id: string;
+  name: string;
+  disease: { name: string };
+}
+
+// ─── Constants ───────────────────────────────────────────────────────────────
+
+const FIELD_TYPES: { value: FieldType; label: string; icon: React.ReactNode; desc: string }[] = [
+  { value: "NUMBER",  label: "Number",   icon: <Hash className="w-4 h-4" />,        desc: "Integer or decimal value" },
+  { value: "TEXT",    label: "Short text", icon: <Type className="w-4 h-4" />,       desc: "Single-line text input" },
+  { value: "SELECT",  label: "Dropdown", icon: <List className="w-4 h-4" />,         desc: "Choose from a list" },
+  { value: "DATE",    label: "Date",     icon: <Calendar className="w-4 h-4" />,     desc: "Date picker" },
+  { value: "BOOLEAN", label: "Yes / No", icon: <ToggleLeft className="w-4 h-4" />,  desc: "Toggle checkbox" },
+];
+
+const SECTIONS = [
+  { key: "cases",           label: "Cases & Burden",          color: "bg-red-50 border-red-200 text-red-700" },
+  { key: "mortality",       label: "Mortality",               color: "bg-slate-50 border-slate-200 text-slate-600" },
+  { key: "hospitalization", label: "Clinical Management",     color: "bg-blue-50 border-blue-200 text-blue-700" },
+  { key: "lab",             label: "Laboratory",              color: "bg-purple-50 border-purple-200 text-purple-700" },
+  { key: "other",           label: "Other",                   color: "bg-slate-50 border-slate-200 text-slate-500" },
+];
+
+const SECTION_MAP = Object.fromEntries(SECTIONS.map(s => [s.key, s]));
+
+function sectionColor(key: string) {
+  return SECTION_MAP[key]?.color ?? "bg-slate-50 border-slate-200 text-slate-500";
+}
+
+function typeIcon(type: FieldType) {
+  return FIELD_TYPES.find(f => f.value === type)?.icon ?? <Hash className="w-4 h-4" />;
+}
+
+function autoKey(label: string) {
+  return label.toLowerCase().trim().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "").slice(0, 40);
+}
+
+// ─── Field card preview (right panel) ───────────────────────────────────────
+
+function FieldPreview({ field }: { field: FormField }) {
+  const options = (() => {
+    try { return JSON.parse(field.options || "[]"); } catch { return []; }
+  })();
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <p className="text-sm font-semibold text-slate-800">
+          {field.label || <span className="text-slate-400 italic">Untitled field</span>}
+        </p>
+        {field.isRequired && <span className="text-red-500 text-sm">*</span>}
+      </div>
+      {field.labelBn && <p className="text-xs text-slate-500">{field.labelBn}</p>}
+
+      {field.fieldType === "NUMBER" && (
+        <input disabled placeholder="0" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-slate-50 text-slate-400" />
+      )}
+      {field.fieldType === "TEXT" && (
+        <input disabled placeholder="Your answer" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-slate-50 text-slate-400" />
+      )}
+      {field.fieldType === "DATE" && (
+        <input type="date" disabled className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-slate-50 text-slate-400" />
+      )}
+      {field.fieldType === "BOOLEAN" && (
+        <label className="flex items-center gap-2 cursor-not-allowed">
+          <div className="w-10 h-5 bg-slate-200 rounded-full" />
+          <span className="text-sm text-slate-400">Yes / No</span>
+        </label>
+      )}
+      {field.fieldType === "SELECT" && (
+        <div className="space-y-1.5">
+          {options.length > 0 ? options.map((opt: string, i: number) => (
+            <label key={i} className="flex items-center gap-2 cursor-not-allowed">
+              <div className="w-4 h-4 rounded border border-slate-300 bg-slate-50 flex-shrink-0" />
+              <span className="text-sm text-slate-600">{opt}</span>
+            </label>
+          )) : (
+            <p className="text-xs text-slate-400 italic">No options yet</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Sortable card ────────────────────────────────────────────────────────────
+
+interface CardProps {
+  field: FormField;
+  allFields: FormField[];
+  isActive: boolean;
+  onSelect: () => void;
+  onDelete: () => void;
+  onDuplicate: () => void;
+}
+
+function FieldCard({ field, allFields, isActive, onSelect, onDelete, onDuplicate }: CardProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: field.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.3 : 1,
+  };
+
+  const secInfo = SECTION_MAP[field.section] ?? SECTION_MAP["other"];
+
+  return (
+    <div ref={setNodeRef} style={style} className="relative">
+      {isActive && (
+        <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-500 rounded-l-xl z-10" />
+      )}
+      <div
+        onClick={onSelect}
+        className={`group bg-white rounded-xl border transition-all cursor-pointer select-none
+          ${isActive
+            ? "border-indigo-300 shadow-md shadow-indigo-100"
+            : "border-slate-200 hover:border-slate-300 hover:shadow-sm"
+          }
+          ${isDragging ? "shadow-2xl scale-[1.02]" : ""}
+        `}
+      >
+        <div className="flex items-center gap-3 px-4 py-3">
+          {/* Drag handle */}
+          <div
+            {...attributes}
+            {...listeners}
+            className="p-1 text-slate-300 hover:text-slate-500 cursor-grab active:cursor-grabbing flex-shrink-0"
+            onClick={e => e.stopPropagation()}
+          >
+            <GripVertical className="w-4 h-4" />
+          </div>
+
+          {/* Type icon */}
+          <div className={`p-1.5 rounded-lg flex-shrink-0 ${isActive ? "bg-indigo-50 text-indigo-600" : "bg-slate-100 text-slate-500"}`}>
+            {typeIcon(field.fieldType)}
+          </div>
+
+          {/* Label */}
+          <div className="flex-1 min-w-0">
+            <p className={`text-sm font-medium truncate ${!field.label ? "text-slate-400 italic" : "text-slate-800"}`}>
+              {field.label || "Untitled field"}
+            </p>
+            <p className="text-[11px] text-slate-400 font-mono truncate">{field.fieldKey || "—"}</p>
+          </div>
+
+          {/* Badges */}
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            {field.isCoreField && (
+              <span className="px-1.5 py-0.5 bg-amber-50 text-amber-600 text-[10px] font-semibold rounded border border-amber-200" title="Core KPI field">
+                <Star className="w-2.5 h-2.5 inline" />
+              </span>
+            )}
+            {field.isRequired && (
+              <span className="px-1.5 py-0.5 bg-red-50 text-red-500 text-[10px] font-semibold rounded border border-red-200">REQ</span>
+            )}
+            <span className={`px-2 py-0.5 text-[10px] font-semibold rounded border ${sectionColor(field.section)}`}>
+              {secInfo?.label.split(" ")[0] ?? field.section}
+            </span>
+          </div>
+
+          {/* Actions */}
+          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
+            <button onClick={onDuplicate} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="Duplicate">
+              <Copy className="w-3.5 h-3.5" />
+            </button>
+            <button onClick={onDelete} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Delete">
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {/* Reference Badge for dependencies */}
+          {allFields.some(f => f.validationRules?.some((r: any) => r.compareToFieldId === field.id || r.expectedSumId === field.id || r.fieldIds?.includes(field.id))) && (
+            <span className="px-1.5 py-0.5 bg-blue-50 text-blue-600 text-[10px] font-bold rounded border border-blue-200" title="Other fields depend on this">
+              REF
+            </span>
+          )}
+
+          {field._dirty && (
+            <div className="w-2 h-2 bg-amber-400 rounded-full flex-shrink-0" title="Unsaved changes" />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Select options editor ───────────────────────────────────────────────────
+
+function OptionsEditor({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const opts = (() => { try { return JSON.parse(value || "[]"); } catch { return []; } })();
+
+  const update = (newOpts: string[]) => onChange(JSON.stringify(newOpts));
+
+  return (
+    <div className="space-y-2">
+      <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">Options</label>
+      <div className="space-y-2">
+        {opts.map((opt: string, i: number) => (
+          <div key={i} className="flex items-center gap-2">
+            <div className="w-4 h-4 rounded border border-slate-300 flex-shrink-0" />
+            <input
+              className="flex-1 border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400"
+              value={opt}
+              onChange={e => { const n = [...opts]; n[i] = e.target.value; update(n); }}
+              placeholder={`Option ${i + 1}`}
+            />
+            <button onClick={() => { const n = opts.filter((_: any, j: number) => j !== i); update(n); }}
+              className="p-1 text-slate-400 hover:text-red-500 transition-colors">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        ))}
+      </div>
+      <button
+        onClick={() => update([...opts, ""])}
+        className="flex items-center gap-2 text-sm text-indigo-600 hover:text-indigo-800 font-medium mt-1"
+      >
+        <Plus className="w-4 h-4" /> Add option
+      </button>
+    </div>
+  );
+}
+
+// ─── Edit panel ──────────────────────────────────────────────────────────────
+
+function EditPanel({
+  field,
+  allFields,
+  onChange,
+  onSave,
+  onDelete,
+  onDuplicate,
+  saving,
+}: {
+  field: FormField;
+  allFields: FormField[];
+  onChange: (updates: Partial<FormField>) => void;
+  onSave: () => void;
+  onDelete: () => void;
+  onDuplicate: () => void;
+  saving: boolean;
+}) {
+  const [tab, setTab] = useState<"edit" | "rules" | "preview">("edit");
+  const [showAdvanced, setShowAdvanced] = useState(false);
+
+  const input = (label: string, key: keyof FormField, type = "text", placeholder = "") => (
+    <div className="space-y-1.5">
+      <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">{label}</label>
+      <input
+        type={type}
+        value={String(field[key] ?? "")}
+        onChange={e => {
+          const v = e.target.value;
+          const upd: Partial<FormField> = { [key]: v };
+          if (key === "label" && field._isNew) upd.fieldKey = autoKey(v);
+          onChange(upd);
+        }}
+        placeholder={placeholder}
+        className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 transition-all"
+      />
+    </div>
+  );
+
+  const toggle = (label: string, subLabel: string, key: "isRequired" | "isCoreField") => (
+    <div
+      className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200 cursor-pointer hover:bg-slate-100 transition-colors"
+      onClick={() => onChange({ [key]: !field[key] })}
+    >
+      <div>
+        <p className="text-sm font-medium text-slate-800">{label}</p>
+        <p className="text-xs text-slate-500">{subLabel}</p>
+      </div>
+      <div className={`w-10 h-5 rounded-full flex items-center px-0.5 transition-all ${field[key] ? "bg-indigo-600" : "bg-slate-300"}`}>
+        <div className={`w-4 h-4 bg-white rounded-full shadow transition-all ${field[key] ? "translate-x-5" : "translate-x-0"}`} />
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Tabs */}
+      <div className="flex border-b border-slate-200 px-4">
+        {(["edit", "rules", "preview"] as const).map(t => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={`flex items-center gap-1.5 px-3 py-3 text-sm font-medium border-b-2 -mb-px transition-colors capitalize
+              ${tab === t ? "border-indigo-500 text-indigo-600" : "border-transparent text-slate-500 hover:text-slate-700"}`}
+          >
+            {t === "edit" ? <Settings className="w-3.5 h-3.5" /> : t === "rules" ? <Zap className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+            {t}
+          </button>
+        ))}
+        <div className="flex-1" />
+        <div className="flex items-center gap-1 py-2">
+          <button onClick={onDuplicate} title="Duplicate field" className="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg hover:bg-indigo-50 transition-colors">
+            <Copy className="w-4 h-4" />
+          </button>
+          <button onClick={onDelete} title="Delete field" className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors">
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {tab === "preview" ? (
+          <div className="bg-white border border-slate-200 rounded-xl p-5">
+            <FieldPreview field={field} />
+          </div>
+        ) : tab === "rules" ? (
+          <div className="space-y-6">
+             <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Validation Controls</p>
+                <button 
+                  onClick={() => onChange({ validationRules: [...(field.validationRules || []), { version: 1, type: "min", value: 0, severity: "error" }] })}
+                  className="flex items-center gap-1 px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold"
+                >
+                   <Plus className="w-3 h-3" /> Add rule
+                </button>
+             </div>
+
+             {(field.validationRules || []).length === 0 && (
+                <div className="text-center py-8 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                   <Zap className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                   <p className="text-xs text-slate-400">No validation rules defined yet.</p>
+                </div>
+             )}
+
+              <div className="space-y-4">
+                {(field.validationRules || []).map((rule: any, i: number) => (
+                  <div key={i} className="p-4 bg-white border border-slate-200 rounded-xl shadow-sm space-y-3 relative group">
+                    <button 
+                      onClick={() => {
+                        const n = [...field.validationRules];
+                        n.splice(i, 1);
+                        onChange({ validationRules: n });
+                      }}
+                      className="absolute top-2 right-2 p-1 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase">Rule Type</label>
+                        <select 
+                          value={rule.type}
+                          onChange={(e) => {
+                            const n = [...field.validationRules];
+                            n[i] = { ...n[i], type: e.target.value };
+                            onChange({ validationRules: n });
+                          }}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500/20 outline-none"
+                        >
+                          <option value="min">Minimum Value</option>
+                          <option value="max">Maximum Value</option>
+                          <option value="lte">Less than or Equal (Field)</option>
+                          <option value="gte">Greater than or Equal (Field)</option>
+                          <option value="phone">Phone (BD)</option>
+                          <option value="email">Email</option>
+                          <option value="regex">Regex Pattern</option>
+                          <option value="sum_check">Sum Check (Cross-Field)</option>
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase">Severity</label>
+                        <select 
+                          value={rule.severity}
+                          onChange={(e) => {
+                            const n = [...field.validationRules];
+                            n[i] = { ...n[i], severity: e.target.value };
+                            onChange({ validationRules: n });
+                          }}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500/20 outline-none"
+                        >
+                          <option value="error">Error (Block)</option>
+                          <option value="warning">Warning (Allow)</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Rule Specific Params */}
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase">Constraint</label>
+                      {(rule.type === 'min' || rule.type === 'max') && (
+                        <input 
+                          type="number"
+                          value={rule.value}
+                          onChange={(e) => {
+                            const n = [...field.validationRules];
+                            n[i] = { ...n[i], value: Number(e.target.value) };
+                            onChange({ validationRules: n });
+                          }}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs outline-none"
+                        />
+                      )}
+                      {(rule.type === 'lte' || rule.type === 'gte') && (
+                        <select 
+                          value={rule.compareToFieldId}
+                          onChange={(e) => {
+                            const n = [...field.validationRules];
+                            n[i] = { ...n[i], compareToFieldId: e.target.value };
+                            onChange({ validationRules: n });
+                          }}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs outline-none"
+                        >
+                          <option value="">Select Target Field...</option>
+                          {allFields.filter(f => f.id !== field.id && f.id !== 'new').map(f => (
+                            <option key={f.id} value={f.id}>{f.label || f.fieldKey}</option>
+                          ))}
+                        </select>
+                      )}
+                      {rule.type === 'sum_check' && (
+                        <div className="space-y-2">
+                          <label className="text-[9px] font-bold text-slate-400">Component Fields</label>
+                          <div className="flex flex-wrap gap-1">
+                            {allFields.filter(f => f.id !== field.id).map(f => (
+                              <button
+                                key={f.id}
+                                onClick={() => {
+                                  const n = [...field.validationRules];
+                                  const ids = n[i].fieldIds || [];
+                                  n[i].fieldIds = ids.includes(f.id) ? ids.filter((id: string) => id !== f.id) : [...ids, f.id];
+                                  onChange({ validationRules: n });
+                                }}
+                                className={`px-2 py-0.5 rounded text-[10px] font-semibold border transition-all ${
+                                  (rule.fieldIds || []).includes(f.id) 
+                                    ? "bg-indigo-600 border-indigo-600 text-white" 
+                                    : "bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100"
+                                }`}
+                              >
+                                {f.label || f.fieldKey}
+                              </button>
+                            ))}
+                          </div>
+                          <label className="text-[9px] font-bold text-slate-400 mt-2 block">Expected Total Field</label>
+                          <select 
+                            value={rule.expectedSumId}
+                            onChange={(e) => {
+                              const n = [...field.validationRules];
+                              n[i] = { ...n[i], expectedSumId: e.target.value };
+                              onChange({ validationRules: n });
+                            }}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs outline-none"
+                          >
+                            <option value="">Select Total Field...</option>
+                            {allFields.map(f => (
+                              <option key={f.id} value={f.id}>{f.label || f.fieldKey}</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                      {rule.type === 'regex' && (
+                        <input 
+                          placeholder="^[0-9]+$"
+                          value={rule.pattern}
+                          onChange={(e) => {
+                            const n = [...field.validationRules];
+                            n[i] = { ...n[i], pattern: e.target.value };
+                            onChange({ validationRules: n });
+                          }}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs outline-none font-mono"
+                        />
+                      )}
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase">Message Override</label>
+                      <input 
+                        placeholder="Defaults to generic message..."
+                        value={rule.message || ""}
+                        onChange={(e) => {
+                          const n = [...field.validationRules];
+                          n[i] = { ...n[i], message: e.target.value };
+                          onChange({ validationRules: n });
+                        }}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs outline-none"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Rule Simulator */}
+              <RuleSimulator field={field} allFields={allFields} />
+          </div>
+        ) : (
+          <>
+            {/* Label */}
+            {input("Label (English)", "label", "text", "e.g. Suspected cases (24h)")}
+            {input("Label (Bengali)", "labelBn", "text", "বাংলা লেবেল")}
+
+            {/* Field key */}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">
+                Field Key <span className="text-slate-400 font-normal normal-case">— stable API identifier</span>
+              </label>
+              <input
+                value={field.fieldKey}
+                onChange={e => onChange({ fieldKey: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, "_") })}
+                placeholder="e.g. suspected24h"
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400"
+              />
+            </div>
+
+            {/* Type */}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">Field type</label>
+              <div className="grid grid-cols-1 gap-1.5">
+                {FIELD_TYPES.map(ft => (
+                  <button
+                    key={ft.value}
+                    onClick={() => onChange({ fieldType: ft.value })}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border text-left transition-all
+                      ${field.fieldType === ft.value
+                        ? "border-indigo-400 bg-indigo-50 text-indigo-700"
+                        : "border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50"
+                      }`}
+                  >
+                    <span className="flex-shrink-0">{ft.icon}</span>
+                    <div>
+                      <p className="text-sm font-medium leading-tight">{ft.label}</p>
+                      <p className="text-[11px] text-slate-400">{ft.desc}</p>
+                    </div>
+                    {field.fieldType === ft.value && <Check className="w-4 h-4 ml-auto text-indigo-600" />}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Options (SELECT only) */}
+            {field.fieldType === "SELECT" && (
+              <OptionsEditor value={field.options} onChange={v => onChange({ options: v })} />
+            )}
+
+            {/* Section */}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">Section</label>
+              <div className="grid grid-cols-1 gap-1.5">
+                {SECTIONS.map(s => (
+                  <button
+                    key={s.key}
+                    onClick={() => onChange({ section: s.key })}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-left text-sm transition-all
+                      ${field.section === s.key
+                        ? "border-indigo-400 bg-indigo-50 text-indigo-700 font-medium"
+                        : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                      }`}
+                  >
+                    {field.section === s.key && <Check className="w-3.5 h-3.5 flex-shrink-0" />}
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Required + Core */}
+            {toggle("Required", "Facility must fill this field", "isRequired")}
+            {toggle("Core KPI field", "Shown on the public dashboard", "isCoreField")}
+
+            {/* Advanced */}
+            <button
+              onClick={() => setShowAdvanced(!showAdvanced)}
+              className="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-700 font-medium"
+            >
+              {showAdvanced ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              Advanced options
+            </button>
+
+            {showAdvanced && (
+              <div className="space-y-3 pt-1 border-t border-slate-100">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">Active from</label>
+                    <input type="date" value={field.activeFrom}
+                      onChange={e => onChange({ activeFrom: e.target.value })}
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">Active until</label>
+                    <input type="date" value={field.activeTo}
+                      onChange={e => onChange({ activeTo: e.target.value })}
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30" />
+                  </div>
+                </div>
+                <div className="flex items-start gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <Info className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
+                  <p className="text-xs text-blue-700">Leave blank to make this field always active. The field will auto-hide outside these dates.</p>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Save button */}
+      <div className="p-4 border-t border-slate-200 bg-white">
+        <button
+          onClick={onSave}
+          disabled={saving || !field.label || !field.fieldKey}
+          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-200 disabled:text-slate-400 text-white rounded-xl text-sm font-semibold transition-all active:scale-[0.98]"
+        >
+          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+          {field._isNew ? "Add field" : "Save changes"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Seed templates ──────────────────────────────────────────────────────────
+
+const TEMPLATES: Record<string, { label: string; fields: Partial<FormField>[] }> = {
+  measles: {
+    label: "Measles core fields",
+    fields: [
+      { label: "Suspected cases (24h)",       labelBn: "সন্দেহজনক কেস (২৪ ঘণ্টা)",     fieldKey: "suspected24h",      fieldType: "NUMBER", section: "cases",           isRequired: true, isCoreField: true  },
+      { label: "Confirmed cases (24h)",        labelBn: "নিশ্চিত কেস (২৪ ঘণ্টা)",       fieldKey: "confirmed24h",      fieldType: "NUMBER", section: "cases",           isRequired: true, isCoreField: true  },
+      { label: "Suspected deaths (24h)",       labelBn: "সন্দেহজনক মৃত্যু (২৪ ঘণ্টা)",  fieldKey: "suspectedDeath24h", fieldType: "NUMBER", section: "mortality",       isRequired: true, isCoreField: true  },
+      { label: "Confirmed deaths (24h)",       labelBn: "নিশ্চিত মৃত্যু (২৪ ঘণ্টা)",    fieldKey: "confirmedDeath24h", fieldType: "NUMBER", section: "mortality",       isRequired: true, isCoreField: true  },
+      { label: "Admitted (24h)",               labelBn: "ভর্তি (২৪ ঘণ্টা)",             fieldKey: "admitted24h",       fieldType: "NUMBER", section: "hospitalization", isRequired: true, isCoreField: true  },
+      { label: "Discharged (24h)",             labelBn: "ছাড়প্রাপ্ত (২৪ ঘণ্টা)",        fieldKey: "discharged24h",     fieldType: "NUMBER", section: "hospitalization", isRequired: false, isCoreField: false },
+      { label: "Serum samples sent (24h)",     labelBn: "সিরাম পাঠানো (২৪ ঘণ্টা)",      fieldKey: "serumSent24h",      fieldType: "NUMBER", section: "lab",             isRequired: false, isCoreField: false },
+    ],
+  },
+  dengue: {
+    label: "Dengue core fields",
+    fields: [
+      { label: "Suspected dengue cases (24h)", fieldKey: "dengue_suspected24h",  fieldType: "NUMBER", section: "cases",    isRequired: true,  isCoreField: true },
+      { label: "Confirmed dengue (24h)",       fieldKey: "dengue_confirmed24h",  fieldType: "NUMBER", section: "cases",    isRequired: true,  isCoreField: true },
+      { label: "Deaths (24h)",                 fieldKey: "dengue_deaths24h",     fieldType: "NUMBER", section: "mortality",isRequired: true,  isCoreField: true },
+      { label: "DHF cases (24h)",              fieldKey: "dhf_cases24h",         fieldType: "NUMBER", section: "cases",    isRequired: false, isCoreField: false },
+      { label: "DSS cases (24h)",              fieldKey: "dss_cases24h",         fieldType: "NUMBER", section: "cases",    isRequired: false, isCoreField: false },
+      { label: "Admitted (24h)",               fieldKey: "dengue_admitted24h",   fieldType: "NUMBER", section: "hospitalization", isRequired: true, isCoreField: true },
+      { label: "Serotype (dominant)",          fieldKey: "serotype",             fieldType: "SELECT", section: "lab",      isRequired: false, isCoreField: false, options: JSON.stringify(["DENV-1","DENV-2","DENV-3","DENV-4","Unknown"]) },
+    ],
+  },
+};
+
+// ─── Empty field factory ─────────────────────────────────────────────────────
+
+function newField(sortOrder: number): FormField {
+  return {
+    id: `new_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+    label: "",
+    labelBn: "",
+    fieldKey: "",
+    fieldType: "NUMBER",
+    options: "[]",
+    section: "cases",
+    isRequired: false,
+    isCoreField: false,
+    sortOrder,
+    activeFrom: "",
+    activeTo: "",
+    validationRules: [],
+    _isNew: true,
+    _dirty: true,
+    _collapsed: false,
+  };
+}
+
+function apiToLocal(f: any): FormField {
+  return {
+    id: f.id,
+    label: f.label ?? "",
+    labelBn: f.labelBn ?? "",
+    fieldKey: f.fieldKey ?? "",
+    fieldType: f.fieldType ?? "NUMBER",
+    options: f.options ?? "[]",
+    section: f.section ?? "other",
+    isRequired: !!f.isRequired,
+    isCoreField: !!f.isCoreField,
+    sortOrder: f.sortOrder ?? 0,
+    activeFrom: f.activeFrom ? f.activeFrom.slice(0, 10) : "",
+    activeTo: f.activeTo ? f.activeTo.slice(0, 10) : "",
+    validationRules: Array.isArray(f.validationRules) ? f.validationRules : [],
+    _dirty: false,
+    _isNew: false,
+    _collapsed: false,
+  };
+}
+
+// ─── Main Page ───────────────────────────────────────────────────────────────
+
+export default function FormBuilderPage() {
+  const { data: session } = useSession();
+  const [outbreaks, setOutbreaks] = useState<Outbreak[]>([]);
+  const [outbreakId, setOutbreakId] = useState("");
+  const [fields, setFields] = useState<FormField[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState<{ type: "ok" | "err"; msg: string } | null>(null);
+  const [activeDragId, setActiveDragId] = useState<string | null>(null);
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [showPreviewAll, setShowPreviewAll] = useState(false);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  const showToast = (type: "ok" | "err", msg: string) => {
+    setToast({ type, msg });
+    setTimeout(() => setToast(null), 3500);
+  };
+
+  // ── Load outbreaks ──
+  useEffect(() => {
+    fetch("/api/public/outbreaks")
+      .then(r => r.json())
+      .then((data: Outbreak[]) => {
+        setOutbreaks(data);
+        if (data.length > 0) setOutbreakId(data[0].id);
+      })
+      .catch(console.error);
+  }, []);
+
+  // ── Load fields ──
+  useEffect(() => {
+    if (!outbreakId) return;
+    setLoading(true);
+    setSelectedId(null);
+    fetch(`/api/admin/form-fields?outbreakId=${outbreakId}`)
+      .then(r => r.json())
+      .then((data: any[]) => {
+        setFields(data.sort((a, b) => a.sortOrder - b.sortOrder).map(apiToLocal));
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, [outbreakId]);
+
+  const selectedField = fields.find(f => f.id === selectedId) ?? null;
+
+  // ── Update a field locally ──
+  const updateField = useCallback((id: string, updates: Partial<FormField>) => {
+    setFields(prev => prev.map(f => f.id === id ? { ...f, ...updates, _dirty: true } : f));
+  }, []);
+
+  // ── Save field to API ──
+  const saveField = useCallback(async (field: FormField) => {
+    if (!field.label || !field.fieldKey) {
+      showToast("err", "Label and Field Key are required");
+      return;
+    }
+    setSaving(true);
+    try {
+      const payload = {
+        label: field.label,
+        labelBn: field.labelBn || null,
+        fieldKey: field.fieldKey,
+        fieldType: field.fieldType,
+        options: field.options || null,
+        section: field.section || "other",
+        isRequired: field.isRequired,
+        isCoreField: field.isCoreField,
+        sortOrder: field.sortOrder,
+        activeFrom: field.activeFrom || null,
+        activeTo: field.activeTo || null,
+        validationRules: field.validationRules ?? [],
+      };
+
+      let res: Response;
+      if (field._isNew) {
+        res = await fetch(`/api/admin/form-fields?outbreakId=${outbreakId}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+      } else {
+        res = await fetch(`/api/admin/form-fields/${field.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+      }
+
+      if (!res.ok) {
+        const err = await res.json();
+        showToast("err", err.error ?? "Save failed");
+        return;
+      }
+
+      const saved = await res.json();
+      setFields(prev => prev.map(f =>
+        f.id === field.id ? { ...apiToLocal(saved), _dirty: false } : f
+      ));
+      if (field._isNew) setSelectedId(saved.id);
+      showToast("ok", field._isNew ? "Field added" : "Saved");
+    } catch {
+      showToast("err", "Network error");
+    } finally {
+      setSaving(false);
+    }
+  }, [outbreakId]);
+
+  // ── Add new field ──
+  const addField = () => {
+    const f = newField(fields.length + 1);
+    setFields(prev => [...prev, f]);
+    setSelectedId(f.id);
+  };
+
+  // ── Duplicate field ──
+  const duplicateField = (field: FormField) => {
+    const dup = {
+      ...newField(fields.length + 1),
+      label: field.label + " (copy)",
+      labelBn: field.labelBn,
+      fieldKey: field.fieldKey + "_copy",
+      fieldType: field.fieldType,
+      options: field.options,
+      section: field.section,
+      isRequired: field.isRequired,
+      isCoreField: false,
+    };
+    setFields(prev => [...prev, dup]);
+    setSelectedId(dup.id);
+    showToast("ok", "Duplicated — give it a new key before saving");
+  };
+
+  // ── Delete field ──
+  const deleteField = async (id: string) => {
+    const field = fields.find(f => f.id === id);
+    if (!field) return;
+    if (!field._isNew) {
+      if (!confirm(`Delete "${field.label}"? This also removes all submitted values for this field.`)) return;
+      await fetch(`/api/admin/form-fields/${id}`, { method: "DELETE" });
+    }
+    setFields(prev => prev.filter(f => f.id !== id));
+    if (selectedId === id) setSelectedId(null);
+    showToast("ok", "Field deleted");
+  };
+
+  // ── Reorder on drag ──
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveDragId(null);
+    if (!over || active.id === over.id) return;
+
+    const oldIdx = fields.findIndex(f => f.id === active.id);
+    const newIdx = fields.findIndex(f => f.id === over.id);
+    const reordered = arrayMove(fields, oldIdx, newIdx).map((f, i) => ({ ...f, sortOrder: i + 1 }));
+    setFields(reordered);
+
+    // Persist non-new fields only
+    const saved = reordered.filter(f => !f._isNew);
+    for (const f of saved) {
+      await fetch(`/api/admin/form-fields/${f.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sortOrder: f.sortOrder }),
+      }).catch(console.error);
+    }
+  };
+
+  // ── Seed from template ──
+  const applyTemplate = async (key: string) => {
+    const tpl = TEMPLATES[key];
+    if (!tpl) return;
+    setSaving(true);
+    setShowTemplates(false);
+    let added = 0;
+    for (const tplField of tpl.fields) {
+      try {
+        const res = await fetch(`/api/admin/form-fields?outbreakId=${outbreakId}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ...tplField,
+            sortOrder: fields.length + added + 1,
+            options: tplField.options ?? "[]",
+          }),
+        });
+        if (res.ok) added++;
+      } catch { /* skip duplicates */ }
+    }
+    const res = await fetch(`/api/admin/form-fields?outbreakId=${outbreakId}`);
+    const data = await res.json();
+    setFields(data.sort((a: any, b: any) => a.sortOrder - b.sortOrder).map(apiToLocal));
+    showToast("ok", `Added ${added} fields from ${tpl.label}`);
+    setSaving(false);
+  };
+
+  const dirtyCount = fields.filter(f => f._dirty && !f._isNew).length;
+  const newCount = fields.filter(f => f._isNew).length;
+
+  if (session?.user?.role !== "ADMIN") {
+    return (
+      <div className="p-8 text-center flex flex-col items-center justify-center min-h-[60vh]">
+        <AlertCircle className="w-12 h-12 text-red-400 mb-4" />
+        <h1 className="text-2xl font-bold text-slate-900">Access Denied</h1>
+        <p className="text-slate-500 mt-1">Admin privileges required.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col h-screen bg-slate-50 overflow-hidden">
+
+      {/* ── Top bar ── */}
+      <div className="flex items-center gap-4 px-5 py-3 bg-white border-b border-slate-200 flex-shrink-0">
+        <div className="flex items-center gap-2">
+          <FileText className="w-5 h-5 text-indigo-600" />
+          <span className="font-semibold text-slate-900 text-sm">Form Builder</span>
+        </div>
+
+        <div className="h-5 w-px bg-slate-200" />
+
+        {/* Outbreak selector */}
+        <select
+          value={outbreakId}
+          onChange={e => setOutbreakId(e.target.value)}
+          className="px-3 py-1.5 border border-slate-200 rounded-lg text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+        >
+          {outbreaks.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+        </select>
+
+        {/* Field count */}
+        <span className="text-xs text-slate-500">{fields.length} fields</span>
+
+        {/* Dirty indicators */}
+        {(dirtyCount > 0 || newCount > 0) && (
+          <span className="px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-200 rounded text-xs font-medium">
+            {newCount > 0 && `${newCount} unsaved`}
+            {dirtyCount > 0 && newCount > 0 && ", "}
+            {dirtyCount > 0 && `${dirtyCount} modified`}
+          </span>
+        )}
+
+        <div className="flex-1" />
+
+        {/* Preview all */}
+        <button
+          onClick={() => setShowPreviewAll(!showPreviewAll)}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all
+            ${showPreviewAll ? "bg-indigo-50 border-indigo-200 text-indigo-700" : "border-slate-200 text-slate-600 hover:bg-slate-50"}`}
+        >
+          {showPreviewAll ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          Preview form
+        </button>
+
+        {/* Templates */}
+        <div className="relative">
+          <button
+            onClick={() => setShowTemplates(!showTemplates)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 text-sm font-medium transition-all"
+          >
+            <LayoutTemplate className="w-4 h-4" />
+            Templates
+          </button>
+          {showTemplates && (
+            <div className="absolute right-0 top-full mt-1 w-64 bg-white border border-slate-200 rounded-xl shadow-lg z-50 overflow-hidden">
+              <div className="px-3 py-2 border-b border-slate-100">
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Seed from template</p>
+              </div>
+              {Object.entries(TEMPLATES).map(([key, tpl]) => (
+                <button
+                  key={key}
+                  onClick={() => applyTemplate(key)}
+                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 text-left transition-colors"
+                >
+                  <Zap className="w-4 h-4 text-indigo-500 flex-shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-slate-800">{tpl.label}</p>
+                    <p className="text-xs text-slate-400">{tpl.fields.length} fields</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Refresh */}
+        <button
+          onClick={() => {
+            setLoading(true);
+            fetch(`/api/admin/form-fields?outbreakId=${outbreakId}`)
+              .then(r => r.json())
+              .then(data => setFields(data.sort((a: any, b: any) => a.sortOrder - b.sortOrder).map(apiToLocal)))
+              .finally(() => setLoading(false));
+          }}
+          className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
+          title="Refresh"
+        >
+          <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+        </button>
+      </div>
+
+      {/* ── Toast ── */}
+      {toast && (
+        <div className={`fixed top-4 right-4 z-[999] flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg border text-sm font-medium
+          ${toast.type === "ok" ? "bg-emerald-50 border-emerald-200 text-emerald-800" : "bg-red-50 border-red-200 text-red-800"}`}>
+          {toast.type === "ok" ? <Check className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+          {toast.msg}
+        </div>
+      )}
+
+      {/* ── Body: 3-panel layout ── */}
+      <div className="flex flex-1 overflow-hidden">
+
+        {/* ── Left: Field list ── */}
+        <div className="w-[340px] flex-shrink-0 border-r border-slate-200 bg-white flex flex-col overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Questions</p>
+            <button
+              onClick={addField}
+              className="flex items-center gap-1 px-2.5 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-semibold hover:bg-indigo-700 transition-colors active:scale-95"
+            >
+              <Plus className="w-3.5 h-3.5" /> Add field
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto px-3 py-3 space-y-1.5">
+            {loading ? (
+              <div className="flex items-center justify-center py-16 text-slate-400">
+                <Loader2 className="w-6 h-6 animate-spin mr-2" />
+                <span className="text-sm">Loading fields…</span>
+              </div>
+            ) : fields.length === 0 ? (
+              <div className="text-center py-16">
+                <FileText className="w-10 h-10 text-slate-200 mx-auto mb-3" />
+                <p className="text-sm font-medium text-slate-400">No fields yet</p>
+                <p className="text-xs text-slate-400 mt-1">Add a field or use a template</p>
+                <button
+                  onClick={addField}
+                  className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 transition-colors"
+                >
+                  Add first field
+                </button>
+              </div>
+            ) : (
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragStart={e => setActiveDragId(e.active.id as string)}
+                onDragEnd={handleDragEnd}
+                modifiers={[restrictToVerticalAxis, restrictToWindowEdges]}
+              >
+                <SortableContext items={fields.map(f => f.id)} strategy={verticalListSortingStrategy}>
+                  {fields.map(f => (
+                    <FieldCard
+                      key={f.id}
+                      field={f}
+                      allFields={fields}
+                      isActive={selectedId === f.id}
+                      onSelect={() => setSelectedId(f.id)}
+                      onDelete={() => deleteField(f.id)}
+                      onDuplicate={() => duplicateField(f)}
+                    />
+                  ))}
+                </SortableContext>
+                <DragOverlay>
+                  {activeDragId && (
+                    <div className="bg-white border-2 border-indigo-400 rounded-xl px-4 py-3 shadow-2xl opacity-90">
+                      <p className="text-sm font-medium text-slate-800 truncate">
+                        {fields.find(f => f.id === activeDragId)?.label || "Field"}
+                      </p>
+                    </div>
+                  )}
+                </DragOverlay>
+              </DndContext>
+            )}
+          </div>
+        </div>
+
+        {/* ── Center: Form preview ── */}
+        <div className="flex-1 overflow-y-auto bg-slate-50">
+          {showPreviewAll ? (
+            /* Full form preview */
+            <div className="max-w-2xl mx-auto p-8">
+              <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm mb-6">
+                <div className="h-2 bg-indigo-600" />
+                <div className="p-6">
+                  <h2 className="text-xl font-bold text-slate-900">
+                    {outbreaks.find(o => o.id === outbreakId)?.name ?? "Form preview"}
+                  </h2>
+                  <p className="text-sm text-slate-500 mt-1">
+                    {fields.length} fields · {fields.filter(f => f.isRequired).length} required
+                  </p>
+                </div>
+              </div>
+              {SECTIONS.map(sec => {
+                const secFields = fields.filter(f => f.section === sec.key);
+                if (!secFields.length) return null;
+                return (
+                  <div key={sec.key} className="mb-6">
+                    <div className={`flex items-center gap-2 mb-3`}>
+                      <span className={`px-2.5 py-1 text-xs font-semibold rounded-full border ${sec.color}`}>{sec.label}</span>
+                    </div>
+                    <div className="space-y-3">
+                      {secFields.map(f => (
+                        <div
+                          key={f.id}
+                          onClick={() => { setShowPreviewAll(false); setSelectedId(f.id); }}
+                          className="bg-white rounded-xl border border-slate-200 p-5 cursor-pointer hover:border-indigo-200 hover:shadow-sm transition-all"
+                        >
+                          <FieldPreview field={f} />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+              {fields.length === 0 && (
+                <div className="text-center py-16 text-slate-400">
+                  <p className="text-sm">No fields to preview</p>
+                </div>
+              )}
+            </div>
+          ) : selectedField ? (
+            /* Selected field card preview */
+            <div className="max-w-2xl mx-auto p-8">
+              <div className="bg-white rounded-2xl border-2 border-indigo-200 p-6 shadow-sm">
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg">{typeIcon(selectedField.fieldType)}</div>
+                  <span className={`px-2.5 py-0.5 text-xs font-semibold rounded-full border ${sectionColor(selectedField.section)}`}>
+                    {SECTION_MAP[selectedField.section]?.label}
+                  </span>
+                  {selectedField.isCoreField && (
+                    <span className="flex items-center gap-1 px-2.5 py-0.5 bg-amber-50 text-amber-600 text-xs font-semibold rounded-full border border-amber-200">
+                      <Star className="w-3 h-3" /> Core KPI
+                    </span>
+                  )}
+                </div>
+                <FieldPreview field={selectedField} />
+              </div>
+
+              {/* Navigation hint */}
+              <div className="mt-4 flex items-center justify-between text-xs text-slate-400">
+                <span>Field {fields.findIndex(f => f.id === selectedId) + 1} of {fields.length}</span>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      const idx = fields.findIndex(f => f.id === selectedId);
+                      if (idx > 0) setSelectedId(fields[idx - 1].id);
+                    }}
+                    className="px-2 py-1 border border-slate-200 rounded hover:bg-slate-50 disabled:opacity-40"
+                    disabled={fields.findIndex(f => f.id === selectedId) === 0}
+                  >
+                    ← Prev
+                  </button>
+                  <button
+                    onClick={() => {
+                      const idx = fields.findIndex(f => f.id === selectedId);
+                      if (idx < fields.length - 1) setSelectedId(fields[idx + 1].id);
+                    }}
+                    className="px-2 py-1 border border-slate-200 rounded hover:bg-slate-50 disabled:opacity-40"
+                    disabled={fields.findIndex(f => f.id === selectedId) === fields.length - 1}
+                  >
+                    Next →
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            /* Empty state */
+            <div className="flex flex-col items-center justify-center h-full text-center p-8">
+              <div className="w-16 h-16 bg-white rounded-2xl border border-slate-200 flex items-center justify-center mb-4">
+                <FileText className="w-8 h-8 text-slate-300" />
+              </div>
+              <h3 className="text-base font-semibold text-slate-700">Select a field to edit</h3>
+              <p className="text-sm text-slate-400 mt-1 max-w-xs">
+                Click a field in the left panel or add a new one to start building your form.
+              </p>
+              <button
+                onClick={addField}
+                className="mt-5 flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-semibold hover:bg-indigo-700 transition-colors"
+              >
+                <Plus className="w-4 h-4" /> Add first field
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* ── Right: Edit panel ── */}
+        {selectedField && (
+          <div className="w-[320px] flex-shrink-0 border-l border-slate-200 bg-white flex flex-col overflow-hidden">
+            <EditPanel
+              field={selectedField}
+              allFields={fields}
+              onChange={updates => updateField(selectedField.id, updates)}
+              onSave={() => saveField(selectedField)}
+              onDelete={() => deleteField(selectedField.id)}
+              onDuplicate={() => duplicateField(selectedField)}
+              saving={saving}
+            />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

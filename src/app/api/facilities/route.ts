@@ -6,23 +6,21 @@ export async function GET(request: Request) {
   const division = searchParams.get("division");
   const district = searchParams.get("district");
 
-  if (!division || !district) {
-    return NextResponse.json({ error: "Division and district required" }, { status: 400 });
-  }
-
   try {
+    const where: any = { isActive: true };
+    if (division) where.division = division;
+    if (district) where.district = district;
+
     const facilities = await prisma.facility.findMany({
-      where: {
-        division,
-        district,
-        isActive: true,
-      },
+      where,
       orderBy: { facilityName: 'asc' },
       select: {
         id: true,
         facilityName: true,
         facilityCode: true,
         facilityType: true,
+        division: true,
+        district: true,
         upazila: true,
       },
     });

@@ -29,8 +29,24 @@ To learn more about Next.js, take a look at the following resources:
 
 You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
-## Deploy on Vercel
+## Deployment on Vercel
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+The system is optimized for zero-configuration deployment on Vercel.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### 1. Environment Variables
+Copy `.env.example` to your Vercel project environment variables:
+- `DATABASE_URL`: Your PostgreSQL connection string.
+- `NEXTAUTH_SECRET`: Random 32-character string.
+- `SMTP_*`: Credentials for the email notification system.
+- `CRON_SECRET`: Random string to secure the cron jobs in `vercel.json`.
+
+### 2. Database Migration
+The `package.json` includes a `postinstall` script to generate the Prisma client automatically. For the initial deployment, run:
+```bash
+npx prisma migrate deploy
+npx prisma db seed
+```
+This will set up the multi-disease schema and seed the 140+ facility users.
+
+### 3. Cron Jobs
+Wait for Vercel to pick up `vercel.json`. You will see the daily SitRep and Windows seeding crons in the Vercel dashboard under the "Cron" tab.

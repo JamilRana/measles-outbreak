@@ -1,10 +1,12 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Upload, FileText, Download, CheckCircle, XCircle, AlertCircle, Plus, Edit2, Trash2, X } from 'lucide-react';
+import { Upload, FileText, Download, CheckCircle, XCircle, AlertCircle, Plus, Database } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { DIVISIONS, DISTRICTS_BY_DIVISION } from '@/lib/constants';
 import Breadcrumbs from '@/components/Breadcrumbs';
+import UnifiedReportForm from '@/components/UnifiedReportForm';
+import { useSearchParams } from 'next/navigation';
 
 interface User {
   id: string;
@@ -14,28 +16,22 @@ interface User {
   district: string;
 }
 
-interface Report {
-  id: string;
-  reportingDate: string;
-  division: string;
-  district: string;
-  facilityName: string;
-  suspected24h: number;
-  suspectedYTD: number;
-  confirmed24h: number;
-  confirmedYTD: number;
-  suspectedDeath24h: number;
-  suspectedDeathYTD: number;
-  confirmedDeath24h: number;
-  confirmedDeathYTD: number;
-  admitted24h: number;
-  admittedYTD: number;
-  discharged24h: number;
-  dischargedYTD: number;
-  serumSentYTD: number;
-}
+// Report interface removed as UnifiedReportForm handles its own data
 
 export default function BulkDataPage() {
+  return (
+    <React.Suspense fallback={<div className="p-8 text-center text-slate-400">Loading Configuration...</div>}>
+      <BulkDataContent />
+    </React.Suspense>
+  );
+}
+
+function BulkDataContent() {
+  const searchParams = useSearchParams();
+  const [outbreaks, setOutbreaks] = useState<any[]>([]);
+  const [selectedOutbreakId, setSelectedOutbreakId] = useState("");
+  const [loadingReport, setLoadingReport] = useState(false);
+  const reportId = searchParams.get('reportId');
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [result, setResult] = useState<{ success: number; failed: number; message: string; errors: string[] } | null>(null);
@@ -44,22 +40,42 @@ export default function BulkDataPage() {
   const [mode, setMode] = useState<'bulk' | 'single'>('bulk');
   const [users, setUsers] = useState<User[]>([]);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const [formData, setFormData] = useState({
-    reportingDate: new Date().toISOString().split('T')[0],
-    suspected24h: '', suspectedYTD: '',
-    confirmed24h: '', confirmedYTD: '',
-    suspectedDeath24h: '', suspectedDeathYTD: '',
-    confirmedDeath24h: '', confirmedDeathYTD: '',
-    admitted24h: '', admittedYTD: '',
-    discharged24h: '', dischargedYTD: '',
-    serumSentYTD: ''
-  });
-  const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   useEffect(() => {
     fetchUsers();
+    fetchOutbreaks();
   }, []);
+
+  const fetchOutbreaks = async () => {
+    try {
+      const res = await fetch('/api/outbreaks');
+      const data = await res.json();
+      setOutbreaks(data);
+    } catch (e) {
+      console.error('Failed to fetch outbreaks');
+    }
+  };
+
+  useEffect(() => {
+    if (searchParams.get('mode') === 'single') setMode('single');
+    
+    // 1. Context from Outbreak selection
+    const oId = searchParams.get('outbreakId');
+    if (oId) setSelectedOutbreakId(oId);
+
+    // 2. Context from Facility selection
+    const fId = searchParams.get('facilityId');
+    if (fId && users.length > 0) {
+      const u = users.find(u => u.id === fId);
+      if (u) setSelectedUser(u);
+    }
+    
+    const dParam = searchParams.get('date');
+    if (dParam) setDate(dParam);
+  }, [searchParams, users]);
+
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
 
   const fetchUsers = async () => {
     try {
@@ -104,48 +120,7 @@ export default function BulkDataPage() {
     }
   };
 
-  const handleSingleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedUser) return;
-    
-    setSaving(true);
-    setSaveMessage(null);
-
-    try {
-      const res = await fetch('/api/reports', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...formData,
-          division: selectedUser.division,
-          district: selectedUser.district,
-          facilityName: selectedUser.facilityName,
-          userId: selectedUser.id
-        })
-      });
-      
-      if (res.ok) {
-        setSaveMessage({ type: 'success', message: 'Report submitted successfully!' });
-        setFormData({
-          reportingDate: new Date().toISOString().split('T')[0],
-          suspected24h: '', suspectedYTD: '',
-          confirmed24h: '', confirmedYTD: '',
-          suspectedDeath24h: '', suspectedDeathYTD: '',
-          confirmedDeath24h: '', confirmedDeathYTD: '',
-          admitted24h: '', admittedYTD: '',
-          discharged24h: '', dischargedYTD: '',
-          serumSentYTD: ''
-        });
-      } else {
-        const data = await res.json();
-        setSaveMessage({ type: 'error', message: data.error || 'Failed to submit' });
-      }
-    } catch {
-      setSaveMessage({ type: 'error', message: 'Network error' });
-    } finally {
-      setSaving(false);
-    }
-  };
+  // Single Submission logic is now handled by UnifiedReportForm
 
   return (
     <div className="p-8 max-w-4xl mx-auto space-y-8">
@@ -305,198 +280,82 @@ export default function BulkDataPage() {
             </div>
           </div>
 
-          <form onSubmit={handleSingleSubmit} className="space-y-6">
-            <div>
-              <label className="block text-sm font-bold text-slate-700 mb-2">Select Facility *</label>
-              <select
-                value={selectedUser?.id || ''}
-                onChange={(e) => {
-                  const user = users.find(u => u.id === e.target.value);
-                  setSelectedUser(user || null);
-                }}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 text-sm focus:ring-2 focus:ring-indigo-500/20 outline-none"
-                required
-              >
-                <option value="">Select a facility</option>
-                {users.map(user => (
-                  <option key={user.id} value={user.id}>
-                    {user.facilityName} - {user.district}, {user.division}
-                  </option>
-                ))}
-              </select>
-              {selectedUser && (
-                <p className="text-xs text-slate-500 mt-1">
-                  Division: {selectedUser.division} | District: {selectedUser.district}
-                </p>
-              )}
-            </div>
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5">
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">1. Outbreak Target</label>
+                <select
+                  value={selectedOutbreakId}
+                  onChange={(e) => setSelectedOutbreakId(e.target.value)}
+                  className="w-full bg-white border border-slate-200 rounded-xl py-3 px-4 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-indigo-500/20 outline-none shadow-sm transition-all"
+                >
+                  <option value="">Select Outbreak Context</option>
+                  {outbreaks.map(o => (
+                    <option key={o.id} value={o.id}>{o.name}</option>
+                  ))}
+                </select>
+              </div>
 
-            <div>
-              <label className="block text-sm font-bold text-slate-700 mb-2">Reporting Date *</label>
-              <input
-                type="date"
-                value={formData.reportingDate}
-                onChange={(e) => setFormData({ ...formData, reportingDate: e.target.value })}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 text-sm focus:ring-2 focus:ring-indigo-500/20 outline-none"
-                required
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1">Suspected (24h) *</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={formData.suspected24h}
-                  onChange={(e) => setFormData({ ...formData, suspected24h: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-sm"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1">Suspected (YTD)</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={formData.suspectedYTD}
-                  onChange={(e) => setFormData({ ...formData, suspectedYTD: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1">Confirmed (24h) *</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={formData.confirmed24h}
-                  onChange={(e) => setFormData({ ...formData, confirmed24h: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-sm"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1">Confirmed (YTD)</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={formData.confirmedYTD}
-                  onChange={(e) => setFormData({ ...formData, confirmedYTD: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1">Deaths - Suspected (24h)</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={formData.suspectedDeath24h}
-                  onChange={(e) => setFormData({ ...formData, suspectedDeath24h: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1">Deaths - Suspected (YTD)</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={formData.suspectedDeathYTD}
-                  onChange={(e) => setFormData({ ...formData, suspectedDeathYTD: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1">Deaths - Confirmed (24h)</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={formData.confirmedDeath24h}
-                  onChange={(e) => setFormData({ ...formData, confirmedDeath24h: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1">Deaths - Confirmed (YTD)</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={formData.confirmedDeathYTD}
-                  onChange={(e) => setFormData({ ...formData, confirmedDeathYTD: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1">Admitted (24h)</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={formData.admitted24h}
-                  onChange={(e) => setFormData({ ...formData, admitted24h: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1">Admitted (YTD)</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={formData.admittedYTD}
-                  onChange={(e) => setFormData({ ...formData, admittedYTD: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1">Discharged (24h)</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={formData.discharged24h}
-                  onChange={(e) => setFormData({ ...formData, discharged24h: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1">Discharged (YTD)</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={formData.dischargedYTD}
-                  onChange={(e) => setFormData({ ...formData, dischargedYTD: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-sm"
-                />
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5">
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">2. Facility Context</label>
+                <select
+                  value={selectedUser?.id || ''}
+                  onChange={(e) => {
+                    const user = users.find(u => u.id === e.target.value);
+                    setSelectedUser(user || null);
+                  }}
+                  className="w-full bg-white border border-slate-200 rounded-xl py-3 px-4 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-indigo-500/20 outline-none shadow-sm transition-all"
+                >
+                  <option value="">Select Reporting Facility</option>
+                  {users.map(user => (
+                    <option key={user.id} value={user.id}>
+                      {user.facilityName} ({user.district})
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-500 mb-1">Serum Samples Sent (YTD)</label>
-              <input
-                type="number"
-                min="0"
-                value={formData.serumSentYTD}
-                onChange={(e) => setFormData({ ...formData, serumSentYTD: e.target.value })}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-sm"
-              />
-            </div>
+            {selectedOutbreakId && selectedUser ? (
+              <div className="mt-8 pt-8 border-t border-slate-100">
+                <div className="flex items-center gap-3 mb-8">
+                  <div className="p-2 bg-indigo-600 text-white rounded-xl shadow-lg shadow-indigo-100">
+                    <Database className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-lg font-black text-slate-800 tracking-tight">Dynamic Intelligent Form</h4>
+                    <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Loading fields based on {outbreaks.find(o => o.id === selectedOutbreakId)?.name}</p>
+                  </div>
+                </div>
 
-            {saveMessage && (
-              <div className={`p-4 rounded-xl ${saveMessage.type === 'success' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
-                {saveMessage.message}
+                <UnifiedReportForm 
+                  outbreakId={selectedOutbreakId}
+                  facilityId={selectedUser.id}
+                  onSuccess={() => setSaveMessage({ type: 'success', message: 'Intelligence record processed successfully.' })}
+                />
+              </div>
+            ) : (
+              <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-[2rem] p-12 text-center mt-6">
+                 <div className="w-16 h-16 bg-white rounded-3xl flex items-center justify-center mx-auto mb-4 shadow-sm border border-slate-100">
+                    <Database className="w-8 h-8 text-slate-300" />
+                 </div>
+                 <p className="text-slate-400 font-bold text-sm tracking-tight">
+                   Select an outbreak and facility context to load the intelligent data entry matrix.
+                 </p>
               </div>
             )}
 
-            <button
-              type="submit"
-              disabled={saving || !selectedUser}
-              className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-500 disabled:opacity-50"
-            >
-              {saving ? (
-                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              ) : (
-                <Plus className="w-5 h-5" />
-              )}
-              {saving ? "Saving..." : "Submit Report"}
-            </button>
-          </form>
+            {saveMessage && (
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className={`p-4 rounded-2xl flex items-center gap-3 font-bold text-sm ${saveMessage.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-rose-50 text-rose-700 border border-rose-100'}`}
+              >
+                {saveMessage.type === 'success' ? <CheckCircle className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
+                {saveMessage.message}
+              </motion.div>
+            )}
+          </div>
         </div>
       )}
     </div>
