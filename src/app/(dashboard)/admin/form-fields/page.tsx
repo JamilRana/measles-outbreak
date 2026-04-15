@@ -973,7 +973,7 @@ export default function FormBuilderPage() {
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                             {sf.map(f => (
                               <div key={f.id} onClick={() => { setShowPreviewAll(false); setSelectedId(f.id); }} className="bg-white rounded-[2rem] border border-slate-200 p-8 cursor-pointer hover:border-indigo-400 hover:shadow-xl hover:shadow-indigo-600/5 transition-all group relative">
-                                <div className="absolute top-6 right-8 opacity-0 group-hover:opacity-100 transition-all transform scale-90 group-hover:scale-100 bg-indigo-50 text-indigo-600 p-3 rounded-2xl"><mousepointer2 className="w-4 h-4" /></div>
+                                <div className="absolute top-6 right-8 opacity-0 group-hover:opacity-100 transition-all transform scale-90 group-hover:scale-100 bg-indigo-50 text-indigo-600 p-3 rounded-2xl"><MousePointer2 className="w-4 h-4" /></div>
                                 <FieldPreview field={f} />
                                 {(f.validationRules?.length ?? 0) > 0 && (
                                   <div className="mt-6 pt-4 border-t border-slate-50 flex flex-wrap gap-2">
