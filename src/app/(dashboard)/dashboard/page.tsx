@@ -173,6 +173,9 @@ export default function DashboardPage() {
     activeToday: 0,
     submissionRate: 0,
   });
+  const [cumulativeTotals, setCumulativeTotals] = useState<Record<string, number>>({});
+  const [summaryBreakdown, setSummaryBreakdown] = useState<Record<string, Record<string, number>>>({});
+  const [cumSummaryBreakdown, setCumSummaryBreakdown] = useState<Record<string, Record<string, number>>>({});
 
   // Countdown timer effect
   useEffect(() => {
@@ -247,43 +250,29 @@ export default function DashboardPage() {
   }, [allReports, coreFields, summaryTotals]);
 
   const stats = useMemo(() => {
-    if (summaryTotals && Object.keys(summaryTotals).length > 0) {
-      return {
-        today: {
-          suspected: summaryTotals.suspected24h || 0,
-          confirmed: summaryTotals.confirmed24h || 0,
-          admitted: summaryTotals.admitted24h || 0,
-          recovered: summaryTotals.discharged24h || 0,
-          confirmedDeath: summaryTotals.confirmedDeath24h || 0,
-          suspectedDeath: summaryTotals.suspectedDeath24h || 0,
-          referral: summaryTotals.referral24h || 0,
-          serumSent: summaryTotals.serumSent24h || 0,
-        },
-        cumulative: {
-          suspected: summaryTotals.suspected24h || 0,
-          confirmed: summaryTotals.confirmed24h || 0,
-          admitted: summaryTotals.admitted24h || 0,
-          recovered: summaryTotals.discharged24h || 0,
-          confirmedDeath: summaryTotals.confirmedDeath24h || 0,
-          suspectedDeath: summaryTotals.suspectedDeath24h || 0,
-          referral: summaryTotals.referral24h || 0,
-          serumSent: summaryTotals.serumSent24h || 0,
-        }
-      };
-    }
-    const calcTotal = (reports: any[], field: string) => reports.reduce((acc, r) => acc + (Number(r[field]) || 0), 0);
-    const s = {
-      suspected: calcTotal(allReports, "suspected24h"),
-      confirmed: calcTotal(allReports, "confirmed24h"),
-      admitted: calcTotal(allReports, "admitted24h"),
-      recovered: calcTotal(allReports, "discharged24h"),
-      confirmedDeath: calcTotal(allReports, "confirmedDeath24h"),
-      suspectedDeath: calcTotal(allReports, "suspectedDeath24h"),
-      referral: calcTotal(allReports, "referral24h"),
-      serumSent: calcTotal(allReports, "serumSent24h"),
+    return {
+      today: {
+        suspected: summaryTotals?.suspected24h || 0,
+        confirmed: summaryTotals?.confirmed24h || 0,
+        admitted: summaryTotals?.admitted24h || 0,
+        recovered: summaryTotals?.discharged24h || 0,
+        confirmedDeath: summaryTotals?.confirmedDeath24h || 0,
+        suspectedDeath: summaryTotals?.suspectedDeath24h || 0,
+        referral: summaryTotals?.referral24h || 0,
+        serumSent: summaryTotals?.serumSent24h || 0,
+      },
+      cumulative: {
+        suspected: cumulativeTotals?.suspected24h || 0,
+        confirmed: cumulativeTotals?.confirmed24h || 0,
+        admitted: cumulativeTotals?.admitted24h || 0,
+        recovered: cumulativeTotals?.discharged24h || 0,
+        confirmedDeath: cumulativeTotals?.confirmedDeath24h || 0,
+        suspectedDeath: cumulativeTotals?.suspectedDeath24h || 0,
+        referral: cumulativeTotals?.referral24h || 0,
+        serumSent: cumulativeTotals?.serumSent24h || 0,
+      }
     };
-    return { today: s, cumulative: s };
-  }, [allReports, summaryTotals]);
+  }, [summaryTotals, cumulativeTotals]);
 
   const fetchCoreFields = async () => {
     try {
@@ -310,16 +299,31 @@ export default function DashboardPage() {
         listParams.set("to", dateRange.to);
       }
 
+      // 1. Fetch Today/Filtered List and Summary
       const [listRes, summaryRes] = await Promise.all([
-        fetch(`/api/reports?${listParams.toString()}`),
-        fetch(`/api/reports?${listParams.toString()}&summary=true`)
+        fetch(`/api/reports?${listParams.toString()}&limit=100`),
+        fetch(`/api/reports/summary?${listParams.toString()}`)
       ]);
+
+      // 2. Fetch True Cumulative (Outbreak-wide, no date filter)
+      const cumParams = new URLSearchParams();
+      if (selectedOutbreakId) cumParams.set("outbreakId", selectedOutbreakId);
+      // If a division/district is selected, we want the cumulative breakdown for THAT selection
+      if (selectedDivision) cumParams.set("division", selectedDivision);
+      if (selectedDistrict) cumParams.set("district", selectedDistrict);
+      
+      const cumulativeRes = await fetch(`/api/reports/summary?${cumParams.toString()}`);
 
       const listData = await listRes.json();
       const summaryData = await summaryRes.json();
+      const cumData = await cumulativeRes.json();
 
       setAllReports(listData.reports || []);
       if (summaryData.totals) setSummaryTotals(summaryData.totals);
+      if (summaryData.breakdown) setSummaryBreakdown(summaryData.breakdown);
+      if (cumData.totals) setCumulativeTotals(cumData.totals);
+      if (cumData.breakdown) setCumSummaryBreakdown(cumData.breakdown);
+      
       setPublicationStatus(listData.temporal?.isHistorical ? "PENDING" : "VERIFIED");
     } catch (error) {
       console.error("Error fetching reports:", error);
@@ -334,33 +338,49 @@ export default function DashboardPage() {
     const items = selectedDivision ? (DISTRICTS[selectedDivision] || []) : DIVISIONS;
 
     items.forEach((item) => {
+      // Initialize with data from API breakdown if National View
+      const apiData = level === "DIVISION" ? (summaryBreakdown[item] || {}) : {};
+      const apiCumData = level === "DIVISION" ? (cumSummaryBreakdown[item] || {}) : {};
+      
       data[item] = {
         name: item,
-        today: { suspected: 0, suspectedDeath: 0, confirmed: 0, confirmedDeath: 0, admitted: 0, recovered: 0 },
-        cumulative: { suspected: 0, suspectedDeath: 0, confirmed: 0, confirmedDeath: 0, admitted: 0, recovered: 0 },
+        today: { 
+           suspected: apiData.suspected24h || 0, 
+           suspectedDeath: apiData.suspectedDeath24h || 0, 
+           confirmed: apiData.confirmed24h || 0, 
+           confirmedDeath: apiData.confirmedDeath24h || 0, 
+           admitted: apiData.admitted24h || 0, 
+           recovered: apiData.discharged24h || 0 
+        },
+        cumulative: { 
+           suspected: apiCumData.suspected24h || 0, 
+           suspectedDeath: apiCumData.suspectedDeath24h || 0, 
+           confirmed: apiCumData.confirmed24h || 0, 
+           confirmedDeath: apiCumData.confirmedDeath24h || 0, 
+           admitted: apiCumData.admitted24h || 0, 
+           recovered: apiCumData.discharged24h || 0 
+        },
       };
     });
 
-    allReports.forEach((r) => {
-      const div = r.facility?.division;
-      const dist = r.facility?.district;
-      const key = level === "DIVISION" ? div : dist;
-      if (selectedDivision && div !== selectedDivision) return;
-      if (selectedDistrict && dist !== selectedDistrict) return;
-      
-      if (key && data[key]) {
-        const keys = ["suspected24h", "admitted24h", "discharged24h", "suspectedDeath24h", "confirmed24h", "confirmedDeath24h"];
-        const statKeys = ["suspected", "admitted", "recovered", "suspectedDeath", "confirmed", "confirmedDeath"];
-        keys.forEach((k, idx) => {
-          const val = Number(r[k]) || 0;
-          data[key].cumulative[statKeys[idx]] += val;
-          data[key].today[statKeys[idx]] += val;
-        });
-      }
-    });
+    // If we are looking at districts, we still need to sum from paginated reports (or improve API further)
+    if (level === "DISTRICT") {
+       allReports.forEach((r) => {
+          const dist = r.facility?.district;
+          if (dist && data[dist]) {
+             const keys = ["suspected24h", "admitted24h", "discharged24h", "suspectedDeath24h", "confirmed24h", "confirmedDeath24h"];
+             const statKeys = ["suspected", "admitted", "recovered", "suspectedDeath", "confirmed", "confirmedDeath"];
+             keys.forEach((k, idx) => {
+               const val = Number(r[k]) || 0;
+               data[dist].cumulative[statKeys[idx]] += val;
+               data[dist].today[statKeys[idx]] += val;
+             });
+          }
+       });
+    }
 
     return Object.values(data);
-  }, [allReports, selectedDivision, selectedDistrict]);
+  }, [allReports, summaryBreakdown, selectedDivision, selectedDistrict]);
 
   const sevenDayTrend = useMemo(() => {
     const days: Record<string, number> = {};

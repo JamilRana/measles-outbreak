@@ -7,83 +7,37 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum Role {
-  USER
-  EDITOR
-  ADMIN
-  VIEWER
-}
-
-enum OutbreakStatus {
-  DRAFT
-  ACTIVE
-  CONTAINED
-  CLOSED
-}
-
-enum FieldType {
-  NUMBER
-  TEXT
-  SELECT
-  DATE
-  BOOLEAN
-}
-
-enum TokenType {
-  EMAIL_VERIFICATION
-  PASSWORD_RESET
-}
-
-enum ReportingFrequency {
-  DAILY
-  WEEKLY
-  MONTHLY
-  QUARTERLY
-  CUSTOM
-}
-
-enum ReportStatus {
-  DRAFT
-  SUBMITTED
-  PUBLISHED
-  LOCKED
-}
-
-// ─── Facility Type Lookup ────────────────────────────────────────────
 model FacilityType {
-  id        String   @id @default(cuid())
-  name      String   @unique
-  slug      String   @unique
-  tier      String?  // e.g. "specialized", "district", "upazila", "other"
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
+  id         String     @id @default(cuid())
+  name       String     @unique
+  slug       String     @unique
+  tier       String?
+  isActive   Boolean    @default(true)
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
   facilities Facility[]
 }
 
-// ─── Facility ────────────────────────────────────────────────────────
 model Facility {
-  id             String        @id @default(cuid())
-  facilityCode   String        @unique
-  facilityName   String
-  facilityType   String?       // legacy string — kept for backward compat
-  facilityTypeId String?       // FK to normalized FacilityType
-  division       String
-  district       String
-  upazila        String?
-  phone          String?
-  email          String?
-  isActive       Boolean       @default(true)
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
-
-  facilityTypeRel FacilityType? @relation(fields: [facilityTypeId], references: [id])
-  dailyReports    DailyReport[]
-  reports         Report[]
-  users           User[]
-  submissionWindows SubmissionWindow[]
+  id                String             @id @default(cuid())
+  facilityCode      String             @unique
+  facilityName      String
+  facilityType      String?
+  facilityTypeId    String?
+  division          String
+  district          String
+  upazila           String?
+  phone             String?
+  email             String?
+  isActive          Boolean            @default(true)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
   backlogSlots      BacklogSlot[]
+  dailyReports      DailyReport[]
+  facilityTypeRel   FacilityType?      @relation(fields: [facilityTypeId], references: [id])
+  reports           Report[]
+  submissionWindows SubmissionWindow[]
+  users             User[]
 
   @@index([division])
   @@index([district])
@@ -124,78 +78,72 @@ model Disease {
 }
 
 model Outbreak {
-  id         String         @id @default(cuid())
-  diseaseId  String
-  name       String
-  status     OutbreakStatus @default(DRAFT)
-  startDate  DateTime
-  endDate    DateTime?
-  isActive   Boolean        @default(true)
-  createdAt  DateTime       @default(now())
-  updatedAt  DateTime       @updatedAt
-  
-  allowBacklogReporting    Boolean  @default(false)
-  backlogStartDate         DateTime?
-  backlogEndDate           DateTime?
-
-  reportingFrequency ReportingFrequency @default(DAILY)
-  cutoffHour         Int               @default(14)
-  cutoffMinute       Int               @default(0)
-  editDeadlineHour   Int               @default(10)
-  editDeadlineMinute Int               @default(0)
-  publishTimeHour    Int               @default(9)
-  publishTimeMinute  Int               @default(0)
-
-  // Targeting: empty array = "all"
-  targetDivisions       String[] @default([])
-  targetDistricts       String[] @default([])
-  targetFacilityTypeIds String[] @default([])
-
-  dailyReports    DailyReport[]
-  reports         Report[]
-  formFields      FormField[]
-  windows         SubmissionWindow[]
-  backlogSlots    BacklogSlot[]
-  disease         Disease        @relation(fields: [diseaseId], references: [id])
+  id                    String             @id @default(cuid())
+  diseaseId             String
+  name                  String
+  status                OutbreakStatus     @default(DRAFT)
+  startDate             DateTime
+  endDate               DateTime?
+  isActive              Boolean            @default(true)
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+  allowBacklogReporting Boolean            @default(false)
+  backlogStartDate      DateTime?
+  backlogEndDate        DateTime?
+  reportingFrequency    ReportingFrequency @default(DAILY)
+  cutoffHour            Int                @default(14)
+  cutoffMinute          Int                @default(0)
+  editDeadlineHour      Int                @default(10)
+  editDeadlineMinute    Int                @default(0)
+  publishTimeHour       Int                @default(9)
+  publishTimeMinute     Int                @default(0)
+  targetDivisions       String[]           @default([])
+  targetDistricts       String[]           @default([])
+  targetFacilityTypeIds String[]           @default([])
+  backlogSlots          BacklogSlot[]
+  dailyReports          DailyReport[]
+  formFields            FormField[]
+  disease               Disease            @relation(fields: [diseaseId], references: [id])
+  reports               Report[]
+  windows               SubmissionWindow[]
 
   @@index([diseaseId])
   @@index([status])
 }
 
-
 model FormField {
-  id          String             @id @default(cuid())
-  outbreakId  String
-  label       String
-  labelBn     String?
-  fieldKey    String
-  fieldType   FieldType          @default(NUMBER)
-  options     String?
-  section     String?
-  isRequired  Boolean            @default(false)
-  sortOrder   Int                @default(0)
-  isCoreField Boolean            @default(false)
-  activeFrom  DateTime?
-  activeTo    DateTime?
-  validationRules Json?          @default("[]")
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
-  outbreak    Outbreak           @relation(fields: [outbreakId], references: [id])
-  fieldValues ReportFieldValue[]
+  id              String             @id @default(cuid())
+  outbreakId      String
+  label           String
+  labelBn         String?
+  fieldKey        String
+  fieldType       FieldType          @default(NUMBER)
+  options         String?
+  section         String?
+  isRequired      Boolean            @default(false)
+  sortOrder       Int                @default(0)
+  isCoreField     Boolean            @default(false)
+  activeFrom      DateTime?
+  activeTo        DateTime?
+  validationRules Json?              @default("[]")
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  outbreak        Outbreak           @relation(fields: [outbreakId], references: [id])
+  fieldValues     ReportFieldValue[]
 
   @@unique([outbreakId, fieldKey])
   @@index([outbreakId])
 }
 
 model ReportFieldValue {
-  id             String      @id @default(cuid())
-  reportId       String?     // FK for legacy DailyReport (made optional)
-  modernReportId String?     // FK for new Report model
+  id             String       @id @default(cuid())
+  reportId       String?
+  modernReportId String?
   formFieldId    String
   value          String
-  formField      FormField   @relation(fields: [formFieldId], references: [id])
+  formField      FormField    @relation(fields: [formFieldId], references: [id])
+  report         Report?      @relation(fields: [modernReportId], references: [id], onDelete: Cascade)
   dailyReport    DailyReport? @relation(fields: [reportId], references: [id], onDelete: Cascade)
-  report         Report?     @relation(fields: [modernReportId], references: [id], onDelete: Cascade)
 
   @@unique([reportId, formFieldId])
   @@unique([modernReportId, formFieldId])
@@ -232,25 +180,24 @@ model DailyReport {
 }
 
 model Report {
-  id           String       @id @default(cuid())
+  id           String             @id @default(cuid())
   outbreakId   String
   facilityId   String
   userId       String
-  periodStart  DateTime     // start of the period being reported
-  periodEnd    DateTime     // end of the period (= periodStart for daily)
-  status       ReportStatus @default(SUBMITTED)
-  isLocked     Boolean      @default(false)
+  periodStart  DateTime
+  periodEnd    DateTime
+  status       ReportStatus       @default(SUBMITTED)
+  isLocked     Boolean            @default(false)
   lockedBy     String?
   lockedAt     DateTime?
   publishedAt  DateTime?
-  dataSnapshot Json         @default("{}")  // JSONB cache
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
-
-  outbreak    Outbreak           @relation(fields: [outbreakId], references: [id])
-  facility    Facility           @relation(fields: [facilityId], references: [id])
-  user        User               @relation(fields: [userId], references: [id])
-  fieldValues ReportFieldValue[]
+  dataSnapshot Json               @default("{}")
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  facility     Facility           @relation(fields: [facilityId], references: [id])
+  outbreak     Outbreak           @relation(fields: [outbreakId], references: [id])
+  user         User               @relation(fields: [userId], references: [id])
+  fieldValues  ReportFieldValue[]
 
   @@unique([facilityId, outbreakId, periodStart])
   @@index([outbreakId])
@@ -259,53 +206,45 @@ model Report {
   @@index([status])
 }
 
-// ─── Submission Window (with Targeting) ──────────────────────────────
 model SubmissionWindow {
-  id          String   @id @default(cuid())
-  outbreakId  String
-  facilityId  String?  // null = applies to all (or use targeting arrays)
-  name        String?
-  periodStart DateTime
-  periodEnd   DateTime
-  opensAt     DateTime
-  closesAt    DateTime
-  note        String?
-  createdBy   String?
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-
-  // ── Targeting: empty array = "all" ──
-  targetDivisions     String[] @default([])
-  targetDistricts     String[] @default([])
-  targetFacilityTypeIds String[] @default([])
-
-  outbreak Outbreak  @relation(fields: [outbreakId], references: [id])
-  facility Facility? @relation(fields: [facilityId], references: [id])
+  id                    String    @id @default(cuid())
+  outbreakId            String
+  facilityId            String?
+  name                  String?
+  periodStart           DateTime
+  periodEnd             DateTime
+  opensAt               DateTime
+  closesAt              DateTime
+  note                  String?
+  createdBy             String?
+  isActive              Boolean   @default(true)
+  createdAt             DateTime  @default(now())
+  targetDivisions       String[]  @default([])
+  targetDistricts       String[]  @default([])
+  targetFacilityTypeIds String[]  @default([])
+  facility              Facility? @relation(fields: [facilityId], references: [id])
+  outbreak              Outbreak  @relation(fields: [outbreakId], references: [id])
 
   @@index([outbreakId])
   @@index([closesAt])
 }
 
-// ─── Backlog Slot (with Targeting) ───────────────────────────────────
 model BacklogSlot {
-  id          String    @id @default(cuid())
-  outbreakId  String
-  facilityId  String?   // null = all facilities
-  periodStart DateTime
-  periodEnd   DateTime
-  opensAt     DateTime
-  closesAt    DateTime
-  reason      String?
-  createdBy   String?
-  createdAt   DateTime  @default(now())
-
-  // ── Targeting: empty array = "all" ──
-  targetDivisions     String[] @default([])
-  targetDistricts     String[] @default([])
-  targetFacilityTypeIds String[] @default([])
-
-  outbreak Outbreak  @relation(fields: [outbreakId], references: [id])
-  facility Facility? @relation(fields: [facilityId], references: [id])
+  id                    String    @id @default(cuid())
+  outbreakId            String
+  facilityId            String?
+  periodStart           DateTime
+  periodEnd             DateTime
+  opensAt               DateTime
+  closesAt              DateTime
+  reason                String?
+  createdBy             String?
+  createdAt             DateTime  @default(now())
+  targetDivisions       String[]  @default([])
+  targetDistricts       String[]  @default([])
+  targetFacilityTypeIds String[]  @default([])
+  facility              Facility? @relation(fields: [facilityId], references: [id])
+  outbreak              Outbreak  @relation(fields: [outbreakId], references: [id])
 
   @@index([outbreakId])
   @@index([facilityId])
@@ -357,14 +296,56 @@ model Settings {
 }
 
 model Indicator {
-  id          String   @id @default(cuid())
-  name        String
-  description String?
-  numeratorKey String   
-  denominatorKey String? 
-  multiplier  Float    @default(100)
-  unit        String?  // %, per 1000, etc.
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id             String   @id @default(cuid())
+  name           String
+  description    String?
+  numeratorKey   String
+  denominatorKey String?
+  multiplier     Float    @default(100)
+  unit           String?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+enum Role {
+  USER
+  EDITOR
+  ADMIN
+  VIEWER
+}
+
+enum OutbreakStatus {
+  DRAFT
+  ACTIVE
+  CONTAINED
+  CLOSED
+}
+
+enum FieldType {
+  NUMBER
+  TEXT
+  SELECT
+  DATE
+  BOOLEAN
+}
+
+enum TokenType {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+}
+
+enum ReportingFrequency {
+  DAILY
+  WEEKLY
+  MONTHLY
+  QUARTERLY
+  CUSTOM
+}
+
+enum ReportStatus {
+  DRAFT
+  SUBMITTED
+  PUBLISHED
+  LOCKED
 }

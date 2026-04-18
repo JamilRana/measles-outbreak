@@ -139,11 +139,11 @@ const GovernmentSummary = ({ stats, toBnNum, divisionStats, allReports }: any) =
           </tr>
           <tr className="text-[9px] font-bold bg-white">
             <th className="border border-slate-900 py-2 w-[16%]">গত ২৪ ঘণ্টায় সন্দেহজনক হাম রোগীর সংখ্যা</th>
-            <th className="border border-slate-900 py-2 w-[16%]">১৫-০৩-২০২৬ থেকে অদ্যাবধি মোট সন্দেহজনক হাম রোগীর সংখ্যা</th>
+            <th className="border border-slate-900 py-2 w-[16%]">০৭-০৪-২০২৬ থেকে অদ্যাবধি মোট সন্দেহজনক হাম রোগীর সংখ্যা</th>
             <th className="border border-slate-900 py-2 w-[16%]">গত ২৪ ঘণ্টায় নিশ্চিত হাম রোগীর সংখ্যা</th>
-            <th className="border border-slate-900 py-2 w-[16%]">১৫-০৩-২০২৬ থেকে অদ্যাবধি মোট নিশ্চিত হাম রোগীর সংখ্যা</th>
-            <th className="border border-slate-900 py-2 w-[18%]">১৫-০৩-২০২৬ থেকে অদ্যাবধি মোট সন্দেহজনক হাম রোগীর ভর্তির সংখ্যা</th>
-            <th className="border border-slate-900 py-2 w-[18%]">১৫-০৩-২০২৬ থেকে অদ্যাবধি হাসপাতাল হতে মোট ছাড় পাওয়া রোগীর সংখ্যা</th>
+            <th className="border border-slate-900 py-2 w-[16%]">০৭-০৪-২০২৬ থেকে অদ্যাবধি মোট নিশ্চিত হাম রোগীর সংখ্যা</th>
+            <th className="border border-slate-900 py-2 w-[18%]">০৭-০৪-২০২৬ থেকে অদ্যাবধি মোট সন্দেহজনক হাম রোগীর ভর্তির সংখ্যা</th>
+            <th className="border border-slate-900 py-2 w-[18%]">০৭-০৪-২০২৬ থেকে অদ্যাবধি হাসপাতাল হতে মোট ছাড় পাওয়া রোগীর সংখ্যা</th>
           </tr>
         </thead>
         <tbody>
@@ -168,12 +168,12 @@ const GovernmentSummary = ({ stats, toBnNum, divisionStats, allReports }: any) =
             <th colSpan={2}>সন্দেহজনক মৃত্যু</th>
           </tr>
           <tr className="text-[9px] font-bold bg-white">
-            <th className="border border-slate-900 py-2 w-[16%]">সন্দেহজনক হাম রোগে মৃত্যু {leaders.division}</th>
-            <th className="border border-slate-900 py-2 w-[16%]">সন্দেহজনক হাম রোগে মৃত্যু {leaders.district}</th>
+            <th className="border border-slate-900 py-2 w-[16%]">সন্দেহজনক হাম রোগে মৃত্যু <br/><b>{leaders.division}</b></th>
+            <th className="border border-slate-900 py-2 w-[16%]">সন্দেহজনক হাম রোগে মৃত্যু <br/><b>{leaders.district}</b></th>
             <th className="border border-slate-900 py-2 w-[16%]">গত ২৪ ঘণ্টায় নিশ্চিত হাম রোগে মৃত্যুর সংখ্যা</th>
-            <th className="border border-slate-900 py-2 w-[16%]">১৫-০৩-২০২৬ থেকে অদ্যাবধি মোট নিশ্চিত হাম রোগে মৃত্যুর সংখ্যা</th>
+            <th className="border border-slate-900 py-2 w-[16%]">০৭-০৪-২০২৬ থেকে অদ্যাবধি মোট নিশ্চিত হাম রোগে মৃত্যুর সংখ্যা</th>
             <th className="border border-slate-900 py-2 w-[16%]">গত ২৪ ঘণ্টায় সন্দেহজনক হাম রোগে মৃত্যুর সংখ্যা</th>
-            <th className="border border-slate-900 py-2 w-[16%]">১৫-০৩-২০২৬ থেকে অদ্যাবধি মোট সন্দেহজনক হাম রোগে মৃত্যুর সংখ্যা</th>
+            <th className="border border-slate-900 py-2 w-[16%]">০৭-০৪-২০২৬ থেকে অদ্যাবধি মোট সন্দেহজনক হাম রোগে মৃত্যুর সংখ্যা</th>
           </tr>
         </thead>
         <tbody>
@@ -267,8 +267,8 @@ const GovernmentBreakdownTable = ({ divisionStats, toBnNum, stats }: any) => {
         <p className="text-[10px] mt-1">(তথ্য সূত্রঃ হেলথ ইমার্জেন্সি অপারেশন সেন্টার ও কন্ট্রোল রুম, স্বাস্থ্য অধিদপ্তর।)</p>
       </div>
 
-      <div className="overflow-x-auto border-x border-t border-slate-900">
-        <table className="w-full text-center border-collapse text-[9px] min-w-[1200px]">
+      <div className="overflow-x-auto print:overflow-visible border-x border-t border-slate-900">
+        <table className="w-full text-center border-collapse text-[9px] min-w-[1100px] print:min-w-0 print:text-[8px]">
           <thead>
             {/* Main Header Rows */}
             <tr className="bg-slate-50 font-bold border-b border-slate-900">
@@ -279,7 +279,7 @@ const GovernmentBreakdownTable = ({ divisionStats, toBnNum, stats }: any) => {
               <th className={`${headerStyles.death} py-1`} rowSpan={2}>গত ২৪ ঘণ্টায় নিশ্চিত হাম রোগে মৃত্যুর সংখ্যা</th>
               <th className={`${headerStyles.confirmed} py-1`} rowSpan={2}>গত ২৪ ঘণ্টায় নিশ্চিত হাম রোগীর সংখ্যা</th>
               <th className={`${headerStyles.deathSus} py-1`} rowSpan={2}>গত ২৪ ঘণ্টায় সন্দেহজনক হাম রোগে মৃত্যুর সংখ্যা</th>
-              <th className="bg-slate-200 border-x border-slate-900 py-1" colSpan={6}>অদ্যাবধি (১৫-০৩-২০২৬ থেকে)</th>
+              <th className="bg-slate-200 border-x border-slate-900 py-1" colSpan={6}>অদ্যাবধি (০৭-০৪-২০২৬ থেকে)</th>
             </tr>
             <tr className="bg-slate-100 font-bold border-b border-slate-900">
               <th className={`${headerStyles.suspected} py-2`}>মোট সন্দেহজনক হাম রোগীর সংখ্যা</th>
@@ -378,6 +378,10 @@ export default function BulletinPage() {
   const { i18n } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [allReports, setAllReports] = useState<any[]>([]);
+  const [summaryTotals, setSummaryTotals] = useState<any>(null);
+  const [cumulativeTotals, setCumulativeTotals] = useState<any>(null);
+  const [summaryBreakdown, setSummaryBreakdown] = useState<any>(null);
+  const [cumSummaryBreakdown, setCumSummaryBreakdown] = useState<any>(null);
   const [selectedDate, setSelectedDate] = useState(getBdDateString());
   const [temporal, setTemporal] = useState<any>(null);
   const [logPage, setLogPage] = useState(1);
@@ -390,10 +394,25 @@ export default function BulletinPage() {
   const fetchReports = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/reports?date=${selectedDate}`);
-      const data = await res.json();
-      setAllReports(data.reports || []);
-      setTemporal(data.temporal);
+      // 1. Fetch All Reports up to selected date for Temporal Progression (history)
+      const listRes = await fetch(`/api/reports?to=${selectedDate}&limit=2000`);
+      
+      // 2. Fetch Today's Aggregated Summary
+      const todaySummaryRes = await fetch(`/api/reports/summary?date=${selectedDate}`);
+      
+      // 3. Fetch Cumulative Summary AS OF Selected Date
+      const cumSummaryRes = await fetch(`/api/reports/summary?to=${selectedDate}`);
+
+      const listData = await listRes.json();
+      const todaySumData = await todaySummaryRes.json();
+      const cumSumData = await cumSummaryRes.json();
+
+      setAllReports(listData.reports || []);
+      setSummaryTotals(todaySumData.totals);
+      setSummaryBreakdown(todaySumData.breakdown);
+      setCumulativeTotals(cumSumData.totals);
+      setCumSummaryBreakdown(cumSumData.breakdown);
+      setTemporal(listData.temporal);
     } catch (error) {
        console.error("Error fetching reports:", error);
     } finally {
@@ -408,61 +427,51 @@ export default function BulletinPage() {
   };
 
   const stats = useMemo(() => {
-    const todayDateStr = selectedDate;
-    const today = allReports.filter(r => {
-      const reportDate = r.reportingDate?.split('T')[0];
-      return reportDate === todayDateStr;
-    });
-    const cumulative = allReports;
-    const sum = (arr: any[], key: string) => arr.reduce((acc, r) => acc + (Number(r[key]) || 0), 0);
-
     return {
       today: {
-        suspected: sum(today, 'suspected24h'),
-        confirmed: sum(today, 'confirmed24h'),
-        admitted: sum(today, 'admitted24h'),
-        recovered: sum(today, 'discharged24h'),
-        confirmedDeath: sum(today, 'confirmedDeath24h'),
-        suspectedDeath: sum(today, 'suspectedDeath24h'),
+        suspected: summaryTotals?.suspected24h || 0,
+        confirmed: summaryTotals?.confirmed24h || 0,
+        admitted: summaryTotals?.admitted24h || 0,
+        recovered: summaryTotals?.discharged24h || 0,
+        confirmedDeath: summaryTotals?.confirmedDeath24h || 0,
+        suspectedDeath: summaryTotals?.suspectedDeath24h || 0,
       },
       cumulative: {
-        suspected: sum(cumulative, 'suspected24h'),
-        confirmed: sum(cumulative, 'confirmed24h'),
-        admitted: sum(cumulative, 'admitted24h'),
-        recovered: sum(cumulative, 'discharged24h'),
-        confirmedDeath: sum(cumulative, 'confirmedDeath24h'),
-        suspectedDeath: sum(cumulative, 'suspectedDeath24h'),
+        suspected: cumulativeTotals?.suspected24h || 0,
+        confirmed: cumulativeTotals?.confirmed24h || 0,
+        admitted: cumulativeTotals?.admitted24h || 0,
+        recovered: cumulativeTotals?.discharged24h || 0,
+        confirmedDeath: cumulativeTotals?.confirmedDeath24h || 0,
+        suspectedDeath: cumulativeTotals?.suspectedDeath24h || 0,
       }
     };
-  }, [allReports, selectedDate]);
+  }, [summaryTotals, cumulativeTotals]);
 
   const divisionStats = useMemo(() => {
-    const divData: Record<string, any> = {};
-    DIVISIONS.forEach(div => {
-      divData[div] = {
+    return DIVISIONS.map(div => {
+      const todayDiv = summaryBreakdown?.[div] || {};
+      const cumDiv = cumSummaryBreakdown?.[div] || {};
+      return {
         name: div,
-        today: { suspected: 0, admitted: 0, recovered: 0, suspectedDeath: 0, confirmed: 0, confirmedDeath: 0 },
-        cumulative: { suspected: 0, admitted: 0, recovered: 0, suspectedDeath: 0, confirmed: 0, confirmedDeath: 0 }
+        today: { 
+          suspected: todayDiv.suspected24h || 0, 
+          admitted: todayDiv.admitted24h || 0, 
+          recovered: todayDiv.discharged24h || 0, 
+          suspectedDeath: todayDiv.suspectedDeath24h || 0, 
+          confirmed: todayDiv.confirmed24h || 0, 
+          confirmedDeath: todayDiv.confirmedDeath24h || 0 
+        },
+        cumulative: { 
+          suspected: cumDiv.suspected24h || 0, 
+          admitted: cumDiv.admitted24h || 0, 
+          recovered: cumDiv.discharged24h || 0, 
+          suspectedDeath: cumDiv.suspectedDeath24h || 0, 
+          confirmed: cumDiv.confirmed24h || 0, 
+          confirmedDeath: cumDiv.confirmedDeath24h || 0 
+        }
       };
     });
-
-    allReports.forEach(r => {
-      const div = r.facility?.division;
-      const reportDate = r.reportingDate?.split('T')[0];
-      if (div && divData[div]) {
-        const isToday = reportDate === selectedDate;
-        const keys = ['suspected24h', 'admitted24h', 'discharged24h', 'suspectedDeath24h', 'confirmed24h', 'confirmedDeath24h'];
-        const statKeys = ['suspected', 'admitted', 'recovered', 'suspectedDeath', 'confirmed', 'confirmedDeath'];
-
-        keys.forEach((k, idx) => {
-          const val = Number(r[k]) || 0;
-          divData[div].cumulative[statKeys[idx]] += val;
-          if (isToday) divData[div].today[statKeys[idx]] += val;
-        });
-      }
-    });
-    return Object.values(divData);
-  }, [allReports, selectedDate]);
+  }, [summaryBreakdown, cumSummaryBreakdown]);
 
   const dailyLog = useMemo(() => {
     const log: Record<string, any> = {};
@@ -479,7 +488,7 @@ export default function BulletinPage() {
       log[dateKey].suspected24h += (r.suspected24h || 0);
       log[dateKey].confirmed24h += (r.confirmed24h || 0);
       log[dateKey].admitted24h += (r.admitted24h || 0);
-      log[dateKey].recovered24h += (r.discharged24h || 0);
+      log[dateKey].recovered24h += (r.discharged24h || r.recovered24h || 0);
       log[dateKey].confirmedDeath24h += (r.confirmedDeath24h || 0);
       log[dateKey].suspectedDeath24h += (r.suspectedDeath24h || 0);
     });
@@ -501,14 +510,36 @@ export default function BulletinPage() {
     return dailyLog.slice((logPage - 1) * logItemsPerPage, logPage * logItemsPerPage);
   }, [dailyLog, logPage]);
 
-  if (loading && allReports.length === 0) {
+  if (loading) {
     return (
-      <div className="min-h-screen bg-white flex flex-col items-center justify-center gap-6">
-        <div className="w-16 h-16 border-4 border-slate-100 border-t-blue-600 rounded-full animate-spin" />
-        <div className="text-center space-y-2">
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.4em] animate-pulse">Securing Surveillance Intelligence</p>
-          <p className="text-sm font-bold text-slate-900 tracking-tight">Generating Official Bulletin...</p>
+      <div className="fixed inset-0 z-[100] bg-white flex flex-col items-center justify-center gap-6">
+        <div className="relative">
+          <div className="w-24 h-24 border-4 border-slate-100 border-t-indigo-600 rounded-full animate-spin" />
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="w-16 h-16 border-4 border-slate-50 border-b-rose-500 rounded-full animate-spin-reverse" />
+          </div>
         </div>
+        <div className="text-center space-y-3">
+          <div className="flex items-center justify-center gap-2">
+            <span className="w-2 h-2 bg-indigo-600 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+            <span className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+            <span className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce"></span>
+          </div>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.5em] animate-pulse">National Surveillance Intelligence</p>
+          <div className="space-y-1">
+             <p className="text-lg font-black text-slate-900 tracking-tight">Generating Official Bulletin</p>
+             <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest italic">Authenticating...</p>
+          </div>
+        </div>
+        <style jsx>{`
+          .animate-spin-reverse {
+            animation: spin-reverse 1.5s linear infinite;
+          }
+          @keyframes spin-reverse {
+            from { transform: rotate(360deg); }
+            to { transform: rotate(0deg); }
+          }
+        `}</style>
       </div>
     );
   }
@@ -519,13 +550,18 @@ export default function BulletinPage() {
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
         body { font-family: 'Inter', sans-serif; }
         @media print {
-          body { font-size: 10pt; line-height: 1.2; font-family: Georgia, serif !important; }
-          .no-print, nav, footer { display: none !important; }
-          table { width: 100%; border-collapse: collapse; page-break-inside: auto; }
-          tr { page-break-inside: avoid; page-break-after: auto; }
-          * { box-shadow: none !important; text-shadow: none !important; transition: none !important; }
-          .text-critical { color: #000 !important; font-weight: bold; text-decoration: underline; }
-          @page { size: auto; margin: 12mm; }
+          @page { size: auto; margin: 10mm 15mm !important; }
+          body { font-size: 10pt; line-height: 1.25; font-family: 'Times New Roman', Times, serif !important; background-color: white !important; }
+          .no-print, nav, footer, button, .pagination-controls { display: none !important; }
+          .max-w-[1240px] { max-width: 100% !important; width: 100% !important; margin: 0 !important; padding: 0 !important; border: none !important; box-shadow: none !important; }
+          table { width: 100% !important; border-collapse: collapse !important; table-layout: fixed !important; word-break: break-word !important; }
+          th, td { border: 1px solid black !important; padding: 4px !important; white-space: normal !important; overflow: visible !important; }
+          thead { display: table-header-group; }
+          tr { page-break-inside: avoid; }
+          .print-break-before { page-break-before: always; }
+          .print-header { position: fixed; top: 0; }
+          * { -webkit-print-color-adjust: exact !important; color-adjust: exact !important; }
+          h1, h2, h3, h4 { color: black !important; }
         }
       `}</style>
       
@@ -572,14 +608,6 @@ export default function BulletinPage() {
 
           <PrintFooter selectedDate={selectedDate} />
         </main>
-
-        <footer className="p-8 border-t border-slate-50 flex justify-between items-center no-print bg-slate-50/50">
-            <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Surveillance Intelligence Platform • Level: RESTRICTED</span>
-            <div className="flex gap-4">
-              <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></div>
-              <span className="text-[9px] font-bold text-slate-400 italic">Up-to-the-minute global outbreak awareness.</span>
-            </div>
-        </footer>
       </div>
     </div>
   );
