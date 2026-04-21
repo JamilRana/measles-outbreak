@@ -48,6 +48,9 @@ export const AuditActions = {
   DATA_CLEAN: "DATA_CLEAN",
   BULK_UPLOAD: "BULK_UPLOAD",
   CSV_IMPORT: "CSV_IMPORT",
+  FACILITY_CREATE: "FACILITY_CREATE",
+  FACILITY_UPDATE: "FACILITY_UPDATE",
+  FACILITY_DELETE: "FACILITY_DELETE",
 } as const;
 
 export type AuditAction = typeof AuditActions[keyof typeof AuditActions];

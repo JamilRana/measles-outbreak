@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { 
   Trash2, 
   AlertTriangle, 
@@ -9,7 +9,9 @@ import {
   CheckCircle2, 
   Loader2,
   RefreshCcw,
-  ShieldAlert
+  ShieldAlert,
+  Check,
+  FileText
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -18,9 +20,28 @@ export default function DataManagementPage() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState("");
   const [confirmAll, setConfirmAll] = useState(false);
+  const [reports, setReports] = useState<any[]>([]);
+  const [reportsLoading, setReportsLoading] = useState(false);
+
+  useEffect(() => {
+    fetchReports();
+  }, [date]);
+
+  const fetchReports = async () => {
+    setReportsLoading(true);
+    try {
+      const res = await fetch(`/api/reports?date=${date}`);
+      const data = await res.json();
+      if (res.ok) setReports(data);
+    } catch {
+      console.error("Failed to fetch reports");
+    } finally {
+      setReportsLoading(false);
+    }
+  };
 
   const handleCleanDaily = async () => {
-    if (!confirm(`Are you sure you want to delete ALL reports for ${date}? This cannot be undone.`)) return;
+    if (!confirm(`Are you sure you want to delete ALL ${reports.length} reports for ${date}? This cannot be undone.`)) return;
 
     setLoading(true);
     setSuccess("");
@@ -31,7 +52,10 @@ export default function DataManagementPage() {
         body: JSON.stringify({ date, mode: "DAILY" }),
       });
       const data = await res.json();
-      if (res.ok) setSuccess(data.message);
+      if (res.ok) {
+        setSuccess(data.message);
+        fetchReports();
+      }
     } catch {
       console.error("Cleanup failed");
     } finally {
@@ -39,7 +63,23 @@ export default function DataManagementPage() {
     }
   };
 
+  const handleDeleteReport = async (reportId: string) => {
+    if (!confirm("Are you sure you want to delete this specific report?")) return;
+    
+    try {
+      const res = await fetch(`/api/reports/${reportId}`, { method: "DELETE" });
+      if (res.ok) {
+        setSuccess("Report deleted successfully");
+        fetchReports();
+      }
+    } catch {
+      console.error("Deletion failed");
+    }
+  };
+
   const handleResetAll = async () => {
+    if (!confirm("CRITICAL WARNING: This will delete EVERY report in the entire system. Are you absolutely sure?")) return;
+    
     setLoading(true);
     setSuccess("");
     try {
@@ -52,6 +92,7 @@ export default function DataManagementPage() {
       if (res.ok) {
         setSuccess(data.message);
         setConfirmAll(false);
+        fetchReports();
       }
     } catch {
       console.error("Reset failed");
@@ -91,7 +132,7 @@ export default function DataManagementPage() {
         <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="px-8 py-6 bg-slate-50 border-b border-slate-100">
             <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-              <Calendar className="w-5 h-5 text-indigo-500" /> Selective Daily Clear
+              <Calendar className="w-5 h-5 text-indigo-500" /> Delete Reports by Date
             </h3>
           </div>
           <div className="p-8 space-y-6">
@@ -116,6 +157,70 @@ export default function DataManagementPage() {
                 Clear Date Data
               </button>
             </div>
+          </div>
+        </div>
+
+        {/* Report List Section */}
+        <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="px-8 py-6 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+            <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+              <FileText className="w-5 h-5 text-indigo-500" /> Active Reports for {date}
+            </h3>
+            <span className="px-3 py-1 bg-indigo-50 text-indigo-600 rounded-full text-xs font-black uppercase tracking-widest">{reports.length} Records</span>
+          </div>
+          <div className="p-0">
+            {reportsLoading ? (
+              <div className="p-20 text-center flex flex-col items-center gap-4">
+                <Loader2 className="w-10 h-10 text-indigo-200 animate-spin" />
+                <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">Scanning Surveillance Matrix...</p>
+              </div>
+            ) : reports.length > 0 ? (
+              <div className="max-h-[500px] overflow-y-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead className="sticky top-0 bg-white shadow-sm z-10">
+                    <tr className="bg-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                      <th className="px-8 py-4 border-b">Facility</th>
+                      <th className="px-8 py-4 border-b">Status</th>
+                      <th className="px-8 py-4 border-b text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {reports.map((r: any) => (
+                      <tr key={r.id} className="hover:bg-slate-50 transition-colors">
+                        <td className="px-8 py-4">
+                          <div className="flex flex-col">
+                            <span className="text-sm font-black text-slate-800">{r.facility?.facilityName || "Unknown"}</span>
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">{r.facility?.district}, {r.facility?.division}</span>
+                          </div>
+                        </td>
+                        <td className="px-8 py-4">
+                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 text-emerald-600 rounded-full text-[10px] font-black uppercase border border-emerald-100">
+                            <Check className="w-3 h-3" />
+                            {r.status || 'SUBMITTED'}
+                          </div>
+                        </td>
+                        <td className="px-8 py-4 text-right">
+                          <button 
+                            onClick={() => handleDeleteReport(r.id)}
+                            className="p-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all"
+                            title="Delete Individual Report"
+                          >
+                            <Trash2 className="w-5 h-5" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="p-20 text-center flex flex-col items-center gap-4">
+                <div className="p-4 bg-slate-50 rounded-full">
+                   <ShieldAlert className="w-12 h-12 text-slate-200" />
+                </div>
+                <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">No reports found for this date.</p>
+              </div>
+            )}
           </div>
         </div>
 

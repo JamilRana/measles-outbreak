@@ -77,7 +77,7 @@ export default function AdminPage() {
             <AdminCard 
               href="/admin/submissions" 
               title="Reporting Hub" 
-              description="Unified console for real-time status, historical logs, and gap analysis"
+              description="Status, logs, and gap analysis"
               icon={<ClipboardCheck className="w-6 h-6" />}
               color="indigo"
             />
@@ -165,8 +165,7 @@ export default function AdminPage() {
               icon={<Clock className="w-6 h-6" />}
               color="amber"
             />
-            <AdminCard
-              hidden={true} 
+            <AdminCard 
               href="/admin/data-management" 
               title={t('adminPanel.systemMaintenance')} 
               description={t('adminPanel.systemMaintenanceDesc')} 

@@ -65,7 +65,13 @@ export async function POST(request: Request) {
     let windowOpen = false;
     let windowType = 'FALLBACK';
 
-    if (reportDateStr === today) {
+    const session = await getServerSession(authOptions);
+    const isAdmin = session?.user?.role === "ADMIN" || session?.user?.role === "EDITOR";
+
+    if (isAdmin) {
+      windowOpen = true;
+      windowType = 'ADMIN_OVERRIDE';
+    } else if (reportDateStr === today) {
       windowOpen = true;
       windowType = 'FALLBACK';
     } else if (outbreak?.allowBacklogReporting) {
@@ -260,10 +266,38 @@ export async function PUT(request: Request) {
 
       // Rebuild snapshot
       const snapshot = await rebuildSnapshot(reportId, tx);
-      return await tx.report.update({
+      const updatedReport = await tx.report.update({
         where: { id: reportId },
         data: { dataSnapshot: snapshot as any }
       });
+
+      // Synchronize with Legacy Table if exists
+      const legacy = await tx.dailyReport.findUnique({
+        where: {
+          facilityId_outbreakId_reportingDate: {
+            facilityId: existingModern.facilityId,
+            outbreakId: existingModern.outbreakId,
+            reportingDate: existingModern.periodStart
+          }
+        }
+      });
+
+      if (legacy) {
+        await tx.dailyReport.update({
+          where: { id: legacy.id },
+          data: {
+            suspected24h: Number(snapshot.suspected24h || 0),
+            admitted24h: Number(snapshot.admitted24h || 0),
+            discharged24h: Number(snapshot.discharged24h || 0),
+            suspectedDeath24h: Number(snapshot.suspectedDeath24h || 0),
+            confirmed24h: Number(snapshot.confirmed24h || 0),
+            confirmedDeath24h: Number(snapshot.confirmedDeath24h || 0),
+            serumSent24h: Number(snapshot.serumSent24h || 0),
+          }
+        });
+      }
+
+      return updatedReport;
     }, {
       timeout: 15000 // Increase timeout to 15s
     });

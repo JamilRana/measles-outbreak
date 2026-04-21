@@ -120,6 +120,36 @@ export default function FacilityManagementPage() {
     }
   };
 
+  const handleDeleteFacility = async (id: string, name: string) => {
+    if (!confirm(`Are you sure you want to delete ${name}? This action is irreversible.`)) return;
+    
+    try {
+      const res = await fetch(`/api/admin/facilities?id=${id}`, { method: "DELETE" });
+      const data = await res.json();
+      
+      if (res.ok) {
+        fetchFacilities();
+      } else {
+        alert(data.error + (data.details ? `\n\nLinked data found:\n- Users: ${data.details.users}\n- Reports: ${data.details.reports}\n- Scheduled Slots: ${data.details.scheduling}` : ""));
+      }
+    } catch {
+      alert("Failed to delete facility");
+    }
+  };
+
+  const handleToggleStatus = async (fac: Facility) => {
+    try {
+      const res = await fetch("/api/admin/facilities", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: fac.id, isActive: !fac.isActive }),
+      });
+      if (res.ok) fetchFacilities();
+    } catch {
+      alert("Failed to update status");
+    }
+  };
+
   const filteredFacilities = facilities.filter(f => 
     f.facilityName.toLowerCase().includes(searchTerm.toLowerCase()) ||
     f.facilityCode.toLowerCase().includes(searchTerm.toLowerCase())
@@ -188,15 +218,23 @@ export default function FacilityManagementPage() {
                     <span className="bg-slate-100 text-slate-600 px-3 py-1 rounded-full text-xs font-bold">{fac._count?.users || 0} Accounts</span>
                   </td>
                   <td className="px-6 py-5 text-center">
-                    {fac.isActive ? (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-full text-xs font-bold">Active</span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-rose-50 text-rose-700 rounded-full text-xs font-bold">Suspended</span>
-                    )}
+                    <button 
+                      onClick={() => handleToggleStatus(fac)}
+                      className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${fac.isActive ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100' : 'bg-rose-50 text-rose-600 hover:bg-rose-100'}`}
+                    >
+                      {fac.isActive ? 'Active' : 'Inactive'}
+                    </button>
                   </td>
-                  <td className="px-8 py-5 text-right">
+                  <td className="px-8 py-5 text-right flex items-center justify-end gap-2">
                     <button onClick={() => openEditModal(fac)} className="p-2 text-slate-400 hover:text-indigo-600 rounded-xl transition-all">
                       <Pencil className="w-5 h-5" />
+                    </button>
+                    <button 
+                      onClick={() => handleDeleteFacility(fac.id, fac.facilityName)} 
+                      className="p-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all"
+                      title="Delete Facility"
+                    >
+                      <Trash2 className="w-5 h-5" />
                     </button>
                   </td>
                 </tr>
@@ -241,6 +279,20 @@ export default function FacilityManagementPage() {
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-2">Upazila</label>
                     <input value={formData.upazila} onChange={e => setFormData({...formData, upazila: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4" />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-200 cursor-pointer hover:bg-slate-100 transition-all">
+                      <input 
+                        type="checkbox" 
+                        checked={formData.isActive} 
+                        onChange={e => setFormData({...formData, isActive: e.target.checked})}
+                        className="w-5 h-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                      />
+                      <div>
+                        <span className="block text-sm font-black text-slate-700 uppercase tracking-tight">Active Surveillance Node</span>
+                        <span className="block text-xs text-slate-500">Uncheck to suspend reporting capabilities for this facility.</span>
+                      </div>
+                    </label>
                   </div>
                 </div>
                 <div className="flex justify-end gap-4 pt-4 border-t border-slate-100">

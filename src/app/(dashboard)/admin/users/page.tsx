@@ -271,7 +271,7 @@ export default function UserManagementPage() {
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4">
              <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="w-full max-w-2xl bg-white rounded-[3rem] shadow-2xl overflow-hidden border border-white/20">
                 <div className="p-10 pb-0 flex items-center justify-between">
-                   <h2 className="text-3xl font-black text-slate-900 tracking-tighter uppercase">{editingUser ? "Configure Account" : "Identity Provision"}</h2>
+                   <h2 className="text-3xl font-black text-slate-900 tracking-tighter uppercase">{editingUser ? "Configure Account" : "User Creation"}</h2>
                    <button onClick={() => setShowModal(false)} className="p-3 bg-slate-100 rounded-2xl hover:bg-rose-50 hover:text-rose-600 transition-all"><X /></button>
                 </div>
                 

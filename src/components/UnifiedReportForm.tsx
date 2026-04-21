@@ -14,7 +14,8 @@ import {
   Lock,
   ArrowRightCircle,
   Clock,
-  ExternalLink
+  ExternalLink,
+  ShieldAlert
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useTranslation } from 'react-i18next';
@@ -239,10 +240,12 @@ export default function UnifiedReportForm({
 
         // Logic cutover to new platform gatekeeper
         let newMode: 'CREATE' | 'EDIT' | 'VIEW' = 'VIEW';
-        if (!windowStatus.open) {
-          newMode = 'VIEW';
-        } else if (session?.user?.role === 'ADMIN') {
+        const isAdminOrEditor = session?.user?.role === 'ADMIN' || session?.user?.role === 'EDITOR';
+
+        if (isAdminOrEditor) {
           newMode = existing ? 'EDIT' : 'CREATE';
+        } else if (!windowStatus.open) {
+          newMode = 'VIEW';
         } else if (existing) {
           newMode = existing.isLocked ? 'VIEW' : 'EDIT';
         } else {
@@ -415,6 +418,12 @@ export default function UnifiedReportForm({
             </div>
          </div>
          <div className="flex items-center gap-4 bg-white/30 p-2 rounded-xl backdrop-blur-sm border border-indigo-100/50">
+           {windowInfo?.type === 'ADMIN_OVERRIDE' && (
+             <div className="flex items-center gap-2 px-3 py-1 bg-indigo-100 rounded-full border border-indigo-200">
+               <ShieldAlert className="w-3.5 h-3.5 text-indigo-600" />
+               <span className="text-[10px] font-bold text-indigo-700 uppercase tracking-wider">Admin Override</span>
+             </div>
+           )}
            {windowInfo?.type === 'BACKLOG' && (
              <div className="flex items-center gap-2 px-3 py-1 bg-amber-100 rounded-full border border-amber-200">
                <Clock className="w-3.5 h-3.5 text-amber-600" />

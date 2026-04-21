@@ -28,7 +28,8 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
-  ShieldAlert
+  ShieldAlert,
+  Circle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { DIVISIONS, DISTRICTS_BY_DIVISION } from '@/lib/constants';
@@ -188,7 +189,13 @@ export default function UnifiedReportingHub() {
   const [selectedDivisions, setSelectedDivisions] = useState<string[]>([]);
   const [selectedDistricts, setSelectedDistricts] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'submitted' | 'missing'>('all');
+
+  useEffect(() => {
+    const handler = setTimeout(() => setDebouncedSearch(searchQuery), 400);
+    return () => clearTimeout(handler);
+  }, [searchQuery]);
   
   // Separate Pagination for Status/Gaps vs Logs
   const [statusPage, setStatusPage] = useState(1);
@@ -203,27 +210,30 @@ export default function UnifiedReportingHub() {
     // Reset page on filter change
     setPage(1);
     setStatusPage(1);
-  }, [selectedDate, dateRange, selectedOutbreakId, viewMode, selectedDivisions, selectedDistricts, searchQuery, statusFilter]);
+  }, [selectedDate, dateRange, selectedOutbreakId, viewMode, selectedDivisions, selectedDistricts, debouncedSearch, statusFilter]);
 
   useEffect(() => {
     fetchReports();
-  }, [selectedDate, dateRange, selectedOutbreakId, viewMode, page, selectedDivisions, selectedDistricts]);
+  }, [selectedDate, dateRange, selectedOutbreakId, viewMode, page, selectedDivisions, selectedDistricts, debouncedSearch]);
 
   useEffect(() => {
+    let isCancelled = false;
     if (selectedOutbreakId) {
+      // Fetch all fields for the selected outbreak
       fetch(`/api/public/fields?outbreakId=${selectedOutbreakId}`)
         .then(res => res.json())
         .then(data => {
-          if (Array.isArray(data)) {
-            // Pick core numeric fields for display
-            const targetFields = data.filter(f => f.fieldType === 'NUMBER' || f.isCoreField).slice(0, 3);
-            setDynamicFields(targetFields);
+          if (!isCancelled && Array.isArray(data)) {
+            // Sort by sortOrder to ensure consistent column ordering
+            const sortedFields = [...data].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+            setDynamicFields(sortedFields);
           }
         })
         .catch(err => console.error("Failed to fetch dynamic fields", err));
     } else {
       setDynamicFields([]);
     }
+    return () => { isCancelled = true; };
   }, [selectedOutbreakId]);
 
   const fetchBaseData = async () => {
@@ -266,6 +276,7 @@ export default function UnifiedReportingHub() {
       if (selectedOutbreakId) queryParams.append('outbreakId', selectedOutbreakId);
       if (selectedDivisions.length > 0) queryParams.append('divisions', selectedDivisions.join(','));
       if (selectedDistricts.length > 0) queryParams.append('districts', selectedDistricts.join(','));
+      if (debouncedSearch) queryParams.append('q', debouncedSearch);
 
       const res = await fetch(`/api/reports?${queryParams.toString()}`);
       const data = await res.json();
@@ -311,8 +322,8 @@ export default function UnifiedReportingHub() {
      
      if (selectedDivisions.length > 0) list = list.filter(f => selectedDivisions.includes(f.division));
      if (selectedDistricts.length > 0) list = list.filter(f => selectedDistricts.includes(f.district));
-     if (searchQuery) {
-       const q = searchQuery.toLowerCase();
+     if (debouncedSearch) {
+       const q = debouncedSearch.toLowerCase();
        list = list.filter(f => f.facilityName.toLowerCase().includes(q) || f.district.toLowerCase().includes(q));
      }
 
@@ -384,7 +395,7 @@ export default function UnifiedReportingHub() {
     setSelectedDistricts([]);
     setSearchQuery('');
     setStatusFilter('all');
-    setSelectedOutbreakId("");
+    // Keeping selectedOutbreakId to preserve dynamic columns
   };
   
   const handleExportExcel = async () => {
@@ -425,13 +436,17 @@ export default function UnifiedReportingHub() {
           'Reporting Date': displayDate ? format(new Date(displayDate), 'yyyy-MM-dd') : 'N/A',
           'Status': report ? 'Received' : 'Missing',
           'Verified': report?.published ? 'Yes' : 'No',
-          'Suspected': report?.suspected24h || 0,
-          'Confirmed': report?.confirmed24h || 0,
-          'Suspected Deaths': report?.suspectedDeath24h || 0,
-          'Confirmed Deaths': report?.confirmedDeath24h || 0,
-          'Admissions': report?.admitted24h || 0,
-          'Discharges': report?.discharged24h || 0,
         };
+
+        // If no dynamic fields (e.g. no outbreak selected), use default columns
+        if (dynamicFields.length === 0) {
+          row['Suspected'] = report?.suspected24h || 0;
+          row['Confirmed'] = report?.confirmed24h || 0;
+          row['Suspected Deaths'] = report?.suspectedDeath24h || 0;
+          row['Confirmed Deaths'] = report?.confirmedDeath24h || 0;
+          row['Admissions'] = report?.admitted24h || 0;
+          row['Discharges'] = report?.discharged24h || 0;
+        }
 
         dynamicFields.forEach(field => {
           const source = isReportMode ? item : report;
@@ -472,21 +487,37 @@ export default function UnifiedReportingHub() {
       doc.setFontSize(11);
       doc.text(`Generated on: ${format(new Date(), 'dd MMM yyyy HH:mm')}`, 14, 30);
       
-      const headers = ['Facility', 'Location', 'Date', 'Status', 'Suspected', 'Confirmed'];
+      const headers = ['Facility', 'Location', 'Date', 'Status'];
+      if (dynamicFields.length > 0) {
+        dynamicFields.forEach(f => headers.push(f.label));
+      } else {
+        headers.push('Suspected', 'Confirmed');
+      }
+
       const body = dataToExport.map((item: any) => {
         const isReportMode = viewMode === 'LOGS' || viewMode === 'GAPS';
         const facility = isReportMode ? item.facility : item;
         const report = isReportMode ? item : reportMap.get(item.id);
         const displayDate = isReportMode ? item.reportingDate : selectedDate;
         
-        return [
+        const base = [
           facility?.facilityName || 'N/A',
           `${facility?.district || ''}, ${facility?.division || ''}`,
           displayDate ? format(new Date(displayDate), 'dd MMM yyyy') : 'N/A',
           report ? 'Received' : 'Missing',
-          report?.suspected24h || 0,
-          report?.confirmed24h || 0
         ];
+
+        if (dynamicFields.length > 0) {
+          dynamicFields.forEach(field => {
+            const source = isReportMode ? item : report;
+            const val = (source as any)?.[field.fieldKey] ?? source?.dataSnapshot?.[field.fieldKey] ?? 0;
+            base.push(val);
+          });
+        } else {
+          base.push(report?.suspected24h || 0, report?.confirmed24h || 0);
+        }
+
+        return base;
       });
 
       autoTable(doc, {
@@ -800,13 +831,11 @@ export default function UnifiedReportingHub() {
                       ))}
                    </div>
                  ) : (
-<table className="w-full text-left border-collapse min-w-[1100px]">
+ <table className={`w-full text-left border-collapse ${dynamicFields.length > 5 ? 'min-w-[1500px]' : 'min-w-[1100px]'}`}>
   <thead>
     <tr className="bg-slate-50/50 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
-      <th className="px-10 py-6 border-b border-slate-100 text-center w-[280px]">Facility / Target unit</th>
-      <th className="w-[60px] px-6 py-6 border-b border-slate-100 text-center">Division/District</th>
-      <th className="w-[60px] px-6 py-6 border-b border-slate-100 text-center">Reference Date</th>
-      <th className="w-[60px] px-6 py-6 border-b border-slate-100 text-center">Status</th>
+      <th className="px-10 py-6 border-b border-slate-100 text-center w-[280px]">Facility</th>
+      <th className="w-[60px] px-6 py-6 border-b border-slate-100 text-center">Date <br/> Status</th>
       
       {/* Dynamic Headers */}
       {dynamicFields.length > 0 ? (
@@ -817,9 +846,12 @@ export default function UnifiedReportingHub() {
         ))
       ) : (
         <>
-          <th className="w-[100px] px-6 py-6 border-b border-slate-100 text-center">Susp.</th>
-          <th className="w-[100px] px-6 py-6 border-b border-slate-100 text-center">Conf.</th>
-          {viewMode === 'LOGS' && <th className="w-[100px] px-6 py-6 border-b border-slate-100 text-center">Deaths</th>}
+          <th className="w-[100px] px-6 py-6 border-b border-slate-100 text-center">Susp. Cases</th>
+          <th className="w-[100px] px-6 py-6 border-b border-slate-100 text-center">Conf. Cases</th>
+          <th className="w-[100px] px-6 py-6 border-b border-slate-100 text-center">Susp. Deaths</th>
+          <th className="w-[100px] px-6 py-6 border-b border-slate-100 text-center">Conf. Deaths</th>
+          <th className="w-[100px] px-6 py-6 border-b border-slate-100 text-center">Admitted</th>
+          <th className="w-[100px] px-6 py-6 border-b border-slate-100 text-center">Discharged</th>
         </>
       )}
       
@@ -828,7 +860,7 @@ export default function UnifiedReportingHub() {
   </thead>
   <tbody className="divide-y divide-slate-100">
     {loading ? (
-      <tr><td colSpan={7 + (viewMode === 'LOGS' ? dynamicFields.length : 0)} className="p-32 text-center text-slate-400 font-bold uppercase tracking-widest text-xs">Synchronizing Console Data...</td></tr>
+      <tr><td colSpan={4 + (dynamicFields.length > 0 ? dynamicFields.length : (viewMode === 'LOGS' ? 3 : 2)) + 1} className="p-32 text-center text-slate-400 font-bold uppercase tracking-widest text-xs">Synchronizing Console Data...</td></tr>
     ) : (viewMode === 'LOGS' ? reports : paginatedStatusData).map((item: any) => {
       // item could be a facility (STATUS) or a report (LOGS)
       const isReportMode = viewMode === 'LOGS';
@@ -840,32 +872,27 @@ export default function UnifiedReportingHub() {
         <tr key={item.id} className="group hover:bg-slate-50/50 transition-colors">
           <td className="px-10 py-6">
             <div className="flex items-start gap-4">
-              <div className="flex flex-col min-w-0">
-                <span className="text-sm font-black text-slate-800 tracking-tight break-words leading-tight">{facility?.facilityName || 'Global System'}</span>
-                <span className="text-[10px] font-bold text-slate-400 break-words opacity-70 px-0.5 leading-relaxed">{facility?.email || 'No communication registered'}</span>
-              </div>
-            </div>
-          </td>
-          <td className="px-6 py-6">
-            <div className="flex flex-col">
-              <span className="text-xs font-black text-slate-700 break-words">{facility?.district || 'N/A'}</span>
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] opacity-100">{facility?.division || 'N/A'}</span>
+<div className="flex flex-col min-w-0">
+  <span className="text-sm font-black text-slate-800 tracking-tight break-words leading-tight">
+    {facility?.facilityName || 'Global System'}
+  </span>
+
+  <span className="flex items-center gap-1 text-[10px] font-bold text-slate-400 opacity-70 px-0.5 leading-relaxed">
+    <span className="break-words">{facility?.district || 'N/A'}</span>
+    <Circle className="w-2 h-2" />
+    <span className="break-words">{facility?.division || 'N/A'}</span>
+  </span>
+</div>
             </div>
           </td>
           <td className="px-6 py-6 text-center">
             <div className="flex flex-col items-center">
-              <span className="text-[11px] font-black text-slate-800 tracking-tight whitespace-nowrap">
-                {format(new Date(displayDate), 'dd MMM yyyy')}
-              </span>
-              {isReportMode && item.outbreak && <span className="text-[8px] font-black uppercase text-indigo-500 mt-0.5 bg-indigo-50 px-1.5 rounded break-words max-w-[100px]">{item.outbreak.name}</span>}
-            </div>
-          </td>
-          <td className="px-6 py-6 text-center">
-            {report ? (
+
+                          {report ? (
               <div className="flex flex-col items-center gap-1">
                 <div className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full text-[9px] font-black uppercase tracking-widest border border-emerald-100 flex items-center gap-1 whitespace-nowrap">
                   <Check className="w-3 h-3" />
-                  Received
+                  Submitted
                 </div>
                 {report.published && (
                   <span className="flex items-center gap-1 text-[8px] font-black text-indigo-400 uppercase tracking-tighter whitespace-nowrap"><Globe className="w-2.5 h-2.5" /> Published</span>
@@ -874,6 +901,7 @@ export default function UnifiedReportingHub() {
             ) : (
               <span className="px-3 py-1 bg-red-100 text-red-500 rounded-full text-[9px] font-black uppercase tracking-widest opacity-100 whitespace-nowrap">Missing</span>
             )}
+            </div>
           </td>
 
           {/* Dynamic or Legacy Data Columns */}
@@ -895,13 +923,22 @@ export default function UnifiedReportingHub() {
               <td className="px-6 py-6 text-center">
                 <span className={`text-xs font-black tabular-nums transition-colors break-words ${report ? 'text-emerald-600' : 'text-slate-200'}`}>{report?.confirmed24h ?? '-'}</span>
               </td>
-              {isReportMode && (
-                <td className="px-6 py-6 text-center">
-                  <span className={`text-xs font-black tabular-nums transition-colors break-words ${report ? 'text-rose-600' : 'text-slate-200'}`}>
-                    {(report?.suspectedDeath24h ?? 0) + (report?.confirmedDeath24h ?? 0) || '-'}
-                  </span>
-                </td>
-              )}
+              <td className="px-6 py-6 text-center">
+                <span className={`text-xs font-black tabular-nums transition-colors break-words ${report ? 'text-rose-600' : 'text-slate-200'}`}>
+                  {report?.suspectedDeath24h ?? '-'}
+                </span>
+              </td>
+              <td className="px-6 py-6 text-center">
+                <span className={`text-xs font-black tabular-nums transition-colors break-words ${report ? 'text-rose-800' : 'text-slate-200'}`}>
+                  {report?.confirmedDeath24h ?? '-'}
+                </span>
+              </td>
+              <td className="px-6 py-6 text-center">
+                <span className={`text-xs font-black tabular-nums transition-colors break-words ${report ? 'text-amber-600' : 'text-slate-200'}`}>{report?.admitted24h ?? '-'}</span>
+              </td>
+              <td className="px-6 py-6 text-center">
+                <span className={`text-xs font-black tabular-nums transition-colors break-words ${report ? 'text-slate-500' : 'text-slate-200'}`}>{report?.discharged24h ?? '-'}</span>
+              </td>
             </>
           )}
 
@@ -998,6 +1035,7 @@ export default function UnifiedReportingHub() {
             item={entryModal.item}
             outbreakId={entryModal.outbreakId}
             selectedDate={selectedDate}
+            dynamicFields={dynamicFields}
             onClose={() => setEntryModal({ ...entryModal, isOpen: false })}
             onSuccess={() => {
               setEntryModal({ ...entryModal, isOpen: false });
@@ -1096,7 +1134,8 @@ export default function UnifiedReportingHub() {
   );
 }
 
-function ReportEntryModal({ mode, item, outbreakId, selectedDate, onClose, onSuccess }: any) {
+function ReportEntryModal({ mode, item, outbreakId, selectedDate, dynamicFields, onClose, onSuccess }: any) {
+  const { i18n } = useTranslation();
   const [formData, setFormData] = useState<any>({
     reportingDate: mode === 'EDIT' ? (item.reportingDate || '').split('T')[0] : selectedDate,
     suspected24h: mode === 'EDIT' ? item.suspected24h : '',
@@ -1105,7 +1144,8 @@ function ReportEntryModal({ mode, item, outbreakId, selectedDate, onClose, onSuc
     confirmedDeath24h: mode === 'EDIT' ? item.confirmedDeath24h : '',
     admitted24h: mode === 'EDIT' ? item.admitted24h : '',
     discharged24h: mode === 'EDIT' ? item.discharged24h : '',
-    serumSent24h: mode === 'EDIT' ? item.serumSent24h : ''
+    serumSent24h: mode === 'EDIT' ? item.serumSent24h : '',
+    ...item?.dataSnapshot // For dynamic fields
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -1126,7 +1166,6 @@ function ReportEntryModal({ mode, item, outbreakId, selectedDate, onClose, onSuc
         body: JSON.stringify({
           ...formData,
           facilityId: facility.id,
-          userId: facility.id,
           outbreakId: outbreakId,
           division: facility.division,
           district: facility.district,
@@ -1203,26 +1242,44 @@ function ReportEntryModal({ mode, item, outbreakId, selectedDate, onClose, onSuc
           <div className="h-px bg-slate-100 w-full" />
 
           <div className="grid grid-cols-2 gap-x-8 gap-y-10">
-            {[
-              { label: 'Suspected cases (24h)', key: 'suspected24h' },
-              { label: 'Confirmed cases (24h)', key: 'confirmed24h' },
-              { label: 'Deaths (Suspected/24h)', key: 'suspectedDeath24h' },
-              { label: 'Deaths (Confirmed/24h)', key: 'confirmedDeath24h' },
-              { label: 'Current Admissions', key: 'admitted24h' },
-              { label: 'Discharges (24h)', key: 'discharged24h' },
-            ].map((field) => (
-              <div key={field.key} className="space-y-3">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 leading-tight block">{field.label}</label>
-                <input 
-                  type="number" 
-                  min="0"
-                  placeholder="0"
-                  value={formData[field.key]}
-                  onChange={(e) => setFormData({ ...formData, [field.key]: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-6 text-sm font-black text-indigo-600 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all tabular-nums"
-                />
-              </div>
-            ))}
+            {dynamicFields.length > 0 ? (
+              dynamicFields.map((field: any) => (
+                <div key={field.id} className="space-y-3">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 leading-tight block">
+                    {i18n.language === 'bn' ? field.labelBn || field.label : field.label}
+                  </label>
+                  <input 
+                    type={field.fieldType === 'NUMBER' ? 'number' : 'text'} 
+                    min="0"
+                    placeholder="0"
+                    value={formData[field.fieldKey] || ''}
+                    onChange={(e) => setFormData({ ...formData, [field.fieldKey]: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-6 text-sm font-black text-indigo-600 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all tabular-nums"
+                  />
+                </div>
+              ))
+            ) : (
+              [
+                { label: 'Suspected cases (24h)', key: 'suspected24h' },
+                { label: 'Confirmed cases (24h)', key: 'confirmed24h' },
+                { label: 'Deaths (Suspected/24h)', key: 'suspectedDeath24h' },
+                { label: 'Deaths (Confirmed/24h)', key: 'confirmedDeath24h' },
+                { label: 'Current Admissions', key: 'admitted24h' },
+                { label: 'Discharges (24h)', key: 'discharged24h' },
+              ].map((field) => (
+                <div key={field.key} className="space-y-3">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 leading-tight block">{field.label}</label>
+                  <input 
+                    type="number" 
+                    min="0"
+                    placeholder="0"
+                    value={formData[field.key]}
+                    onChange={(e) => setFormData({ ...formData, [field.key]: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-6 text-sm font-black text-indigo-600 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all tabular-nums"
+                  />
+                </div>
+              ))
+            )}
           </div>
         </form>
 

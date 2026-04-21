@@ -2,6 +2,72 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import * as XLSX from "xlsx";
+import { createAuditLog, AuditActions } from "@/lib/audit";
+
+export async function GET(req: Request) {
+  const session = await getServerSession(authOptions);
+  if (!session || session.user.role !== "ADMIN") {
+    return new Response("Unauthorized", { status: 401 });
+  }
+
+  try {
+    const { searchParams } = new URL(req.url);
+    const outbreakId = searchParams.get("outbreakId");
+
+    if (!outbreakId) {
+      return new Response("Outbreak ID is required", { status: 400 });
+    }
+
+    const [users, formFields] = await Promise.all([
+      prisma.user.findMany({
+        where: { role: "USER", isActive: true },
+        include: { facility: true },
+        orderBy: { facility: { district: "asc" } }
+      }),
+      prisma.formField.findMany({
+        where: { outbreakId, fieldType: "NUMBER" },
+        orderBy: { sortOrder: "asc" }
+      })
+    ]);
+
+    const reportingDate = new Date().toISOString().split('T')[0];
+
+    const data = users.map(u => {
+      const row: any = {
+        "Division": u.facility?.division || "",
+        "District": u.facility?.district || "",
+        "Facility Name": u.facility?.facilityName || "",
+        "Email": u.email,
+        "Reporting Date": reportingDate,
+      };
+
+      // Add dynamic fields with 0 as default
+      formFields.forEach(f => {
+        row[f.label] = 0;
+      });
+
+      return row;
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Sample Reports");
+
+    const buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
+
+    return new Response(buffer, {
+      headers: {
+        "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "Content-Disposition": `attachment; filename="sample_reports_${outbreakId}.xlsx"`
+      }
+    });
+
+  } catch (error: any) {
+    console.error("Sample generation error:", error);
+    return new Response("Failed to generate sample", { status: 500 });
+  }
+}
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
@@ -15,55 +81,96 @@ export async function POST(req: Request) {
     const outbreakId = formData.get("outbreakId") as string;
     
     if (!outbreakId) {
-      return NextResponse.json({ error: "Outbreak ID is required" }, { status: 400 });
+      return NextResponse.json({ error: "Outbreak ID is required. Please select an outbreak context." }, { status: 400 });
     }
     
     if (!file) {
       return NextResponse.json({ error: "No file uploaded" }, { status: 400 });
     }
 
-    const text = await file.text();
-    const lines = text.trim().split("\n");
-    const headers = lines[0].split(",").map(h => h.trim().toLowerCase());
+    const formFields = await prisma.formField.findMany({
+      where: { outbreakId }
+    });
+
+    const buffer = await file.arrayBuffer();
+    const workbook = XLSX.read(buffer, { type: 'array' });
+    const firstSheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[firstSheetName];
     
-    const requiredHeaders = ["email", "reportingdate", "division", "district", "suspected24h", "confirmed24h", "suspecteddeath24h", "confirmeddeath24h", "admitted24h", "discharged24h"];
-    const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
+    // Convert to JSON with headers
+    const jsonData: any[] = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
     
-    if (missingHeaders.length > 0) {
-      return NextResponse.json({ error: `Missing required headers: ${missingHeaders.join(", ")}` }, { status: 400 });
+    if (jsonData.length === 0) {
+      return NextResponse.json({ error: "The uploaded file is empty" }, { status: 400 });
+    }
+
+    // Normalize keys to lowercase for robust matching
+    const rows = jsonData.map(row => {
+      const normalizedRow: any = {};
+      Object.keys(row).forEach(key => {
+        normalizedRow[key.trim().toLowerCase()] = row[key];
+      });
+      return normalizedRow;
+    });
+
+    const mandatoryKeys = ["email", "reporting date"];
+    const firstRowKeys = Object.keys(rows[0]);
+    const missingMandatory = mandatoryKeys.filter(k => !firstRowKeys.includes(k.toLowerCase()));
+    
+    if (missingMandatory.length > 0) {
+      return NextResponse.json({ 
+        error: `Missing required columns: ${missingMandatory.join(", ")}. Please use the downloadable template.` 
+      }, { status: 400 });
     }
 
     const results = { success: 0, failed: 0, errors: [] as string[] };
 
-    for (let i = 1; i < lines.length; i++) {
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
       try {
-        const values = lines[i].split(",").map(v => v.trim());
-        const row: any = {};
-        headers.forEach((h, idx) => {
-          row[h] = values[idx];
-        });
-
         const user = await prisma.user.findUnique({
-          where: { email: row.email },
+          where: { email: String(row.email).trim() },
           include: { facility: true },
         });
 
         if (!user || !user.facilityId) {
           results.failed++;
-          results.errors.push(`Row ${i + 1}: User or facility not found for email ${row.email}`);
+          results.errors.push(`Row ${i + 2}: User or facility not found for email ${row.email}`);
           continue;
         }
 
-        const reportingDate = new Date(row.reportingdate);
+        let reportingDate: Date;
+        const dateVal = row["reporting date"];
+        if (typeof dateVal === 'number') {
+            reportingDate = XLSX.SSF.parse_date_code(dateVal) ? new Date(Math.round((dateVal - 25569) * 86400 * 1000)) : new Date();
+        } else {
+            reportingDate = new Date(dateVal);
+        }
+
+        if (isNaN(reportingDate.getTime())) {
+            results.failed++;
+            results.errors.push(`Row ${i + 2}: Invalid date format for ${dateVal}`);
+            continue;
+        }
+
         const startOfDay = new Date(reportingDate);
         startOfDay.setHours(0, 0, 0, 0);
         const endOfDay = new Date(reportingDate);
         endOfDay.setHours(23, 59, 59, 999);
         
+        // Dynamic Payload Extraction
+        const dataPayload: any = {};
+        for (const field of formFields) {
+          const val = row[field.fieldKey.toLowerCase()] ?? row[field.label.toLowerCase()];
+          if (val !== undefined && field.fieldType === "NUMBER") {
+            dataPayload[field.fieldKey] = parseInt(val) || 0;
+          }
+        }
+
         const existing = await prisma.dailyReport.findFirst({
           where: {
             facilityId: user.facilityId,
-            outbreakId: outbreakId as any,
+            outbreakId: outbreakId,
             reportingDate: {
               gte: startOfDay,
               lte: endOfDay,
@@ -74,38 +181,41 @@ export async function POST(req: Request) {
         if (existing) {
           await prisma.dailyReport.update({
             where: { id: existing.id },
-            data: {
-              suspected24h: parseInt(row.suspected24h) || 0,
-              confirmed24h: parseInt(row.confirmed24h) || 0,
-              suspectedDeath24h: parseInt(row.suspecteddeath24h) || 0,
-              confirmedDeath24h: parseInt(row.confirmeddeath24h) || 0,
-              admitted24h: parseInt(row.admitted24h) || 0,
-              discharged24h: parseInt(row.discharged24h) || 0,
-            },
+            data: dataPayload,
           });
         } else {
           await prisma.dailyReport.create({
             data: {
+              ...dataPayload,
               facilityId: user.facilityId,
               userId: user.id,
-              reportingDate: new Date(row.reportingdate),
-              suspected24h: parseInt(row.suspected24h) || 0,
-              confirmed24h: parseInt(row.confirmed24h) || 0,
-              suspectedDeath24h: parseInt(row.suspecteddeath24h) || 0,
-              confirmedDeath24h: parseInt(row.confirmeddeath24h) || 0,
-              admitted24h: parseInt(row.admitted24h) || 0,
-              discharged24h: parseInt(row.discharged24h) || 0,
-              serumSent24h: 0,
-              outbreakId: outbreakId as any,
-            } as any,
+              reportingDate: reportingDate,
+              outbreakId: outbreakId,
+              published: true
+            },
           });
         }
         results.success++;
       } catch (err: any) {
         results.failed++;
-        results.errors.push(`Row ${i + 1}: ${err.message}`);
+        results.errors.push(`Row ${i + 2}: ${err.message}`);
       }
     }
+
+    // Create Audit Log
+    await createAuditLog({
+      userId: session.user.id,
+      action: AuditActions.BULK_UPLOAD,
+      entityType: "DailyReport",
+      entityId: outbreakId,
+      details: {
+        fileName: file.name,
+        totalRows: rows.length,
+        successCount: results.success,
+        failedCount: results.failed,
+        outbreakId
+      }
+    });
 
     return NextResponse.json({
       message: `Processed ${results.success + results.failed} records`,
@@ -114,7 +224,7 @@ export async function POST(req: Request) {
       errors: results.errors.slice(0, 10),
     });
   } catch (error: any) {
-    console.error("CSV upload error:", error);
-    return NextResponse.json({ error: "Failed to process CSV" }, { status: 500 });
+    console.error("Bulk upload error:", error);
+    return NextResponse.json({ error: "Failed to process file: " + error.message }, { status: 500 });
   }
 }

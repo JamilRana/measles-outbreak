@@ -60,7 +60,7 @@ export async function POST(req: Request) {
 
     await createAuditLog({
       userId: session.user.id,
-      action: "FACILITY_CREATE",
+      action: AuditActions.FACILITY_CREATE,
       entityType: "FACILITY",
       entityId: facility.id,
       details: { name: facility.facilityName }
@@ -102,7 +102,7 @@ export async function PATCH(req: Request) {
 
     await createAuditLog({
       userId: session.user.id,
-      action: "FACILITY_UPDATE",
+      action: AuditActions.FACILITY_UPDATE,
       entityType: "FACILITY",
       entityId: facility.id,
       details: { name: facility.facilityName }
@@ -112,5 +112,60 @@ export async function PATCH(req: Request) {
   } catch (error) {
     console.error("Update facility error:", error);
     return NextResponse.json({ error: "Failed to update facility" }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: Request) {
+  const session = await getServerSession(authOptions);
+  if (!session || session.user.role !== "ADMIN") {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  try {
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get("id");
+
+    if (!id) {
+      return NextResponse.json({ error: "Facility ID is required" }, { status: 400 });
+    }
+
+    // Check for associated data
+    const [userCount, dailyReportCount, reportCount, windowCount, slotCount] = await Promise.all([
+      prisma.user.count({ where: { facilityId: id } }),
+      prisma.dailyReport.count({ where: { facilityId: id } }),
+      prisma.report.count({ where: { facilityId: id } }),
+      prisma.submissionWindow.count({ where: { facilityId: id } }),
+      prisma.backlogSlot.count({ where: { facilityId: id } })
+    ]);
+
+    const totalDataPoints = userCount + dailyReportCount + reportCount + windowCount + slotCount;
+
+    if (totalDataPoints > 0) {
+      return NextResponse.json({ 
+        error: "Cannot delete facility with existing data", 
+        details: {
+          users: userCount,
+          reports: dailyReportCount + reportCount,
+          scheduling: windowCount + slotCount
+        }
+      }, { status: 400 });
+    }
+
+    const facility = await prisma.facility.delete({
+      where: { id }
+    });
+
+    await createAuditLog({
+      userId: session.user.id,
+      action: AuditActions.FACILITY_DELETE,
+      entityType: "FACILITY",
+      entityId: id,
+      details: { name: facility.facilityName, code: facility.facilityCode }
+    });
+
+    return NextResponse.json({ message: "Facility deleted successfully" });
+  } catch (error) {
+    console.error("Delete facility error:", error);
+    return NextResponse.json({ error: "Failed to delete facility" }, { status: 500 });
   }
 }

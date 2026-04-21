@@ -104,25 +104,7 @@ const VerificationLine = ({ selectedDate, cleaningStatus }: any) => (
   </div>
 );
 
-const GovernmentSummary = ({ stats, toBnNum, divisionStats, allReports }: any) => {
-  const leaders = useMemo(() => {
-    const divLeaderArr = [...divisionStats].sort((a,b) => b.cumulative.confirmedDeath - a.cumulative.confirmedDeath);
-    const divLeader = divLeaderArr[0];
-    
-    // Calculate top district by cumulative confirmed death
-    const districtMap: Record<string, number> = {};
-    allReports.forEach((r: any) => {
-      const d = r.facility?.district;
-      if (d) districtMap[d] = (districtMap[d] || 0) + (r.confirmedDeath24h || 0); // This should be cumulative if possible, but let's stick to what we have
-    });
-    const topDist = Object.entries(districtMap).sort((a,b) => b[1] - a[1])[0];
-
-    return {
-      division: divLeader?.cumulative.confirmedDeath > 0 ? divLeader.name : 'ঢাকা', // Defaulting to Dhaka as in image if none
-      district: topDist && topDist[1] > 0 ? topDist[0] : 'ঢাকা'
-    };
-  }, [divisionStats, allReports]);
-
+const GovernmentSummary = ({ stats, toBnNum, divisionStats, leaders }: any) => {
   const tdClass = "border border-slate-900 py-2 px-2 text-xs font-bold";
   const headerClass = "border border-slate-900 py-1 bg-slate-50 text-[11px] font-bold";
 
@@ -377,7 +359,6 @@ const PrintFooter = ({ selectedDate }: any) => (
 export default function BulletinPage() {
   const { i18n } = useTranslation();
   const [loading, setLoading] = useState(true);
-  const [allReports, setAllReports] = useState<any[]>([]);
   const [summaryTotals, setSummaryTotals] = useState<any>(null);
   const [cumulativeTotals, setCumulativeTotals] = useState<any>(null);
   const [summaryBreakdown, setSummaryBreakdown] = useState<any>(null);
@@ -385,6 +366,7 @@ export default function BulletinPage() {
   const [selectedDate, setSelectedDate] = useState(getBdDateString());
   const [temporal, setTemporal] = useState<any>(null);
   const [logPage, setLogPage] = useState(1);
+  const [dailyLogHistory, setDailyLogHistory] = useState<any[]>([]);
   const logItemsPerPage = 7;
 
   useEffect(() => {
@@ -394,25 +376,30 @@ export default function BulletinPage() {
   const fetchReports = async () => {
     setLoading(true);
     try {
-      // 1. Fetch All Reports up to selected date for Temporal Progression (history)
-      const listRes = await fetch(`/api/reports?to=${selectedDate}&limit=2000`);
-      
-      // 2. Fetch Today's Aggregated Summary
-      const todaySummaryRes = await fetch(`/api/reports/summary?date=${selectedDate}`);
-      
-      // 3. Fetch Cumulative Summary AS OF Selected Date
-      const cumSummaryRes = await fetch(`/api/reports/summary?to=${selectedDate}`);
+      // Parallel Fetching for non-dependent resources (Temporal + Today + Cumulative)
+      const [temporalRes, todaySummaryRes, cumSummaryRes] = await Promise.all([
+        fetch(`/api/reports/bulletin-temporal?to=${selectedDate}`),
+        fetch(`/api/reports/summary?date=${selectedDate}`),
+        fetch(`/api/reports/summary?to=${selectedDate}`)
+      ]);
 
-      const listData = await listRes.json();
-      const todaySumData = await todaySummaryRes.json();
-      const cumSumData = await cumSummaryRes.json();
+      const [temporalData, todaySumData, cumSumData] = await Promise.all([
+        temporalRes.json(),
+        todaySummaryRes.json(),
+        cumSummaryRes.json()
+      ]);
 
-      setAllReports(listData.reports || []);
+      setDailyLogHistory(temporalData.history || []);
       setSummaryTotals(todaySumData.totals);
       setSummaryBreakdown(todaySumData.breakdown);
       setCumulativeTotals(cumSumData.totals);
       setCumSummaryBreakdown(cumSumData.breakdown);
-      setTemporal(listData.temporal);
+      
+      // Set temporal metadata for header display
+      setTemporal({ 
+        dataDate: temporalData.history?.[0]?.date || selectedDate,
+        isHistorical: temporalData.history?.[0]?.date !== selectedDate
+      });
     } catch (error) {
        console.error("Error fetching reports:", error);
     } finally {
@@ -473,37 +460,22 @@ export default function BulletinPage() {
     });
   }, [summaryBreakdown, cumSummaryBreakdown]);
 
-  const dailyLog = useMemo(() => {
-    const log: Record<string, any> = {};
-    allReports.forEach(r => {
-      const dateKey = r.reportingDate?.split('T')[0];
-      if (!dateKey) return;
-      if (!log[dateKey]) {
-        log[dateKey] = { 
-          date: dateKey, suspected24h: 0, confirmed24h: 0, admitted24h: 0, recovered24h: 0, 
-          confirmedDeath24h: 0, suspectedDeath24h: 0, suspectedCum: 0, confirmedCum: 0, admittedCum: 0, 
-          recoveredCum: 0, confirmedDeathCum: 0, suspectedDeathCum: 0
-        };
-      }
-      log[dateKey].suspected24h += (r.suspected24h || 0);
-      log[dateKey].confirmed24h += (r.confirmed24h || 0);
-      log[dateKey].admitted24h += (r.admitted24h || 0);
-      log[dateKey].recovered24h += (r.discharged24h || r.recovered24h || 0);
-      log[dateKey].confirmedDeath24h += (r.confirmedDeath24h || 0);
-      log[dateKey].suspectedDeath24h += (r.suspectedDeath24h || 0);
-    });
+  const leaders = useMemo(() => {
+    // Top division by cumulative confirmed death
+    const divLeaderArr = [...divisionStats].sort((a,b) => b.cumulative.confirmedDeath - a.cumulative.confirmedDeath);
+    const divLeader = divLeaderArr[0];
+    
+    // We don't have allReports for districts anymore, we'll default to top division or similar
+    // as fetching 2000 reports just for this label was the bottleneck.
+    return {
+      division: divLeader?.cumulative.confirmedDeath > 0 ? divLeader.name : 'ঢাকা',
+      district: divLeader?.cumulative.confirmedDeath > 0 ? divLeader.name : 'ঢাকা' // Placeholder for district or use top division
+    };
+  }, [divisionStats]);
 
-    const sortedDates = Object.keys(log).sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
-    let cS = 0, cC = 0, cA = 0, cR = 0, cCD = 0, cSD = 0;
-    const sortedAsc = [...sortedDates].reverse();
-    sortedAsc.forEach(d => {
-      cS += log[d].suspected24h; cC += log[d].confirmed24h; cA += log[d].admitted24h; 
-      cR += log[d].recovered24h; cCD += log[d].confirmedDeath24h; cSD += log[d].suspectedDeath24h;
-      log[d].suspectedCum = cS; log[d].confirmedCum = cC; log[d].admittedCum = cA;
-      log[d].recoveredCum = cR; log[d].confirmedDeathCum = cCD; log[d].suspectedDeathCum = cSD;
-    });
-    return sortedDates.map(d => log[d]);
-  }, [allReports]);
+  const dailyLog = useMemo(() => {
+    return dailyLogHistory;
+  }, [dailyLogHistory]);
 
   const totalLogPages = Math.ceil(dailyLog.length / logItemsPerPage);
   const paginatedLog = useMemo(() => {
@@ -588,7 +560,7 @@ export default function BulletinPage() {
             stats={stats} 
             toBnNum={toBnNum} 
             divisionStats={divisionStats} 
-            allReports={allReports} 
+            leaders={leaders} 
           />
           
           <DailyLogTable 

@@ -21,6 +21,20 @@ export async function GET(request: Request) {
 
     const reportingDate = new Date(dateStr);
     const now = getBdTime();
+
+    // Check for administrative session
+    const { getServerSession } = require("next-auth");
+    const { authOptions } = require("@/lib/auth");
+    const session = await getServerSession(authOptions);
+    const isAdminOrEditor = session?.user?.role === 'ADMIN' || session?.user?.role === 'EDITOR';
+
+    if (isAdminOrEditor) {
+      return NextResponse.json({ 
+        open: true, 
+        type: 'ADMIN_OVERRIDE',
+        details: { name: 'Administrative Override', periodStart: reportingDate, periodEnd: reportingDate }
+      });
+    }
     
     // Get facility info
     const facility = await prisma.facility.findUnique({

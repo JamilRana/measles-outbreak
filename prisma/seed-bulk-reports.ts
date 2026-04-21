@@ -137,6 +137,86 @@ const rawData: any = {
     ['Bogura', 15, 6, 4, 0, 0, 0], ['Chapainawabganj', 26, 26, 22, 0, 0, 0], ['Joypurhat', 6, 4, 1, 0, 1, 0], ['Naogaon', 18, 5, 2, 0, 0, 0], ['Natore', 13, 10, 6, 0, 0, 0], ['Pabna', 20, 20, 23, 0, 6, 0], ['Rajshahi', 124, 18, 32, 1, 2, 0], ['Sirajganj', 3, 3, 2, 0, 3, 0],
     ['Dinajpur', 19, 8, 12, 0, 4, 0], ['Gaibandha', 2, 1, 0, 0, 0, 0], ['Kurigram', 5, 3, 4, 0, 0, 0], ['Lalmonirhat', 3, 2, 4, 0, 0, 0], ['Nilphamari', 16, 2, 5, 0, 0, 0], ['Panchagarh', 3, 0, 0, 0, 0, 0], ['Rangpur', 4, 0, 0, 0, 0, 0], ['Thakurgaon', 2, 1, 1, 0, 0, 0],
     ['Habiganj', 2, 1, 3, 0, 0, 0], ['Moulvibazar', 8, 5, 4, 0, 0, 0], ['Sunamganj', 17, 11, 8, 0, 0, 0], ['Sylhet', 21, 9, 15, 1, 0, 0]
+  ],
+  '2026-04-18': [
+    ['Barguna', 28, 16, 2, 2, 0, 2], ['Barisal', 1, 2, 4, 0, 0, 0], ['Bhola', 9, 4, 8, 0, 0, 0], ['Jhalokati', 8, 0, 0, 0, 0, 0], ['Patuakhali', 17, 17, 14, 0, 0, 0], ['Pirojpur', 0, 0, 0, 0, 0, 0],
+    ['Bandarban', 0, 0, 0, 0, 0, 0], ['Brahmanbaria', 6, 6, 3, 0, 0, 0], ['Chandpur', 18, 18, 5, 0, 0, 0], ['Chattogram', 8, 8, 4, 0, 2, 0], ['Coxsbazar', 23, 23, 8, 0, 0, 0], ['Cumilla', 15, 15, 21, 0, 0, 0], ['Feni', 0, 0, 0, 0, 0, 0], ['Khagrachari', 0, 0, 0, 0, 0, 0], ['Lakshmipur', 11, 11, 4, 0, 0, 0], ['Noakhali', 15, 15, 10, 0, 0, 0], ['Rangamati', 0, 0, 0, 0, 0, 0],
+    ['Dhaka', 329, 108, 101, 1, 80, 0], ['Faridpur', 16, 16, 3, 1, 0, 0], ['Gazipur', 13, 13, 4, 0, 0, 0], ['Gopalganj', 28, 18, 10, 0, 0, 0], ['Kishoreganj', 28, 20, 15, 0, 0, 0], ['Madaripur', 12, 12, 8, 0, 0, 0], ['Manikganj', 11, 11, 16, 0, 0, 0], ['Munshiganj', 2, 2, 2, 0, 0, 0], ['Narayanganj', 0, 0, 0, 0, 0, 0], ['Narsingdi', 18, 18, 7, 0, 0, 0], ['Rajbari', 3, 3, 1, 0, 0, 0], ['Shariatpur', 0, 0, 0, 0, 0, 0], ['Tangail', 82, 19, 18, 0, 1, 0],
+    ['Bagerhat', 0, 0, 0, 0, 0, 0], ['Chuadanga', 1, 1, 1, 0, 0, 0], ['Jashore', 11, 10, 16, 0, 1, 0], ['Jhenaidah', 0, 0, 0, 0, 0, 0], ['Khulna', 8, 8, 17, 0, 0, 0], ['Kushtia', 17, 17, 29, 0, 0, 0], ['Magura', 8, 0, 7, 0, 0, 0], ['Meherpur', 0, 0, 0, 0, 0, 0], ['Narail', 0, 0, 0, 0, 0, 0], ['Satkhira', 0, 0, 0, 0, 0, 0],
+    ['Jamalpur', 0, 0, 2, 0, 0, 0], ['Mymensingh', 0, 0, 0, 0, 0, 0], ['Netrokona', 5, 5, 0, 0, 0, 0], ['Sherpur', 0, 0, 0, 0, 0, 0],
+    ['Bogura', 8, 2, 3, 0, 0, 0], ['Chapainawabganj', 34, 34, 17, 0, 0, 0], ['Joypurhat', 3, 3, 1, 0, 0, 0], ['Naogaon', 8, 0, 4, 0, 0, 0], ['Natore', 0, 0, 0, 0, 0, 0], ['Pabna', 20, 20, 11, 0, 0, 0], ['Rajshahi', 143, 24, 10, 0, 0, 0], ['Sirajganj', 2, 2, 5, 0, 2, 0],
+    ['Dinajpur', 0, 0, 0, 0, 0, 0], ['Gaibandha', 2, 2, 1, 0, 0, 0], ['Kurigram', 0, 0, 0, 0, 0, 0], ['Lalmonirhat', 1, 1, 0, 0, 0, 0], ['Nilphamari', 0, 0, 2, 0, 0, 0], ['Panchagarh', 0, 0, 0, 0, 0, 0], ['Rangpur', 0, 0, 0, 0, 0, 0], ['Thakurgaon', 0, 0, 0, 0, 0, 0],
+    ['Habiganj', 5, 5, 2, 0, 0, 0], ['Moulvibazar', 14, 14, 30, 0, 0, 0], ['Sunamganj', 4, 4, 4, 0, 0, 0], ['Sylhet', 5, 5, 4, 0, 0, 0]
+  ],
+  '2026-03-31': [
+    ['Barguna', 76, 76, 58, 0, 17, 0], ['Barisal', 204, 204, 98, 7, 54, 0], ['Bhola', 9, 8, 1, 0, 4, 2], ['Jhalkathi', 18, 1, 0, 0, 1, 0], ['Patuakhali', 47, 31, 29, 0, 1, 0], ['Pirojpur', 23, 5, 5, 0, 0, 0],
+    ['Chattogram', 75, 29, 0, 0, 0, 0], ['Feni', 11, 0, 0, 0, 1, 0], ['Noakhali', 37, 37, 37, 0, 6, 0],
+    ['Dhaka', 26, 3, 24, 0, 26, 0], ['Faridpur', 42, 22, 0, 0, 3, 0], ['Gazipur', 44, 22, 0, 0, 0, 0], ['Gopalganj', 28, 28, 16, 0, 1, 0], ['Kishoreganj', 35, 15, 2, 0, 12, 0], ['Madaripur', 14, 14, 0, 1, 0, 0], ['Manikganj', 28, 13, 4, 0, 0, 0], ['Munshiganj', 25, 0, 1, 0, 10, 0], ['Narsingdi', 34, 0, 0, 0, 12, 0], ['Rajbari', 15, 11, 0, 0, 3, 0], ['Rajbari', 15, 0, 10, 0, 2, 0], ['Shariatpur', 16, 0, 14, 0, 16, 2],
+    ['Chuadanga', 0, 0, 0, 0, 0, 0], ['Jashore', 103, 18, 22, 0, 21, 0], ['Jhenaidah', 18, 17, 10, 0, 3, 0], ['Khulna', 21, 0, 6, 0, 0, 0], ['Kushtia', 56, 56, 48, 1, 11, 0], ['Magura', 25, 1, 0, 0, 3, 0], ['Meherpur', 4, 1, 1, 0, 0, 0], ['Satkhira', 1, 1, 0, 0, 0, 0],
+    ['Jamalpur', 17, 8, 12, 0, 0, 0], ['Mymensingh', 4, 0, 0, 0, 0, 0], ['Netrokona', 23, 4, 4, 1, 10, 0], ['Sherpur', 3, 2, 0, 0, 0, 0],
+    ['Bogura', 15, 6, 4, 0, 0, 0], ['Chapainawabganj', 260, 260, 232, 6, 38, 0], ['Joypurhat', 5, 5, 0, 0, 0, 0], ['Naogaon', 41, 2, 0, 1, 9, 1], ['Natore', 41, 26, 26, 0, 13, 0], ['Pabna', 8, 145, 121, 0, 56, 2], ['Rajshahi', 110, 315, 51, 15, 24, 0], ['Sirajganj', 9, 408, 0, 0, 9, 0],
+    ['Dinajpur', 0, 0, 0, 0, 0, 0], ['Gaibandha', 3, 3, 0, 0, 0, 0], ['Kurigram', 8, 0, 1, 0, 1, 0], ['Lalmonirhat', 0, 0, 0, 0, 0, 0], ['Panchagarh', 0, 0, 0, 0, 0, 0], ['Rangpur', 0, 0, 0, 0, 0, 0], ['Thakurgaon', 8, 0, 0, 0, 2, 0],
+    ['Habiganj', 23, 23, 23, 0, 4, 0], ['Moulvibazar', 23, 4, 0, 0, 5, 0], ['Sunamganj', 33, 0, 0, 0, 2, 0], ['Sylhet', 26, 26, 26, 0, 3, 0]
+  ],
+  '2026-04-06': [
+    ['Barguna', 50, 11, 16, 0, 10, 0], ['Barisal', 3, 2, 0, 0, 0, 0], ['Bhola', 7, 5, 18, 0, 0, 0], ['Jhalkathi', 15, 4, 1, 0, 0, 0], ['Pirojpur', 12, 7, 1, 0, 0, 0],
+    ['Bandarban', 4, 0, 0, 0, 0, 0], ['Brahmanbaria', 1, 1, 3, 0, 1, 0], ['Chandpur', 30, 9, 17, 0, 0, 0], ['Chattogram', 27, 17, 11, 0, 2, 0], ['Coxsbazar', 23, 16, 28, 0, 2, 0], ['Cumilla', 30, 15, 15, 0, 5, 0], ['Feni', 11, 5, 13, 0, 0, 0], ['Khagrachari', 0, 0, 0, 0, 0, 0], ['Lakshmipur', 8, 7, 16, 0, 0, 0], ['Noakhali', 17, 17, 9, 0, 0, 0], ['Rangamati', 3, 0, 1, 0, 0, 0],
+    ['Dhaka', 317, 158, 201, 5, 138, 1], ['Faridpur', 25, 19, 20, 0, 0, 0], ['Gazipur', 11, 11, 16, 0, 0, 0], ['Gopalganj', 13, 12, 6, 0, 4, 0], ['Kishoreganj', 19, 2, 0, 0, 2, 0], ['Madaripur', 12, 10, 3, 0, 0, 0], ['Manikganj', 18, 6, 10, 0, 0, 0], ['Munshiganj', 6, 3, 2, 0, 0, 0], ['Narayanganj', 12, 0, 0, 0, 0, 0], ['Narsingdi', 9, 9, 9, 0, 0, 0], ['Rajbari', 9, 6, 2, 0, 0, 0], ['Shariatpur', 16, 4, 4, 0, 4, 1], ['Tangail', 11, 16, 21, 0, 1, 0],
+    ['Bagerhat', 2, 2, 0, 0, 0, 0], ['Chuadanga', 1, 1, 0, 0, 0, 0], ['Jashore', 31, 11, 8, 0, 2, 0], ['Jhenaidah', 8, 3, 3, 0, 0, 0], ['Khulna', 1, 1, 8, 0, 4, 0], ['KUSHTIA', 32, 32, 33, 0, 0, 0], ['Magura', 9, 5, 2, 0, 0, 0], ['Meherpur', 14, 5, 2, 0, 0, 0], ['Narail', 0, 0, 4, 0, 3, 0], ['Satkhira', 3, 3, 2, 0, 0, 0],
+    ['Jamalpur', 13, 13, 5, 0, 0, 0], ['Mymensingh', 6, 0, 0, 0, 0, 0], ['Netrokona', 12, 6, 8, 0, 0, 0], ['Sherpur', 7, 3, 8, 0, 0, 0],
+    ['Joypurhat', 12, 1, 7, 0, 0, 0], ['Bogura', 23, 6, 13, 0, 0, 0], ['chapainawabganj', 33, 33, 29, 0, 0, 0], ['Naogaon', 15, 3, 1, 0, 0, 0], ['Natore', 6, 8, 1, 0, 0, 0], ['Pabna', 21, 21, 11, 0, 0, 0], ['Rajshahi', 145, 20, 5, 2, 0, 0], ['Sirajganj', 5, 5, 8, 0, 5, 0],
+    ['Dinajpur', 43, 12, 8, 0, 1, 0], ['Gaibandha', 9, 1, 0, 0, 0, 0], ['Kurigram', 4, 4, 0, 0, 0, 0], ['Lalmonirhat', 6, 2, 2, 0, 0, 0], ['Nilphamari', 15, 3, 0, 0, 0, 0], ['Panchagarh', 4, 0, 0, 0, 0, 0], ['Rangpur', 8, 1, 0, 0, 0, 0], ['Thakurgaon', 17, 7, 3, 0, 1, 0],
+    ['Habiganj', 8, 7, 3, 0, 1, 0], ['Moulvibazar', 15, 7, 9, 0, 2, 0], ['Sunamganj', 21, 9, 5, 0, 3, 0], ['Sylhet', 22, 21, 6, 0, 0, 0]
+  ],
+  '2026-04-05': [
+    ['Barguna', 10, 10, 6, 0, 0, 0], ['Barisal', 11, 5, 0, 0, 0, 0], ['Bhola', 2, 2, 2, 0, 0, 0], ['Jhalkathi', 6, 2, 1, 0, 1, 0], ['Patuakhali', 17, 16, 11, 0, 0, 0], ['Pirojpur', 3, 0, 3, 0, 2, 0],
+    ['Bandarban', 1, 1, 2, 0, 0, 0], ['Brahmanbaria', 8, 8, 0, 0, 0, 0], ['Chandpur', 16, 2, 6, 0, 1, 0], ['Chattogram', 35, 28, 28, 0, 0, 0], ['Coxsbazar', 31, 31, 37, 2, 0, 0], ['Cumilla', 54, 24, 10, 0, 0, 0], ['Feni', 15, 5, 2, 0, 0, 0], ['Khagrachari', 1, 1, 1, 0, 0, 0], ['Lakshmipur', 19, 17, 2, 0, 0, 0], ['Noakhali', 14, 13, 5, 0, 0, 0], ['rangamati', 1, 1, 2, 0, 0, 0],
+    ['Dhaka', 233, 177, 168, 0, 57, 2], ['Faridpur', 13, 11, 6, 0, 0, 0], ['Gazipur', 17, 17, 21, 0, 3, 0], ['Gopalganj', 20, 14, 7, 0, 0, 0], ['Kishoreganj', 6, 1, 0, 0, 1, 0], ['Madaripur', 13, 12, 4, 0, 0, 0], ['Manikganj', 11, 7, 4, 0, 0, 0], ['Munshiganj', 0, 0, 0, 0, 0, 0], ['narayanganj', 15, 5, 12, 0, 0, 0], ['Narsingdi', 16, 16, 6, 0, 0, 0], ['Rajbari', 0, 0, 0, 0, 0, 0], ['Shariatpur', 14, 3, 8, 0, 0, 0], ['Tangail', 42, 20, 3, 0, 0, 0],
+    ['Bagerhat', 5, 5, 0, 0, 0, 0], ['Chuadanga', 3, 3, 1, 0, 0, 0], ['Jashore', 5, 5, 8, 0, 0, 0], ['Jhenaidah', 8, 3, 2, 0, 0, 0], ['Khulna', 6, 6, 3, 0, 0, 0], ['Kushtia', 23, 23, 10, 5, 0, 0], ['Magura', 10, 6, 0, 0, 0, 0], ['Meherpur', 4, 4, 5, 0, 0, 0], ['Narail', 5, 5, 2, 0, 0, 0], ['Satkhira', 13, 13, 7, 0, 0, 0],
+    ['Jamalpur', 3, 3, 4, 0, 0, 1], ['Mymensingh', 17, 1, 0, 0, 1, 0], ['Netrokona', 26, 16, 3, 0, 0, 0], ['Sherpur', 3, 3, 0, 0, 0, 0],
+    ['Bogura', 10, 7, 1, 0, 0, 0], ['Chapainawabganj', 29, 31, 31, 0, 0, 0], ['Joypurhat', 21, 3, 2, 0, 0, 0], ['Naogaon', 22, 4, 0, 1, 1, 0], ['Natore', 4, 4, 2, 0, 0, 0], ['Pabna', 5, 5, 9, 0, 0, 0], ['Rajshahi', 24, 14, 36, 2, 0, 0], ['Sirajganj', 9, 9, 4, 0, 9, 0],
+    ['Dinajpur', 5, 4, 6, 0, 0, 0], ['Gaibandha', 11, 1, 2, 0, 0, 0], ['Kurigram', 1, 1, 1, 0, 0, 0], ['Nilphamari', 10, 3, 1, 0, 0, 0], ['Panchagarh', 4, 0, 0, 0, 0, 0], ['Rangpur', 1, 0, 0, 0, 0, 0], ['Thakurgaon', 0, 0, 0, 0, 0, 0],
+    ['Habiganj', 5, 4, 0, 0, 0, 0], ['Moulvibazar', 8, 8, 7, 0, 0, 0], ['Sunamganj', 18, 12, 4, 0, 1, 0], ['Sylhet', 23, 19, 8, 0, 0, 0]
+  ],
+  '2026-04-04': [
+    ['Barguna', 14, 14, 6, 0, 0, 0], ['Barisal', 1, 1, 0, 0, 0, 0], ['Bhola', 4, 4, 2, 0, 0, 0], ['Jhalkathi', 0, 0, 1, 0, 0, 0], ['Patuakhali', 16, 16, 8, 0, 0, 0], ['Pirojpur', 3, 1, 0, 0, 0, 0],
+    ['Bandarban', 0, 0, 0, 0, 0, 0], ['Brahmanbaria', 7, 7, 10, 0, 4, 0], ['Chandpur', 8, 8, 7, 0, 4, 0], ['Chattogram', 39, 16, 9, 0, 4, 0], ['Coxsbazar', 25, 25, 15, 1, 2, 0], ['Cumilla', 18, 18, 7, 0, 0, 0], ['Feni', 3, 5, 1, 0, 0, 0], ['Khagrachari', 0, 1, 0, 0, 0, 0], ['Lakshmipur', 3, 3, 1, 0, 0, 0], ['Noakhali', 9, 9, 0, 0, 0, 0], ['Rangamati', 2, 2, 0, 0, 0, 0],
+    ['Dhaka', 217, 130, 41, 2, 46, 1], ['Faridpur', 11, 11, 1, 0, 0, 0], ['Gazipur', 15, 15, 7, 0, 0, 0], ['Gopalganj', 27, 19, 2, 0, 0, 0], ['Kishoreganj', 3, 3, 0, 0, 1, 1], ['Madaripur', 9, 2, 0, 0, 2, 0], ['Manikganj', 9, 9, 0, 0, 0, 0], ['Munshiganj', 13, 0, 0, 0, 0, 0], ['Narayanganj', 0, 0, 0, 0, 0, 0], ['Narsingdi', 8, 8, 2, 0, 0, 0], ['Rajbari', 7, 1, 2, 0, 0, 0], ['Shariatpur', 4, 3, 0, 0, 0, 0], ['Tangail', 3, 12, 7, 2, 1, 0],
+    ['Bagerhat', 0, 0, 0, 0, 0, 0], ['Jashore', 23, 14, 1, 0, 4, 0], ['Jhenaidah', 8, 5, 2, 0, 0, 0], ['Khulna', 6, 6, 4, 0, 0, 0], ['kushtia', 27, 27, 11, 0, 0, 0], ['Magura', 3, 3, 0, 0, 0, 0], ['Meherpur', 1, 1, 0, 0, 0, 0], ['Narail', 6, 5, 1, 0, 0, 0], ['Satkhira', 3, 3, 0, 0, 0, 0],
+    ['Jamalpur', 0, 0, 0, 0, 0, 0], ['Mymensingh', 0, 0, 0, 0, 0, 0], ['Netrokona', 4, 4, 0, 0, 0, 0], ['Sherpur', 0, 0, 0, 0, 0, 0],
+    ['Bogura', 1, 1, 2, 0, 0, 0], ['Chapainawabganj', 18, 18, 7, 0, 0, 0], ['Joypurhat', 6, 6, 0, 0, 0, 0], ['Naogaon', 16, 1, 1, 0, 0, 0], ['Natore', 2, 0, 0, 0, 0, 0], ['Pabna', 12, 12, 7, 0, 0, 0], ['Rajshahi', 149, 25, 3, 3, 0, 0], ['Sirajganj', 4, 4, 3, 0, 4, 0],
+    ['Dinajpur', 5, 5, 10, 0, 0, 0], ['Gaibandha', 5, 1, 4, 0, 0, 0], ['Kurigram', 0, 0, 0, 0, 0, 0], ['Nilphamari', 1, 1, 0, 0, 0, 0], ['Panchagarh', 0, 0, 0, 0, 0, 0], ['Rangpur', 1, 0, 0, 0, 0, 0], ['Thakurgaon', 1, 1, 4, 0, 0, 0],
+    ['Habiganj', 4, 2, 0, 0, 0, 0], ['Moulvibazar', 2, 2, 0, 0, 1, 0], ['Sunamganj', 4, 4, 2, 0, 3, 0], ['Sylhet', 11, 9, 2, 0, 0, 0]
+  ],
+  '2026-04-03': [
+    ['Barguna', 14, 4, 6, 0, 0, 0], ['Barisal', 10, 1, 0, 0, 0, 0], ['Bhola', 12, 12, 6, 0, 0, 0], ['Jhalkathi', 2, 4, 0, 0, 1, 0], ['Patuakhali', 30, 24, 5, 0, 0, 0], ['Pirojpur', 8, 4, 1, 0, 0, 0],
+    ['Bandarban', 1, 0, 0, 0, 0, 0], ['Brahmanbaria', 13, 13, 0, 0, 0, 0], ['Chandpur', 41, 20, 8, 0, 0, 0], ['Chattogram', 12, 17, 13, 0, 0, 0], ['Coxsbazar', 25, 21, 21, 2, 0, 0], ['Cumilla', 68, 23, 7, 0, 4, 0], ['Feni', 13, 6, 2, 0, 0, 0], ['Lakshmipur', 3, 2, 2, 0, 0, 0], ['Noakhali', 23, 23, 8, 0, 0, 0], ['Rangamati', 0, 0, 0, 0, 0, 0],
+    ['Dhaka', 183, 105, 114, 2, 8, 0], ['Faridpur', 9, 9, 10, 0, 4, 0], ['Gazipur', 16, 16, 6, 0, 0, 0], ['Gopalganj', 16, 12, 10, 0, 2, 0], ['Kishoreganj', 12, 5, 7, 0, 0, 0], ['Madaripur', 16, 15, 15, 0, 2, 0], ['Manikganj', 6, 3, 0, 0, 0, 0], ['Munshiganj', 10, 2, 3, 0, 1, 0], ['Narayanganj', 5, 5, 0, 0, 0, 0], ['Narsingdi', 14, 2, 4, 0, 2, 0], ['Rajbari', 14, 5, 3, 0, 0, 0], ['Shariatpur', 12, 4, 0, 0, 0, 0], ['Tangail', 10, 15, 4, 0, 1, 0],
+    ['Bagerhat', 2, 2, 0, 0, 0, 0], ['Chuadanga', 0, 0, 0, 0, 0, 0], ['Jashore', 13, 3, 1, 0, 0, 0], ['Jhenaidah', 11, 8, 2, 0, 0, 0], ['Khulna', 9, 9, 31, 0, 2, 0], ['kushtia', 35, 35, 4, 0, 1, 0], ['Magura', 10, 3, 1, 0, 2, 0], ['Meherpur', 3, 1, 1, 0, 0, 0], ['Narail', 1, 1, 1, 0, 0, 0], ['Satkhira', 5, 5, 5, 0, 0, 0],
+    ['Jamalpur', 7, 7, 0, 0, 0, 0], ['Mymensingh', 6, 0, 0, 0, 0, 0], ['Netrokona', 24, 3, 1, 0, 0, 0], ['Sherpur', 7, 1, 2, 0, 0, 0],
+    ['Bogura', 10, 9, 3, 0, 0, 0], ['Chapainawabganj', 20, 20, 24, 0, 0, 0], ['Joypurhat', 6, 3, 3, 0, 0, 0], ['Naogaon', 13, 2, 2, 0, 0, 0], ['Natore', 10, 7, 0, 0, 1, 0], ['Pabna', 22, 22, 10, 0, 0, 0], ['Rajshahi', 25, 12, 13, 1, 1, 0], ['Sirajganj', 6, 6, 17, 0, 6, 0],
+    ['Dinajpur', 11, 3, 0, 0, 0, 0], ['Gaibandha', 3, 3, 233, 0, 0, 0], ['Kurigram', 0, 0, 0, 0, 0, 0], ['Lalmonirhat', 4, 0, 0, 0, 0, 0], ['Nilphamari', 7, 6, 0, 0, 1, 0], ['Panchagarh', 5, 0, 0, 0, 0, 0], ['Rangpur', 0, 0, 0, 0, 0, 0], ['Thakurgaon', 12, 3, 0, 0, 0, 0],
+    ['Habiganj', 4, 3, 5, 0, 1, 0], ['Moulvibazar', 26, 8, 4, 0, 0, 0], ['Sunamganj', 19, 9, 4, 0, 0, 0], ['Sylhet', 21, 5, 4, 0, 4, 0]
+  ],
+  '2026-04-02': [
+    ['Barguna', 14, 4, 6, 0, 0, 0], ['Barisal', 16, 8, 0, 0, 8, 0], ['Bhola', 12, 12, 0, 0, 0, 0], ['Jhalkathi', 0, 0, 1, 0, 1, 0], ['Patuakhali', 15, 14, 6, 0, 2, 0], ['Pirojpur', 5, 0, 0, 0, 0, 0],
+    ['Brahmanbaria', 5, 5, 0, 0, 0, 0], ['Chandpur', 16, 16, 0, 0, 0, 0], ['Chattogram', 20, 18, 6, 1, 0, 0], ['Coxsbazar', 28, 28, 10, 0, 0, 0], ['Cumilla', 37, 3, 6, 0, 0, 0], ['Feni', 7, 5, 1, 0, 0, 0], ['Lakshmipur', 9, 9, 2, 0, 0, 0], ['Noakhali', 8, 7, 3, 0, 0, 0],
+    ['Dhaka', 117, 104, 40, 0, 5, 0], ['Faridpur', 9, 9, 15, 1, 0, 0], ['Gazipur', 13, 13, 13, 0, 0, 0], ['Gopalganj', 14, 13, 2, 0, 0, 0], ['Kishoreganj', 12, 12, 3, 0, 0, 0], ['Madaripur', 8, 12, 7, 0, 0, 0], ['Manikganj', 4, 1, 1, 0, 0, 0], ['Munshiganj', 2, 2, 1, 0, 0, 0], ['Narayanganj', 8, 8, 0, 0, 0, 0], ['Narsingdi', 5, 5, 3, 0, 0, 0], ['Rajbari', 3, 1, 1, 0, 0, 0], ['Tangail', 10, 8, 0, 0, 1, 0],
+    ['Bagerhat', 1, 1, 0, 0, 0, 0], ['Chuadanga', 1, 1, 0, 0, 0, 0], ['Jashore', 14, 5, 2, 0, 0, 0], ['Jhenaidah', 6, 4, 0, 0, 0, 0], ['Khulna', 11, 11, 7, 0, 0, 0], ['Kushtia', 15, 15, 24, 1, 1, 0], ['Magura', 6, 2, 1, 0, 0, 0], ['Meherpur', 4, 2, 2, 0, 0, 0], ['Narail', 0, 0, 0, 0, 0, 0], ['Satkhira', 3, 3, 2, 0, 0, 0],
+    ['Jamalpur', 4, 4, 2, 0, 0, 0], ['Mymensingh', 11, 0, 0, 0, 1, 0], ['Netrokona', 12, 6, 2, 0, 0, 0], ['Sherpur', 6, 2, 0, 0, 0, 0],
+    ['Bogura', 0, 0, 5, 1, 0, 0], ['Chapainawabganj', 17, 17, 23, 0, 0, 0], ['Joypurhat', 14, 5, 1, 0, 0, 0], ['Naogaon', 21, 4, 4, 0, 0, 0], ['Natore', 8, 8, 0, 0, 0, 0], ['Pabna', 12, 12, 6, 0, 0, 0], ['Rajshahi', 27, 7, 0, 0, 0, 0], ['Sirajganj', 6, 66, 5, 0, 6, 0],
+    ['Dinajpur', 11, 4, 0, 0, 0, 0], ['Gaibandha', 3, 2, 1, 0, 0, 0], ['Kurigram', 0, 0, 0, 0, 0, 0], ['Lalmonirhat', 1, 0, 0, 0, 0, 0], ['Nilphamari', 6, 1, 0, 0, 0, 0], ['Panchagarh', 5, 0, 0, 0, 0, 0], ['Rangpur', 0, 0, 0, 0, 0, 0], ['Thakurgaon', 9, 2, 0, 0, 0, 0],
+    ['Habiganj', 11, 5, 1, 0, 0, 0], ['Moulvibazar', 12, 5, 3, 0, 1, 0], ['Sunamganj', 14, 5, 2, 0, 0, 0], ['Sylhet', 21, 5, 4, 0, 0, 0]
+  ],
+  '2026-04-01': [
+    ['Barguna', 8, 8, 8, 0, 1, 0], ['Barisal', 77, 77, 10, 0, 0, 0], ['Bhola', 0, 0, 0, 0, 0, 0], ['Jhalkathi', 0, 0, 0, 0, 0, 0], ['Patuakhali', 12, 10, 0, 0, 0, 0], ['Pirojpur', 0, 0, 0, 0, 0, 0],
+    ['Chattogram', 16, 26, 4, 0, 0, 0], ['Feni', 11, 5, 0, 0, 0, 0], ['Noakhali', 6, 7, 0, 0, 0, 0],
+    ['Dhaka', 0, 0, 0, 0, 0, 0], ['Faridpur', 14, 11, 1, 0, 0, 0], ['Gazipur', 9, 9, 1, 0, 0, 0], ['Gopalganj', 3, 3, 2, 0, 0, 0], ['Kishoreganj', 5, 5, 2, 0, 1, 0], ['Madaripur', 2, 2, 0, 0, 0, 0], ['Manikganj', 2, 2, 0, 0, 0, 0], ['Munshiganj', 0, 0, 2, 0, 0, 0], ['Narsingdi', 13, 13, 4, 0, 0, 0], ['Rajbari', 0, 2, 2, 0, 0, 0], ['Shariatpur', 8, 8, 2, 0, 8, 0],
+    ['Chuadanga', 2, 2, 0, 0, 0, 0], ['Jashore', 12, 4, 4, 0, 0, 0], ['Jhenaidah', 5, 5, 17, 0, 0, 0], ['Khulna', 5, 5, 1, 0, 0, 0], ['Kushtia', 64, 64, 17, 0, 0, 0], ['Magura', 4, 4, 1, 0, 0, 0], ['Meherpur', 6, 4, 0, 0, 0, 0], ['Satkhira', 5, 5, 0, 0, 0, 0],
+    ['Jamalpur', 6, 6, 3, 0, 0, 0], ['Mymensingh', 0, 0, 0, 0, 3, 0], ['Netrokona', 8, 2, 2, 0, 0, 0], ['Sherpur', 5, 4, 0, 0, 0, 0],
+    ['Bogura', 0, 0, 0, 0, 6, 0], ['Chapainawabganj', 29, 29, 35, 0, 0, 0], ['Joypurhat', 0, 0, 0, 0, 0, 0], ['Naogaon', 5, 1, 0, 0, 0, 0], ['Natore', 0, 0, 0, 0, 0, 0], ['Pabna', 9, 9, 8, 0, 0, 0], ['Rajshahi', 122, 22, 14, 1, 0, 0], ['Sirajganj', 4, 413, 9, 0, 4, 0],
+    ['Dinajpur', 13, 7, 0, 0, 0, 0], ['Gaibandha', 0, 0, 0, 0, 0, 0], ['Kurigram', 1, 1, 0, 0, 0, 0], ['Nilphamari', 0, 0, 0, 0, 0, 0], ['Panchagarh', 0, 0, 0, 0, 0, 0], ['Rangpur', 0, 0, 0, 0, 0, 0], ['Thakurgaon', 7, 1, 0, 0, 0, 0],
+    ['Habiganj', 1, 1, 0, 0, 0, 0], ['Moulvibazar', 5, 2, 1, 0, 0, 0], ['Sunamganj', 7, 3, 0, 0, 1, 0], ['Sylhet', 12, 12, 4, 0, 4, 0]
   ]
 };
 
@@ -144,11 +224,12 @@ async function main() {
   const outbreakId = 'measles-2026';
   const user = await prisma.user.findFirst();
   if (!user) throw new Error('No user found');
-
+{/*
+  use it for new instance.
   console.log('Clearing old records...');
   await prisma.reportFieldValue.deleteMany({});
   await prisma.report.deleteMany({ where: { outbreakId } });
-  await prisma.dailyReport.deleteMany({ where: { outbreakId } });
+  await prisma.dailyReport.deleteMany({ where: { outbreakId } });*/}
 
   const fields = await prisma.formField.findMany({ where: { outbreakId } });
   const fMap: any = {};
@@ -156,7 +237,10 @@ async function main() {
 
   const facilities = await prisma.facility.findMany();
 
-  const sortedDates = Object.keys(rawData).sort();
+  const sortedDates = Object.keys(rawData).filter(d => {
+    const date = new Date(d);
+    return date >= new Date('2026-04-08') && date <= new Date('2026-04-18');
+  }).sort();
   
   for (const dateStr of sortedDates) {
     const dayData = rawData[dateStr];
@@ -164,14 +248,27 @@ async function main() {
 
     console.log(`\nProcessing ${dateStr} (${dayData.length} records)...`);
 
-    const reportsToCreate = dayData.map((record: any) => {
+    const existingReports = await prisma.report.findMany({
+      where: {
+        outbreakId,
+        periodStart: reportDate,
+      },
+      select: { facilityId: true }
+    });
+    const existingFacilityIds = new Set(existingReports.map(r => r.facilityId));
+
+    // Use a map to aggregate data for the same facility in the same day (to avoid duplicates in dayData)
+    const aggregatedData = new Map<string, any>();
+
+    dayData.forEach((record: any) => {
       const [distName, susp, adm, disc, sdt, conf, cdt] = record;
-      const normalizedDist = districtMap[distName.toLowerCase()] || distName;
+      const normalizedDist = districtMap[distName.trim().toLowerCase()] || distName.trim();
       const facility = facilities.find(f => f.district.toLowerCase() === normalizedDist.toLowerCase());
       
-      if (!facility) return null;
+      if (!facility || existingFacilityIds.has(facility.id)) return;
 
-      return {
+      if (!aggregatedData.has(facility.id)) {
+        aggregatedData.set(facility.id, {
           outbreakId,
           facilityId: facility.id,
           userId: user.id,
@@ -180,17 +277,39 @@ async function main() {
           status: ReportStatus.PUBLISHED,
           publishedAt: new Date(),
           dataSnapshot: {
-            suspected24h: Number(susp),
-            admitted24h: Number(adm),
-            discharged24h: Number(disc),
-            suspectedDeath24h: Number(sdt),
-            confirmed24h: Number(conf),
-            confirmedDeath24h: Number(cdt)
+            suspected24h: 0,
+            admitted24h: 0,
+            discharged24h: 0,
+            suspectedDeath24h: 0,
+            confirmed24h: 0,
+            confirmedDeath24h: 0
           },
-          // Temporary property to match back field values
-          _csvData: { distName, susp, adm, disc, sdt, conf, cdt, facilityId: facility.id }
-      };
-    }).filter(Boolean);
+          _csvData: { distName, susp: 0, adm: 0, disc: 0, sdt: 0, conf: 0, cdt: 0, facilityId: facility.id }
+        });
+      }
+
+      const existing = aggregatedData.get(facility.id);
+      existing.dataSnapshot.suspected24h += Number(susp);
+      existing.dataSnapshot.admitted24h += Number(adm);
+      existing.dataSnapshot.discharged24h += Number(disc);
+      existing.dataSnapshot.suspectedDeath24h += Number(sdt);
+      existing.dataSnapshot.confirmed24h += Number(conf);
+      existing.dataSnapshot.confirmedDeath24h += Number(cdt);
+      
+      existing._csvData.susp += Number(susp);
+      existing._csvData.adm += Number(adm);
+      existing._csvData.disc += Number(disc);
+      existing._csvData.sdt += Number(sdt);
+      existing._csvData.conf += Number(conf);
+      existing._csvData.cdt += Number(cdt);
+    });
+
+    const reportsToCreate = Array.from(aggregatedData.values());
+
+    if (reportsToCreate.length === 0) {
+      console.log(`- Skipping ${dateStr} (all records already exist)`);
+      continue;
+    }
 
     // 1. Bulk Create Reports and Return IDs
     console.log(`- Creating ${reportsToCreate.length} Reports...`);

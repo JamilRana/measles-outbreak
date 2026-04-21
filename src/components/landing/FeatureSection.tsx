@@ -19,7 +19,7 @@ const features = [
   },
   {
     name: 'Data Integrity',
-    description: 'Triple-layer validation ensuring reports are accurate and verified by field supervisors.',
+    description: 'Ensuring reports are accurate and verified by control room.',
     icon: ShieldCheck,
     color: 'emerald'
   },

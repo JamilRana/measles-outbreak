@@ -29,6 +29,7 @@ export async function GET(req: Request) {
     const facilityId = searchParams.get("facilityId");
     const divisions = searchParams.get("divisions")?.split(',').filter(Boolean);
     const districts = searchParams.get("districts")?.split(',').filter(Boolean);
+    const q = searchParams.get("q");
     
     const from = searchParams.get("from");
     const to = searchParams.get("to");
@@ -72,8 +73,19 @@ export async function GET(req: Request) {
     const geoFilter: any = {};
     if (divisions && divisions.length > 0) geoFilter.division = { in: divisions };
     if (districts && districts.length > 0) geoFilter.district = { in: districts };
+    if (q) {
+      geoFilter.OR = [
+        { facilityName: { contains: q, mode: 'insensitive' } },
+        { facilityCode: { contains: q, mode: 'insensitive' } },
+      ];
+    }
 
-    const modernWhere: any = { outbreakId: effectiveOutbreakId, status: ReportStatus.PUBLISHED };
+    const isAdmin = session?.user?.role === "ADMIN" || session?.user?.role === "EDITOR";
+    const modernWhere: any = { outbreakId: effectiveOutbreakId };
+    if (!isAdmin) {
+      modernWhere.status = ReportStatus.PUBLISHED;
+    }
+    
     if (facilityId) modernWhere.facilityId = facilityId;
     if (Object.keys(geoFilter).length > 0) modernWhere.facility = geoFilter;
 
@@ -210,7 +222,7 @@ export async function POST(req: Request) {
           userId: userId || session.user.id,
           periodStart: new Date(reportingDate),
           periodEnd: new Date(reportingDate),
-          status: ReportStatus.SUBMITTED,
+          status: (session.user.role === 'ADMIN' || session.user.role === 'EDITOR') ? ReportStatus.PUBLISHED : ReportStatus.SUBMITTED,
         }
       });
 
