@@ -9,8 +9,6 @@ export async function GET(request: Request) {
     const settings = await prisma.settings.findFirst();
     let targetId = outbreakId || settings?.defaultOutbreakId;
     
-    console.log(`[ConfigAPI] Resolved targetId: ${targetId} (from param: ${outbreakId}, from settings: ${settings?.defaultOutbreakId})`);
-
     let config = {
       cutoffHour: 14,
       cutoffMinute: 0,
@@ -22,7 +20,6 @@ export async function GET(request: Request) {
       outbreakBacklog: null as any,
     };
 
-    // If still no targetId, fallback to the first active outbreak found
     if (!targetId) {
       const activeOutbreak = await prisma.outbreak.findFirst({
         where: { isActive: true },
@@ -31,7 +28,6 @@ export async function GET(request: Request) {
       });
       if (activeOutbreak) {
         targetId = activeOutbreak.id;
-        console.log(`[ConfigAPI] Falling back to active outbreak: ${targetId}`);
       }
     }
 
@@ -52,7 +48,6 @@ export async function GET(request: Request) {
       });
 
       if (outbreak) {
-        console.log(`[ConfigAPI] Found outbreak configuration: ${JSON.stringify(outbreak)}`);
         config = {
           ...config,
           cutoffHour: outbreak.cutoffHour,
@@ -67,11 +62,7 @@ export async function GET(request: Request) {
             backlogEndDate: outbreak.backlogEndDate ? outbreak.backlogEndDate.toISOString().split('T')[0] : null,
           }
         };
-      } else {
-        console.warn(`[ConfigAPI] Outbreak with ID ${targetId} not found in database.`);
       }
-    } else {
-      console.warn(`[ConfigAPI] No target outbreak ID could be resolved.`);
     }
 
     return NextResponse.json(config);

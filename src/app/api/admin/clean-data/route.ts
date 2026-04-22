@@ -34,10 +34,20 @@ export async function POST(req: Request) {
       return NextResponse.json({ message: `All reports for ${date} have been cleared.` });
     } else if (mode === "ALL") {
        await prisma.$transaction([
+         prisma.reportFieldValue.deleteMany({}),
          prisma.dailyReport.deleteMany({}),
          prisma.report.deleteMany({})
        ]);
        return NextResponse.json({ message: "All historical reports have been cleared." });
+    } else if (mode === "FACILITIES") {
+      await prisma.$transaction([
+        prisma.reportFieldValue.deleteMany({}),
+        prisma.dailyReport.deleteMany({}),
+        prisma.report.deleteMany({}),
+        prisma.user.deleteMany({ where: { NOT: { role: 'ADMIN' } } }),
+        prisma.facility.deleteMany({})
+      ]);
+      return NextResponse.json({ message: "Facility registry and associated data cleared." });
     }
 
     return NextResponse.json({ error: "Invalid mode" }, { status: 400 });

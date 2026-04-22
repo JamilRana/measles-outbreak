@@ -25,11 +25,8 @@ export async function POST(req: NextRequest) {
       }
     );
 
-    console.log(API_TOKEN);
-
     const { access_token } = signinRes.data;
     if (!access_token) throw new Error("No access token");
-    console.log(access_token);
 
     // Step 2: Get user info
     const userRes = await axios.get(`${HRM_BASE}/sso/token/${access_token}`, {
@@ -44,9 +41,7 @@ export async function POST(req: NextRequest) {
       `${HRM_BASE}/facilities/${facility_id}`,
       { headers: { "X-Auth-Token": API_TOKEN, "client-id": CLIENT_ID } }
     );
-    console.log(facility_id);
     const facilityData = facilityRes.data.data;
-    console.log(facilityData);
 
     return Response.json({
       email,

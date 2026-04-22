@@ -255,14 +255,40 @@ export default function DataManagementPage() {
                </label>
             </div>
 
-            <button 
-              onClick={handleResetAll}
-              disabled={loading || !confirmAll}
-              className="w-full bg-slate-900 hover:bg-black text-white font-black py-5 rounded-2xl flex items-center justify-center gap-3 shadow-xl transition-all active:scale-[0.98] disabled:opacity-30 disabled:grayscale"
-            >
-              {loading ? <Loader2 className="w-6 h-6 animate-spin text-rose-500" /> : <RefreshCcw className="w-6 h-6 text-rose-500" />}
-              PERFORM GLOBAL RESET
-            </button>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <button 
+                onClick={handleResetAll}
+                disabled={loading || !confirmAll}
+                className="w-full bg-slate-900 hover:bg-black text-white font-black py-5 rounded-2xl flex items-center justify-center gap-3 shadow-xl transition-all active:scale-[0.98] disabled:opacity-30 disabled:grayscale"
+              >
+                {loading ? <Loader2 className="w-6 h-6 animate-spin text-rose-500" /> : <RefreshCcw className="w-6 h-6 text-rose-500" />}
+                RESET REPORTS
+              </button>
+
+              <button 
+                onClick={async () => {
+                  if (!confirm("Are you sure you want to delete ALL facilities? This will only work if ALL reports are deleted first.")) return;
+                  setLoading(true);
+                  try {
+                    const res = await fetch("/api/admin/clean-data", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ mode: "FACILITIES" }),
+                    });
+                    const data = await res.json();
+                    if (res.ok) setSuccess(data.message);
+                    else alert(data.error);
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
+                disabled={loading || !confirmAll}
+                className="w-full bg-rose-600 hover:bg-rose-700 text-white font-black py-5 rounded-2xl flex items-center justify-center gap-3 shadow-xl transition-all active:scale-[0.98] disabled:opacity-30"
+              >
+                {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <Trash2 className="w-6 h-6" />}
+                CLEAR REGISTRY
+              </button>
+            </div>
           </div>
         </div>
       </div>

@@ -11,13 +11,6 @@ const transporter = nodemailer.createTransport({
 });
 
 export const sendEmail = async (to: string, subject: string, html: string, attachments?: any[]) => {
-  console.log(`[EMAIL_MOCK] Sending email to ${to} with subject: ${subject}`);
-  // Log the first link found in the HTML for easy access during development
-  const linkMatch = html.match(/href="([^"]+)"/);
-  if (linkMatch) {
-    console.log(`[EMAIL_MOCK] Link found: ${linkMatch[1]}`);
-  }
-
   try {
     const info = await transporter.sendMail({
       from: `"Measles Platform" <${process.env.SMTP_USER}>`,
@@ -26,10 +19,9 @@ export const sendEmail = async (to: string, subject: string, html: string, attac
       html,
       attachments,
     });
-    console.log("Email sent: %s", info.messageId);
     return info;
   } catch (error) {
-    console.warn("Email sending failed. This is expected if SMTP credentials are not set. Check console for links.");
+    console.error("Email sending failed:", error);
     return { mock: true, messageId: "mock-id" };
   }
 };

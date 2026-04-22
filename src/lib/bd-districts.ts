@@ -4,7 +4,7 @@ export const BD_DISTRICT_COORDS: Record<string, { lat: number; lng: number }> = 
   'Barguna': { lat: 22.1510, lng: 90.1266 },
   'Barisal': { lat: 22.7010, lng: 90.3535 },
   'Bhola': { lat: 22.6859, lng: 90.6482 },
-  'Jhalokathi': { lat: 22.6406, lng: 90.1987 },
+  'Jhalakathi': { lat: 22.6406, lng: 90.1987 },
   'Patuakhali': { lat: 22.3596, lng: 90.3290 },
   'Pirojpur': { lat: 22.5841, lng: 89.9720 },
 

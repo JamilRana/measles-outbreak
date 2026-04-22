@@ -52,6 +52,8 @@ export default function FacilityManagementPage() {
     isActive: true
   });
   const [saving, setSaving] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [isDeletingBulk, setIsDeletingBulk] = useState(false);
 
   useEffect(() => {
     fetchFacilities();
@@ -129,12 +131,49 @@ export default function FacilityManagementPage() {
       
       if (res.ok) {
         fetchFacilities();
+        setSelectedIds(prev => prev.filter(i => i !== id));
       } else {
         alert(data.error + (data.details ? `\n\nLinked data found:\n- Users: ${data.details.users}\n- Reports: ${data.details.reports}\n- Scheduled Slots: ${data.details.scheduling}` : ""));
       }
     } catch {
       alert("Failed to delete facility");
     }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+    if (!confirm(`Are you sure you want to delete ${selectedIds.length} facilities? Facilities with linked data (reports/users) will not be deleted.`)) return;
+    
+    setIsDeletingBulk(true);
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const id of selectedIds) {
+      try {
+        const res = await fetch(`/api/admin/facilities?id=${id}`, { method: "DELETE" });
+        if (res.ok) successCount++;
+        else failCount++;
+      } catch {
+        failCount++;
+      }
+    }
+
+    setIsDeletingBulk(false);
+    setSelectedIds([]);
+    fetchFacilities();
+    alert(`Cleanup complete: ${successCount} deleted, ${failCount} failed (due to linked data).`);
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === filteredFacilities.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(filteredFacilities.map(f => f.id));
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
   };
 
   const handleToggleStatus = async (fac: Facility) => {
@@ -164,6 +203,16 @@ export default function FacilityManagementPage() {
           <p className="text-slate-500 mt-1">Manage DGHS official facilities and geographic identifiers</p>
         </div>
         <div className="flex items-center gap-4">
+          {selectedIds.length > 0 && (
+            <button 
+              onClick={handleBulkDelete}
+              disabled={isDeletingBulk}
+              className="flex items-center gap-2 px-5 py-3 bg-rose-50 text-rose-600 font-bold rounded-2xl hover:bg-rose-100 transition-all border border-rose-100"
+            >
+              {isDeletingBulk ? <Loader2 className="w-5 h-5 animate-spin" /> : <Trash2 className="w-5 h-5" />}
+              Delete {selectedIds.length}
+            </button>
+          )}
           <div className="relative group w-full md:w-72">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
             <input 
@@ -189,7 +238,15 @@ export default function FacilityManagementPage() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50/50 text-slate-500 uppercase text-[10px] font-black tracking-[0.1em]">
-                <th className="px-8 py-5">Facility & Code</th>
+                <th className="pl-8 py-5 w-10">
+                  <input 
+                    type="checkbox" 
+                    checked={selectedIds.length === filteredFacilities.length && filteredFacilities.length > 0} 
+                    onChange={toggleSelectAll}
+                    className="w-4 h-4 rounded border-slate-300 text-indigo-600"
+                  />
+                </th>
+                <th className="px-6 py-5">Facility & Code</th>
                 <th className="px-6 py-5">Geography</th>
                 <th className="px-6 py-5">Contacts</th>
                 <th className="px-6 py-5 text-center">Users</th>
@@ -201,8 +258,16 @@ export default function FacilityManagementPage() {
               {loading ? (
                 <tr><td colSpan={6} className="p-20 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-indigo-500" /></td></tr>
               ) : filteredFacilities.map((fac) => (
-                <tr key={fac.id} className="hover:bg-slate-50/50 transition-colors">
-                  <td className="px-8 py-5">
+                <tr key={fac.id} className={`hover:bg-slate-50/50 transition-colors ${selectedIds.includes(fac.id) ? 'bg-indigo-50/30' : ''}`}>
+                  <td className="pl-8 py-5">
+                    <input 
+                      type="checkbox" 
+                      checked={selectedIds.includes(fac.id)} 
+                      onChange={() => toggleSelect(fac.id)}
+                      className="w-4 h-4 rounded border-slate-300 text-indigo-600"
+                    />
+                  </td>
+                  <td className="px-6 py-5">
                     <div className="font-bold text-slate-900">{fac.facilityName}</div>
                     <div className="text-[10px] font-black text-indigo-500 uppercase mt-0.5 tracking-wider">{fac.facilityCode}</div>
                   </td>
