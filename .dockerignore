@@ -17,4 +17,7 @@ yarn-error.log*
 .gemini
 Dockerfile
 .dockerignore
+docker-compose.yml
+docker-compose.*.yml
 README.md
+*.md

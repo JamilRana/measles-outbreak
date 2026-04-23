@@ -441,7 +441,8 @@ const newFacilities = [
   // ========================================
   // STEP 8: SEED HISTORICAL REPORTS FROM JSON
   // ========================================
-  const reportsPath = path.join(__dirname, '..', 'reports_by_email.json')
+  const reportsPath = path.join(process.cwd(), 'reports_by_email.json')
+  console.log('   Looking for reports at:', reportsPath)
   let importedCount = 0
   if (fs.existsSync(reportsPath)) {
     console.log('📊 Seeding historical reports from reports_by_email.json...')

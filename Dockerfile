@@ -3,7 +3,6 @@ FROM node:20-alpine AS deps
 WORKDIR /app
 COPY package*.json ./
 COPY prisma ./prisma
-# Install ALL dependencies
 RUN npm install
 
 # Stage 2: Builder
@@ -32,12 +31,11 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next ./.next
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/docker-entrypoint.sh ./docker-entrypoint.sh
-
-RUN chmod +x ./docker-entrypoint.sh
+COPY --from=builder /app/reports_by_email.json ./reports_by_email.json
 
 EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-ENTRYPOINT ["./docker-entrypoint.sh"]
+USER nextjs
+CMD ["node", "node_modules/next/dist/bin/next", "start"]
