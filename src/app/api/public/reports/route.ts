@@ -16,10 +16,10 @@ export async function GET(request: Request) {
     const startOfDay = getBdStartOfDay(requestedDate);
     const endOfDay = getBdEndOfDay(requestedDate);
 
-    const report = await prisma.dailyReport.findFirst({
+    const report = await prisma.report.findFirst({
       where: {
         facilityId: facilityId,
-        reportingDate: {
+        periodStart: {
           gte: startOfDay,
           lte: endOfDay,
         },

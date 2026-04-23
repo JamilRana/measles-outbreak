@@ -10,11 +10,11 @@ export async function GET(req: Request) {
   }
 
   try {
-    const reports = await prisma.dailyReport.findMany({
+    const reports = await prisma.report.findMany({
       where: {
         facilityId: session.user.facilityId,
       },
-      orderBy: { reportingDate: "desc" },
+      orderBy: { periodStart: "desc" },
       include: {
         facility: {
           select: {
@@ -23,6 +23,9 @@ export async function GET(req: Request) {
             division: true,
             district: true,
           }
+        },
+        fieldValues: {
+          include: { formField: true }
         }
       }
     });

@@ -108,13 +108,10 @@ export async function DELETE(
 
     const { id } = await params;
 
-    // Check if outbreak has reports in either legacy or modern tables
-    const [legacyCount, modernCount] = await Promise.all([
-      prisma.dailyReport.count({ where: { outbreakId: id } }),
-      prisma.report.count({ where: { outbreakId: id } })
-    ]);
+    // Check if outbreak has reports
+    const reportCount = await prisma.report.count({ where: { outbreakId: id } });
 
-    if (legacyCount > 0 || modernCount > 0) {
+    if (reportCount > 0) {
       return NextResponse.json({ error: "Cannot delete outbreak with existing reports" }, { status: 400 });
     }
 

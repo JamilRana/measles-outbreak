@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { Activity, ChevronDown } from "lucide-react";
 
 import { Outbreak } from '@/types/outbreak';
+import { SearchableSelect } from "./SearchableSelect";
 
 interface OutbreakSelectorProps {
   onSelect: (outbreakId: string) => void;
@@ -59,17 +60,14 @@ export default function OutbreakSelector({ onSelect, defaultValue }: OutbreakSel
       <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-600 transition-colors pointer-events-none">
         <Activity className="w-4 h-4" />
       </div>
-      <select
-        value={selectedId}
-        onChange={handleChange}
-        className="w-full pl-9 pr-10 py-2.5 bg-white border border-slate-200 rounded-lg text-slate-900 appearance-none focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/10 transition-all text-sm font-medium"
-      >
-        {outbreaks.map((ob) => (
-          <option key={ob.id} value={ob.id}>
-            {ob.name} ({ob.disease.name})
-          </option>
-        ))}
-      </select>
+        <SearchableSelect 
+                label="Outbreak"
+                placeholder="Select Outbreak Context"
+                options={outbreaks.map(o => ({ value: o.id, label: o.name }))}
+                value={selectedId}
+                onChange={setSelectedId}
+                icon={Activity}
+              />
       <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none transition-transform group-focus-within:rotate-180">
         <ChevronDown className="w-4 h-4" />
       </div>

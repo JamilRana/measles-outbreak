@@ -18,7 +18,7 @@ export async function POST(
 
     const { lock } = await req.json();
 
-    const report = await prisma.dailyReport.update({
+    const report = await prisma.report.update({
       where: { id },
       data: { isLocked: !!lock },
       include: { facility: true }
@@ -27,9 +27,9 @@ export async function POST(
     await createAuditLog({
       userId: session.user.id,
       action: lock ? "REPORT_LOCK" : "REPORT_UNLOCK",
-      entityType: "DailyReport",
+      entityType: "Report",
       entityId: id,
-      details: { facilityName: report.facility.facilityName },
+      details: { facilityName: report.facility?.facilityName },
     });
 
     return NextResponse.json({ success: true, isLocked: report.isLocked });

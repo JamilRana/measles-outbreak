@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Breadcrumbs from '@/components/Breadcrumbs';
+import { SearchableSelect } from '@/components/SearchableSelect';
 import { format } from 'date-fns';
 import { DIVISIONS, DISTRICTS } from '@/lib/constants';
 
@@ -328,17 +329,16 @@ export default function SubmissionWindowsPage() {
                <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Filter</h3>
                <Filter className="w-4 h-4 text-slate-300" />
              </div>
-             <div>
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Outbreak</label>
-                <select 
-                  value={filters.outbreakId} 
-                  onChange={e => setFilters({ outbreakId: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-bold text-slate-700 outline-none"
-                >
-                  <option value="">All Outbreaks</option>
-                  {outbreaks.map((o: any) => <option key={o.id} value={o.id}>{o.name}</option>)}
-                </select>
-             </div>
+<div>
+                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Outbreak</label>
+                 <SearchableSelect 
+                   label=""
+                   placeholder="All Outbreaks"
+                   options={outbreaks.map(o => ({ value: o.id, label: o.name }))}
+                   value={filters.outbreakId || ""}
+                   onChange={value => setFilters({ outbreakId: value })}
+                 />
+              </div>
 
              <div className="border-t border-slate-100 pt-4">
                 <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest mb-3">Facility Type Legend</p>

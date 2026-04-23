@@ -552,7 +552,7 @@ export default function UnifiedReportingHub() {
           <Layers className="w-64 h-64" />
         </div>
         
-        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-10 relative z-10">
+        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-10 relative ">
           <div className="space-y-4">
             <div className="flex items-center gap-3">
                <div className="flex bg-indigo-50 p-1.5 rounded-2xl border border-indigo-100">
@@ -591,7 +591,6 @@ export default function UnifiedReportingHub() {
 
           <div className="flex flex-wrap items-center gap-4">
             <div className="w-72">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5 ml-1">Active Outbreak Context</label>
               <AdminOutbreakSelector onSelect={setSelectedOutbreakId} defaultValue={selectedOutbreakId} />
             </div>
             
@@ -738,7 +737,7 @@ export default function UnifiedReportingHub() {
                     </div>
                     <div>
                        <h3 className="text-2xl font-black text-slate-800 tracking-tight leading-tight">
-                          {viewMode === 'STATUS' ? 'Network Integrity Status' : viewMode === 'LOGS' ? 'Submission Archive' : 'Reporting Gap Matrix'}
+                          {viewMode === 'STATUS' ? 'Submission Status' : viewMode === 'LOGS' ? 'Submission Archive' : 'Reporting Gap Matrix'}
                        </h3>
                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
                           {viewMode === 'STATUS' ? filteredFacilities.length : (pagination?.total || 0)} units quantified

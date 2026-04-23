@@ -549,28 +549,16 @@
   ],
   "ashrafulislamirfan@gmail.com": [
     {
-      "facilityName": "Dhaka Community Hospital",
-      "division": "Dhaka",
-      "district": "Dhaka",
-      "reportingDate": "4/7/2026",
-      "suspectedCases": 14,
-      "confirmedCases": 14,
-      "suspectedDeaths": 0,
-      "confirmedDeaths": 0,
-      "admitted": 7,
-      "discharged": 1
-    },
-    {
       "facilityName": "Dhaka Community Medical College Hospital",
       "division": "Dhaka",
       "district": "Dhaka",
       "reportingDate": "4/7/2026",
-      "suspectedCases": 50,
-      "confirmedCases": 39,
+      "suspectedCases": 64,
+      "confirmedCases": 53,
       "suspectedDeaths": 0,
       "confirmedDeaths": 0,
-      "admitted": 39,
-      "discharged": 34
+      "admitted": 46,
+      "discharged": 35
     },
     {
       "facilityName": "Dhaka Community Medical College Hospital",
@@ -6605,7 +6593,7 @@
       "discharged": 0
     }
   ],
-  "info@manar.com": [
+  "almanarhospital1996@gmail.com": [
     {
       "facilityName": "Al-Manar Hospital Ltd",
       "division": "Dhaka",

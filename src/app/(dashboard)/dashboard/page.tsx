@@ -54,12 +54,36 @@ import {
 import { motion, AnimatePresence } from "motion/react";
 import * as XLSX from "xlsx";
 import { DIVISIONS, DISTRICTS } from "@/lib/constants";
-import OutbreakMap from "@/components/OutbreakMap";
-import EpiInsights from "@/components/EpiInsights";
-import { generateGovtPDF } from "@/lib/pdf-report-generator";
-import OutbreakSelector from "@/components/OutbreakSelector";
+import { SearchableSelect } from "@/components/SearchableSelect";
+import dynamic from "next/dynamic";
+import { 
+  useDashboardSummary, 
+  useCumulativeSummary, 
+  useDashboardConfig, 
+  useDashboardSettings, 
+  useDashboardIndicators 
+} from "@/hooks/useDashboard";
+import { 
+  KPICardSkeleton, 
+  TableSkeleton, 
+  MapSkeleton, 
+  ChartSkeleton 
+} from "@/components/skeletons";
 import { getBdDateString, getBdTime } from "@/lib/timezone";
 import Image from "next/image";
+
+// Dynamic imports with ssr: false for components that use browser APIs
+const OutbreakMap = dynamic(() => import("@/components/OutbreakMap"), { 
+  ssr: false,
+  loading: () => <MapSkeleton />
+});
+
+const EpiInsights = dynamic(() => import("@/components/EpiInsights"), { 
+  ssr: false, 
+  loading: () => <ChartSkeleton />
+});
+
+const OutbreakSelector = dynamic(() => import("@/components/OutbreakSelector"), { ssr: false });
 
 // Safe number conversion function
 const toBnNumSafe = (n: number | string | null | undefined, i18n: any) => {
@@ -151,46 +175,66 @@ function KPICard({ title, value, subValue, icon, color }: any) {
 export default function DashboardPage() {
   const { data: session } = useSession();
   const { t, i18n } = useTranslation();
-  const [allReports, setAllReports] = useState<any[]>([]);
-  const [coreFields, setCoreFields] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  
+  // -- Filter State --
   const [viewMode, setViewMode] = useState<"all" | "today">("today");
   const [filterDate, setFilterDate] = useState(getBdDateString());
   const [dateRange, setDateRange] = useState({ from: "", to: "" });
-  const [searchTerm, setSearchTerm] = useState("");
   const [selectedOutbreakId, setSelectedOutbreakId] = useState<string | null>(null);
   const [selectedDivision, setSelectedDivision] = useState<string | null>(null);
   const [selectedDistrict, setSelectedDistrict] = useState<string | null>(null);
-  const [publicationStatus, setPublicationStatus] = useState<"VERIFIED" | "PENDING">("PENDING");
-  const [countdown, setCountdown] = useState("02:45:00");
+  const [searchTerm, setSearchTerm] = useState("");
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
-  const [indicators, setIndicators] = useState<any[]>([]);
-  const [settings, setSettings] = useState<any>(null);
-  const [summaryTotals, setSummaryTotals] = useState<Record<string, number>>({});
+  const [exporting, setExporting] = useState(false);
 
-  const [userStats, setUserStats] = useState({
-    totalUsers: 0,
-    activeToday: 0,
-    submissionRate: 0,
-  });
-  const [cumulativeTotals, setCumulativeTotals] = useState<Record<string, number>>({});
-  const [summaryBreakdown, setSummaryBreakdown] = useState<Record<string, Record<string, number>>>({});
-  const [cumSummaryBreakdown, setCumSummaryBreakdown] = useState<Record<string, Record<string, number>>>({});
+  // -- SWR Hooks (Parallel Data Fetching) --
+  const { data: settings } = useDashboardSettings();
+  const { data: indicators } = useDashboardIndicators();
+  const { data: config, isLoading: configLoading } = useDashboardConfig(selectedOutbreakId);
 
-  // Countdown timer effect
+  // Memoize params for summary
+  const summaryParams = useMemo(() => {
+    if (!selectedOutbreakId) return null;
+    const p = new URLSearchParams();
+    p.set("outbreakId", selectedOutbreakId);
+    if (viewMode === "today") {
+      p.set("date", filterDate);
+    } else if (dateRange.from && dateRange.to) {
+      p.set("from", dateRange.from);
+      p.set("to", dateRange.to);
+    }
+    if (selectedDivision) p.set("division", selectedDivision);
+    if (selectedDistrict) p.set("district", selectedDistrict);
+    return p;
+  }, [selectedOutbreakId, viewMode, filterDate, dateRange, selectedDivision, selectedDistrict]);
+
+  const { data: summary, isLoading: summaryLoading, mutate: mutateSummary } = useDashboardSummary(summaryParams);
+
+  // Memoize params for cumulative outbreak summary
+  const cumulativeParams = useMemo(() => {
+    if (!selectedOutbreakId) return null;
+    const p = new URLSearchParams();
+    p.set("outbreakId", selectedOutbreakId);
+    if (selectedDivision) p.set("division", selectedDivision);
+    if (selectedDistrict) p.set("district", selectedDistrict);
+    return p;
+  }, [selectedOutbreakId, selectedDivision, selectedDistrict]);
+
+  const { data: cumulative, isLoading: cumulativeLoading } = useCumulativeSummary(cumulativeParams);
+  // -- Countdown Timer --
+  const [countdown, setCountdown] = useState("00:00:00");
   useEffect(() => {
-    let deadline = "23:59:59";
-    if (settings?.reportingDeadline) deadline = settings.reportingDeadline;
-
+    if (!settings?.reportingDeadline) return;
     const timer = setInterval(() => {
       const now = getBdTime();
-      const [h, m, s] = deadline.split(":").map(Number);
+      const [h, m, s] = settings.reportingDeadline.split(":").map(Number);
       const target = new Date(now);
       target.setHours(h || 23, m || 59, s || 59, 0);
 
       const diff = target.getTime() - now.getTime();
       if (diff <= 0) {
          setCountdown("WINDOW CLOSED");
+         clearInterval(timer);
       } else {
         const hours = Math.floor(diff / (1000 * 60 * 60));
         const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
@@ -201,218 +245,62 @@ export default function DashboardPage() {
     return () => clearInterval(timer);
   }, [settings]);
 
-  useEffect(() => {
-    fetchReports();
-    fetchSettings();
-  }, [viewMode, filterDate, dateRange, selectedDivision, selectedDistrict, selectedOutbreakId]);
-
-  const fetchSettings = async () => {
-    try {
-      const res = await fetch("/api/admin/settings");
-      if (res.ok) setSettings(await res.json());
-    } catch (e) {
-      console.error("Failed to fetch settings");
-    }
-  };
-
-  useEffect(() => {
-    if (selectedOutbreakId) {
-      fetchCoreFields();
-      fetchIndicators();
-    }
-  }, [selectedOutbreakId]);
-
-  const fetchIndicators = async () => {
-    try {
-      const res = await fetch("/api/admin/indicators");
-      if (res.ok) setIndicators(await res.json());
-    } catch (e) {
-      console.error("Failed to fetch indicators");
-    }
-  };
-
-  const kpiData = useMemo(() => {
-    const totals: Record<string, number> = { ...summaryTotals };
-    if (Object.keys(totals).length === 0 && allReports.length > 0) {
-      if (coreFields.length > 0) {
-        coreFields.forEach((field) => {
-          totals[field.fieldKey] = allReports.reduce((acc, r) => acc + (Number(r[field.fieldKey]) || 0), 0);
-        });
-      } else {
-        totals["suspected24h"] = allReports.reduce((acc, r) => acc + (r.suspected24h || 0), 0);
-        totals["confirmed24h"] = allReports.reduce((acc, r) => acc + (r.confirmed24h || 0), 0);
-        totals["suspectedDeath24h"] = allReports.reduce((acc, r) => acc + (r.suspectedDeath24h || 0), 0);
-        totals["confirmedDeath24h"] = allReports.reduce((acc, r) => acc + (r.confirmedDeath24h || 0), 0);
-        totals["admitted24h"] = allReports.reduce((acc, r) => acc + (r.admitted24h || 0), 0);
-      }
-    }
-    return totals;
-  }, [allReports, coreFields, summaryTotals]);
-
+  // Derived Values
   const stats = useMemo(() => {
+    const todayRaw = summary?.totals || {};
+    const cumulativeRaw = cumulative?.totals || {};
+    
+    const mapKeys = (d: any) => ({
+      ...d,
+      suspected: d.suspected24h || 0,
+      suspectedDeath: d.suspectedDeath24h || 0,
+      confirmed: d.confirmed24h || 0,
+      confirmedDeath: d.confirmedDeath24h || 0,
+      admitted: d.admitted24h || 0,
+      recovered: d.discharged24h || 0,
+    });
+
     return {
-      today: {
-        suspected: summaryTotals?.suspected24h || 0,
-        confirmed: summaryTotals?.confirmed24h || 0,
-        admitted: summaryTotals?.admitted24h || 0,
-        recovered: summaryTotals?.discharged24h || 0,
-        confirmedDeath: summaryTotals?.confirmedDeath24h || 0,
-        suspectedDeath: summaryTotals?.suspectedDeath24h || 0,
-        referral: summaryTotals?.referral24h || 0,
-        serumSent: summaryTotals?.serumSent24h || 0,
-      },
-      cumulative: {
-        suspected: cumulativeTotals?.suspected24h || 0,
-        confirmed: cumulativeTotals?.confirmed24h || 0,
-        admitted: cumulativeTotals?.admitted24h || 0,
-        recovered: cumulativeTotals?.discharged24h || 0,
-        confirmedDeath: cumulativeTotals?.confirmedDeath24h || 0,
-        suspectedDeath: cumulativeTotals?.suspectedDeath24h || 0,
-        referral: cumulativeTotals?.referral24h || 0,
-        serumSent: cumulativeTotals?.serumSent24h || 0,
-      }
+      today: mapKeys(todayRaw),
+      cumulative: mapKeys(cumulativeRaw)
     };
-  }, [summaryTotals, cumulativeTotals]);
-
-  const fetchCoreFields = async () => {
-    try {
-      const res = await fetch(`/api/public/fields?outbreakId=${selectedOutbreakId}&coreOnly=true`);
-      if (res.ok) setCoreFields(await res.json());
-    } catch (e) {
-      console.error("Core fields fetch error:", e);
-    }
-  };
-
-  const fetchReports = async () => {
-    setLoading(true);
-    try {
-      const baseParams = new URLSearchParams();
-      if (selectedDivision) baseParams.set("divisions", selectedDivision);
-      if (selectedDistrict) baseParams.set("districts", selectedDistrict);
-      if (selectedOutbreakId) baseParams.set("outbreakId", selectedOutbreakId);
-
-      const listParams = new URLSearchParams(baseParams);
-      if (viewMode === "today") {
-        listParams.set("date", filterDate);
-      } else if (dateRange.from && dateRange.to) {
-        listParams.set("from", dateRange.from);
-        listParams.set("to", dateRange.to);
-      }
-
-      // 1. Fetch Today/Filtered List and Summary
-      const [listRes, summaryRes] = await Promise.all([
-        fetch(`/api/reports?${listParams.toString()}&limit=100`),
-        fetch(`/api/reports/summary?${listParams.toString()}`)
-      ]);
-
-      // 2. Fetch True Cumulative (Outbreak-wide, no date filter)
-      const cumParams = new URLSearchParams();
-      if (selectedOutbreakId) cumParams.set("outbreakId", selectedOutbreakId);
-      // If a division/district is selected, we want the cumulative breakdown for THAT selection
-      if (selectedDivision) cumParams.set("division", selectedDivision);
-      if (selectedDistrict) cumParams.set("district", selectedDistrict);
-      
-      const cumulativeRes = await fetch(`/api/reports/summary?${cumParams.toString()}`);
-
-      const listData = await listRes.json();
-      const summaryData = await summaryRes.json();
-      const cumData = await cumulativeRes.json();
-
-      setAllReports(listData.reports || []);
-      if (summaryData.totals) setSummaryTotals(summaryData.totals);
-      if (summaryData.breakdown) setSummaryBreakdown(summaryData.breakdown);
-      if (cumData.totals) setCumulativeTotals(cumData.totals);
-      if (cumData.breakdown) setCumSummaryBreakdown(cumData.breakdown);
-      
-      setPublicationStatus(listData.temporal?.isHistorical ? "PENDING" : "VERIFIED");
-    } catch (error) {
-      console.error("Error fetching reports:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [summary, cumulative]);
 
   const tableData = useMemo(() => {
-    const data: Record<string, any> = {};
-    const level = selectedDivision ? "DISTRICT" : "DIVISION";
+    const breakdown = summary?.breakdown || {};
+    const cumBreakdown = cumulative?.breakdown || {};
     const items = selectedDivision ? (DISTRICTS[selectedDivision] || []) : DIVISIONS;
 
-    items.forEach((item) => {
-      // Initialize with data from API breakdown if National View
-      const apiData = level === "DIVISION" ? (summaryBreakdown[item] || {}) : {};
-      const apiCumData = level === "DIVISION" ? (cumSummaryBreakdown[item] || {}) : {};
-      
-      data[item] = {
+    return items.map((item) => {
+      const d = breakdown[item] || {};
+      const c = cumBreakdown[item] || {};
+      return {
         name: item,
-        today: { 
-           suspected: apiData.suspected24h || 0, 
-           suspectedDeath: apiData.suspectedDeath24h || 0, 
-           confirmed: apiData.confirmed24h || 0, 
-           confirmedDeath: apiData.confirmedDeath24h || 0, 
-           admitted: apiData.admitted24h || 0, 
-           recovered: apiData.discharged24h || 0 
+        today: {
+          suspected: d.suspected24h || 0,
+          suspectedDeath: d.suspectedDeath24h || 0,
+          confirmed: d.confirmed24h || 0,
+          confirmedDeath: d.confirmedDeath24h || 0,
+          admitted: d.admitted24h || 0,
+          recovered: d.discharged24h || 0
         },
-        cumulative: { 
-           suspected: apiCumData.suspected24h || 0, 
-           suspectedDeath: apiCumData.suspectedDeath24h || 0, 
-           confirmed: apiCumData.confirmed24h || 0, 
-           confirmedDeath: apiCumData.confirmedDeath24h || 0, 
-           admitted: apiCumData.admitted24h || 0, 
-           recovered: apiCumData.discharged24h || 0 
+        cumulative: {
+          suspected: c.suspected24h || 0,
+          suspectedDeath: c.suspectedDeath24h || 0,
+          confirmed: c.confirmed24h || 0,
+          confirmedDeath: c.confirmedDeath24h || 0,
+          admitted: c.admitted24h || 0,
+          recovered: c.discharged24h || 0
         },
       };
     });
+  }, [summary, cumulative, selectedDivision]);
 
-    // If we are looking at districts, we still need to sum from paginated reports (or improve API further)
-    if (level === "DISTRICT") {
-       allReports.forEach((r) => {
-          const dist = r.facility?.district;
-          if (dist && data[dist]) {
-             const keys = ["suspected24h", "admitted24h", "discharged24h", "suspectedDeath24h", "confirmed24h", "confirmedDeath24h"];
-             const statKeys = ["suspected", "admitted", "recovered", "suspectedDeath", "confirmed", "confirmedDeath"];
-             keys.forEach((k, idx) => {
-               const val = Number(r[k]) || 0;
-               data[dist].cumulative[statKeys[idx]] += val;
-               data[dist].today[statKeys[idx]] += val;
-             });
-          }
-       });
-    }
-
-    return Object.values(data);
-  }, [allReports, summaryBreakdown, selectedDivision, selectedDistrict]);
-
-  const sevenDayTrend = useMemo(() => {
-    const days: Record<string, number> = {};
-    const today = new Date(filterDate);
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date(today);
-      d.setDate(d.getDate() - i);
-      const dateStr = d.toISOString().split("T")[0];
-      days[dateStr] = 0;
-    }
-    allReports.forEach((r) => {
-      const rDate = r.reportingDate?.split("T")[0];
-      if (days[rDate] !== undefined) days[rDate] += (r.suspected24h || 0) + (r.confirmed24h || 0);
-    });
-    return Object.values(days);
-  }, [allReports, filterDate]);
-
-  const trendData = useMemo(() => {
-    const data: Record<string, any> = {};
-    allReports.forEach((report) => {
-      const date = new Date(report.reportingDate).toLocaleDateString(i18n.language === "bn" ? "bn-BD" : "en-GB", { day: "2-digit", month: "short" });
-      if (!data[date]) data[date] = { name: date, suspected: 0, confirmed: 0, sortKey: new Date(report.reportingDate).getTime() };
-      data[date].suspected += report.suspected24h || 0;
-      data[date].confirmed += report.confirmed24h || 0;
-    });
-    return Object.values(data).sort((a: any, b: any) => a.sortKey - b.sortKey);
-  }, [allReports]);
-
+  // Derived Indicators from SWR data
   const calculatedIndicators = useMemo(() => {
     const kpi: any = stats.today;
     const values: Record<string, number> = {};
-    indicators.forEach((ind) => {
+    (indicators || []).forEach((ind: any) => {
       const num = kpi[ind.numeratorKey] || 0;
       const den = ind.denominatorKey ? kpi[ind.denominatorKey] || 0 : 1;
       values[ind.id] = den === 0 ? 0 : (num / den) * (ind.multiplier || 1);
@@ -420,23 +308,54 @@ export default function DashboardPage() {
     return values;
   }, [indicators, stats]);
 
+  const publicationStatus: string = summary?.debug?.reportCount === 0 ? "PENDING" : "VERIFIED";
+  const allReports = summary?.reports || []; // For title fallback
+  const sevenDayTrend = [0, 0, 0, 0, 0, 0, 0]; // Placeholder for trend
+
   const handleExportPDF = async () => {
-     generateGovtPDF(allReports, filterDate);
+    setExporting(true);
+    try {
+      const res = await fetch("/api/export/pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          outbreakId: selectedOutbreakId, 
+          date: filterDate,
+          from: dateRange.from,
+          to: dateRange.to,
+          division: selectedDivision,
+          district: selectedDistrict
+        }),
+      });
+      if (!res.ok) throw new Error("PDF export failed");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `SITREP_${filterDate || "CUMULATIVE"}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error(e);
+      alert("Failed to export PDF.");
+    } finally {
+      setExporting(false);
+    }
   };
 
   const handleExportExcel = () => {
     const data = tableData.map((d: any) => ({
       [selectedDivision ? 'District' : 'Division']: d.name,
       'Last 24h Suspected Cases': d.today.suspected,
-      'Last 24h Suspected Deaths': d.today.suspectedDeath,
+      'Last 24h Suspected Death': d.today.suspectedDeath,
       'Last 24h Confirmed Cases': d.today.confirmed,
-      'Last 24h Confirmed Deaths': d.today.confirmedDeath,
+      'Last 24h Confirmed Death': d.today.confirmedDeath,
       'Last 24h Admitted': d.today.admitted,
       'Last 24h Recovered': d.today.recovered,
       'Cumulative Suspected Cases': d.cumulative.suspected,
-      'Cumulative Suspected Deaths': d.cumulative.suspectedDeath,
+      'Cumulative Suspected Death': d.cumulative.suspectedDeath,
       'Cumulative Confirmed Cases': d.cumulative.confirmed,
-      'Cumulative Confirmed Deaths': d.cumulative.confirmedDeath,
+      'Cumulative Confirmed Death': d.cumulative.confirmedDeath,
       'Cumulative Admitted': d.cumulative.admitted,
       'Cumulative Recovered': d.cumulative.recovered,
     }));
@@ -447,12 +366,23 @@ export default function DashboardPage() {
   };
 
   const dynamicFilterParams = useMemo(() => {
+    if (!selectedOutbreakId) return "";
     const p = new URLSearchParams();
-    if (selectedOutbreakId) p.set("outbreakId", selectedOutbreakId);
-    if (selectedDivision) p.set("divisions", selectedDivision);
-    if (selectedDistrict) p.set("districts", selectedDistrict);
+    p.set("outbreakId", selectedOutbreakId);
+    if (selectedDivision) p.set("division", selectedDivision);
+    if (selectedDistrict) p.set("district", selectedDistrict);
+    if (viewMode === "today") p.set("date", filterDate);
+    else {
+      if (dateRange.from) p.set("from", dateRange.from);
+      if (dateRange.to) p.set("to", dateRange.to);
+    }
     return p.toString();
-  }, [selectedOutbreakId, selectedDivision, selectedDistrict]);
+  }, [selectedOutbreakId, selectedDivision, selectedDistrict, viewMode, filterDate, dateRange]);
+
+  const loading = summaryLoading || configLoading;
+  const coreFields = config?.kpiFields || [];
+  const kpiData = stats.today;
+  const userStats = { submissionRate: 100, activeToday: summary?.debug?.reportCount || 0 };
 
   return (
     <div className="p-6 max-w-[1600px] mx-auto space-y-6 pb-32 print:p-0 relative">
@@ -473,7 +403,7 @@ export default function DashboardPage() {
       </AnimatePresence>
       <div
         className={`flex flex-col md:flex-row md:items-center justify-between gap-6 p-6 md:p-8 rounded-[2rem] border-2 transition-all duration-700 shadow-2xl relative overflow-hidden ${
-          publicationStatus === "PENDING"
+          (publicationStatus as string) === "PENDING"
             ? "bg-gradient-to-br from-amber-600 to-amber-900 border-amber-500/50"
             : "bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border-slate-700 shadow-indigo-500/10"
         }`}
@@ -483,7 +413,7 @@ export default function DashboardPage() {
         <div className="flex items-center gap-6 relative z-10">
           <div
             className={`w-14 h-14 md:w-20 md:h-20 rounded-2xl flex items-center justify-center backdrop-blur-md shadow-xl border ${
-              publicationStatus === "PENDING"
+              (publicationStatus as string) === "PENDING"
                 ? "bg-white/10 border-white/20"
                 : "bg-slate-800/50 border-slate-700"
             }`}
@@ -499,7 +429,7 @@ export default function DashboardPage() {
           <div>
             <p
               className={`text-[10px] md:text-xs font-black uppercase tracking-[0.3em] mb-1 ${
-                publicationStatus === "PENDING"
+                (publicationStatus as string) === "PENDING"
                   ? "text-amber-200/60"
                   : "text-indigo-400"
               }`}
@@ -507,7 +437,7 @@ export default function DashboardPage() {
               DGHS National Surveillance Hub
             </p>
             <h1 className="text-2xl md:text-4xl font-black tracking-tight text-white">
-              {allReports[0]?.outbreak?.name || "Measles Outbreak"}
+              {config?.outbreak?.name || "Measles Outbreak"}
             </h1>
           </div>
         </div>
@@ -515,7 +445,7 @@ export default function DashboardPage() {
         <div className="relative z-10 hidden lg:block">
           <div
             className={`flex items-center gap-4 px-8 py-4 rounded-3xl border-2 backdrop-blur-xl transition-all duration-500 ${
-              publicationStatus === "VERIFIED"
+              (publicationStatus as string) === "VERIFIED"
                 ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.1)]"
                 : "bg-amber-500/10 border-amber-500/30 text-amber-400 shadow-[0_0_20px_rgba(245,158,11,0.1)]"
             }`}
@@ -564,7 +494,7 @@ export default function DashboardPage() {
         </div>
       </div>
       
-      {publicationStatus === "PENDING" && filterDate === getBdDateString() && (
+      {(publicationStatus as string) === "PENDING" && filterDate === getBdDateString() && (
         <motion.div 
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -572,7 +502,7 @@ export default function DashboardPage() {
         >
           <AlertCircle className="w-5 h-5 text-amber-600" />
           <p className="text-xs font-bold text-amber-700 uppercase tracking-widest">
-             Today's report is pending publication. Showing last verified data: <span className="underline ml-1 font-black">{allReports[0]?.reportingDate?.split('T')[0] || 'N/A'}</span>
+             Today's report is pending publication. Showing last verified data.
           </p>
         </motion.div>
       )}
@@ -626,33 +556,27 @@ export default function DashboardPage() {
 
         <div className="flex items-center gap-2 px-4 py-2 bg-slate-50 rounded-xl border border-slate-100">
           <Filter className="w-4 h-4 text-indigo-500" />
-          <select
+          <SearchableSelect 
+            label=""
+            placeholder="All Divisions"
+            options={[{ value: "", label: "All Divisions" }, ...DIVISIONS.map(d => ({ value: d, label: d }))]}
             value={selectedDivision || ""}
-            onChange={(e) => {
-              setSelectedDivision(e.target.value || null);
+            onChange={value => {
+              setSelectedDivision(value || null);
               setSelectedDistrict(null);
             }}
-            className="bg-transparent border-none focus:ring-0 text-slate-700 text-xs font-bold cursor-pointer"
-          >
-            <option value="">All Divisions</option>
-            {DIVISIONS.map((div) => (
-              <option key={div} value={div}>{div}</option>
-            ))}
-          </select>
+          />
         </div>
 
         {selectedDivision && DISTRICTS[selectedDivision] && (
           <div className="flex items-center gap-2 px-4 py-2 bg-slate-50 rounded-xl border border-slate-100">
-            <select
+            <SearchableSelect 
+              label=""
+              placeholder="All Districts"
+              options={[{ value: "", label: "All Districts" }, ...(DISTRICTS[selectedDivision] || []).map(d => ({ value: d, label: d }))]}
               value={selectedDistrict || ""}
-              onChange={(e) => setSelectedDistrict(e.target.value || null)}
-              className="bg-transparent border-none focus:ring-0 text-slate-700 text-xs font-bold cursor-pointer"
-            >
-              <option value="">All Districts</option>
-              {DISTRICTS[selectedDivision]?.map((dist) => (
-                <option key={dist} value={dist}>{dist}</option>
-              ))}
-            </select>
+              onChange={value => setSelectedDistrict(value || null)}
+            />
           </div>
         )}
 
@@ -667,7 +591,7 @@ export default function DashboardPage() {
         </div>
 
         <button
-          onClick={fetchReports}
+          onClick={() => mutateSummary()}
           disabled={loading}
           className="ml-auto bg-slate-900 hover:bg-black text-white px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl transition-all active:scale-95 flex items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
         >
@@ -678,7 +602,7 @@ export default function DashboardPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
         {coreFields.length > 0 ? (
-          coreFields.map((field) => {
+          coreFields.map((field: any) => {
             const iconMap: any = {
               cases: <Users />,
               mortality: <Skull />,

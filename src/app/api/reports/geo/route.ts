@@ -2,106 +2,55 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { BD_DISTRICT_COORDS } from "@/lib/bd-districts";
 
+/**
+ * GET /api/reports/geo
+ * 
+ * SQL-native geographic aggregation.
+ * Returns district-level aggregates with lat/lng from static coord map.
+ */
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const date = searchParams.get("date");
-    const outbreakId = searchParams.get("outbreakId");
-    const personDivision = searchParams.get("division");
-    const personDistrict = searchParams.get("district");
+    const outbreakId = searchParams.get("outbreakId") || 'measles-2026';
+    const division = searchParams.get("division") || searchParams.get("divisions");
+    const district = searchParams.get("district") || searchParams.get("districts");
     const from = searchParams.get("from");
     const to = searchParams.get("to");
 
-    // 1. Construct Modern Where
-    const whereModern: any = { status: "PUBLISHED" };
-    if (outbreakId) whereModern.outbreakId = outbreakId;
-    if (personDivision || personDistrict) {
-      whereModern.facility = {
-        ...(personDivision && { division: personDivision }),
-        ...(personDistrict && { district: personDistrict }),
-      };
-    }
-    if (date) {
-      const d = new Date(date);
-      whereModern.periodStart = {
-        gte: new Date(d.setHours(0, 0, 0, 0)),
-        lte: new Date(d.setHours(23, 59, 59, 999)),
-      };
-    } else if (from && to) {
-      whereModern.periodStart = {
-        gte: new Date(from),
-        lte: new Date(new Date(to).setHours(23, 59, 59, 999)),
-      };
-    }
+    const validDate = (d: string | null) => d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : null;
+    const vDate = validDate(date);
+    const vFrom = validDate(from);
+    const vTo = validDate(to);
 
-    // 2. Construct Legacy Where
-    const whereLegacy: any = { published: true };
-    if (outbreakId) whereLegacy.outbreakId = outbreakId;
-    if (personDivision || personDistrict) {
-      whereLegacy.facility = {
-        ...(personDivision && { division: personDivision }),
-        ...(personDistrict && { district: personDistrict }),
-      };
-    }
-    if (date) {
-      const d = new Date(date);
-      whereLegacy.reportingDate = {
-        gte: new Date(d.setHours(0, 0, 0, 0)),
-        lte: new Date(d.setHours(23, 59, 59, 999)),
-      };
-    } else if (from && to) {
-      whereLegacy.reportingDate = {
-        gte: new Date(from),
-        lte: new Date(new Date(to).setHours(23, 59, 59, 999)),
-      };
-    }
+    const result: any[] = await prisma.$queryRaw`
+      SELECT
+        f.division,
+        f.district,
+        COALESCE(SUM(COALESCE(NULLIF(r."dataSnapshot"->>'confirmed24h', '')::numeric, 0)), 0) AS confirmed,
+        COALESCE(SUM(COALESCE(NULLIF(r."dataSnapshot"->>'suspectedDeath24h', '')::numeric, 0)), 0) +
+        COALESCE(SUM(COALESCE(NULLIF(r."dataSnapshot"->>'confirmedDeath24h', '')::numeric, 0)), 0) AS deaths,
+        COALESCE(SUM(COALESCE(NULLIF(r."dataSnapshot"->>'admitted24h', '')::numeric, 0)), 0) AS hospitalized
+      FROM "Report" r
+      JOIN "Facility" f ON f.id = r."facilityId"
+      WHERE r."outbreakId" = ${outbreakId}
+        AND r.status = 'PUBLISHED'
+        AND (${vDate}::text IS NULL OR r."periodStart"::date = ${vDate}::date)
+        AND (${vFrom}::text IS NULL OR r."periodStart"::date >= ${vFrom}::date)
+        AND (${vTo}::text IS NULL OR r."periodStart"::date <= ${vTo}::date)
+        AND (${division ?? ''}::text = '' OR f.division = ${division ?? ''})
+        AND (${district ?? ''}::text = '' OR f.district = ${district ?? ''})
+      GROUP BY f.division, f.district
+    `;
 
-    const [modernReports, legacyReports] = await Promise.all([
-      prisma.report.findMany({
-        where: whereModern,
-        include: { facility: { select: { district: true, division: true } } }
-      }),
-      prisma.dailyReport.findMany({
-        where: whereLegacy,
-        include: { facility: { select: { district: true, division: true } } }
-      })
-    ]);
-
-    const byDistrict: Record<string, {
-      district: string;
-      division: string;
-      confirmed: number;
-      deaths: number;
-      hospitalized: number;
-    }> = {};
-
-    const processReport = (r: any, isModern: boolean) => {
-      const district = r.facility.district || 'Unknown';
-      const division = r.facility.division || 'Unknown';
-      
-      if (!byDistrict[district]) {
-        byDistrict[district] = { district, division, confirmed: 0, deaths: 0, hospitalized: 0 };
-      }
-
-      if (isModern) {
-        const snap = r.dataSnapshot as any;
-        byDistrict[district].confirmed += (Number(snap.confirmed24h) || 0);
-        byDistrict[district].deaths += (Number(snap.suspectedDeath24h) || 0) + (Number(snap.confirmedDeath24h) || 0);
-        byDistrict[district].hospitalized += (Number(snap.admitted24h) || 0);
-      } else {
-        byDistrict[district].confirmed += r.confirmed24h;
-        byDistrict[district].deaths += r.suspectedDeath24h + r.confirmedDeath24h;
-        byDistrict[district].hospitalized += r.admitted24h;
-      }
-    };
-
-    modernReports.forEach(r => processReport(r, true));
-    legacyReports.forEach(r => processReport(r, false));
-
-    const geoData = Object.values(byDistrict)
-      .filter((d) => BD_DISTRICT_COORDS[d.district])
+    const geoData = result
+      .filter((d) => d.district && BD_DISTRICT_COORDS[d.district])
       .map((d) => ({
-        ...d,
+        district: d.district,
+        division: d.division,
+        confirmed: Number(d.confirmed) || 0,
+        deaths: Number(d.deaths) || 0,
+        hospitalized: Number(d.hospitalized) || 0,
         lat: BD_DISTRICT_COORDS[d.district].lat,
         lng: BD_DISTRICT_COORDS[d.district].lng,
       }));

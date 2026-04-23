@@ -12,9 +12,6 @@ import { ReportStatus } from "@prisma/client";
  * - Pagination (page, limit)
  * - Filtering (outbreakId, facilityId, division, district)
  * - Date Range (from, to) or specific date (date)
- * 
- * Aggregates data from both modern 'Report' table and legacy 'DailyReport' table.
- * Implements de-duplication to prevent double-counting.
  */
 export async function GET(req: Request) {
   try {
@@ -81,88 +78,50 @@ export async function GET(req: Request) {
     }
 
     const isAdmin = session?.user?.role === "ADMIN" || session?.user?.role === "EDITOR";
-    const modernWhere: any = { outbreakId: effectiveOutbreakId };
+    const where: any = { outbreakId: effectiveOutbreakId };
     if (!isAdmin) {
-      modernWhere.status = ReportStatus.PUBLISHED;
+      where.status = ReportStatus.PUBLISHED;
     }
     
-    if (facilityId) modernWhere.facilityId = facilityId;
-    if (Object.keys(geoFilter).length > 0) modernWhere.facility = geoFilter;
-
-    const legacyWhere: any = { outbreakId: effectiveOutbreakId };
-    if (facilityId) legacyWhere.facilityId = facilityId;
-    if (Object.keys(geoFilter).length > 0) legacyWhere.facility = geoFilter;
+    if (facilityId) where.facilityId = facilityId;
+    if (Object.keys(geoFilter).length > 0) where.facility = geoFilter;
     
     const adjustedTo = enforcePublishTime && to === todayStr ? getBdDateString(new Date(bdNow.getTime() - 86400000)) : to;
     
     if (specificDate) {
       const d = new Date(specificDate);
       const nextD = new Date(d.getTime() + 86400000);
-      modernWhere.periodStart = { gte: d, lt: nextD };
-      legacyWhere.reportingDate = { gte: d, lt: nextD };
+      where.periodStart = { gte: d, lt: nextD };
     } else if (from || adjustedTo) {
-      modernWhere.periodStart = {};
-      legacyWhere.reportingDate = {};
-      if (from) { modernWhere.periodStart.gte = new Date(from); legacyWhere.reportingDate.gte = new Date(from); }
+      where.periodStart = {};
+      if (from) { where.periodStart.gte = new Date(from); }
       if (adjustedTo) { 
         const end = new Date(new Date(adjustedTo).getTime() + 86400000 - 1);
-        modernWhere.periodStart.lte = end; legacyWhere.reportingDate.lte = end; 
+        where.periodStart.lte = end; 
       }
     }
 
-    // --- FETCH BOTH TABLES ---
-    const [modernReports, legacyReports] = await Promise.all([
+    const [reports, totalCount] = await Promise.all([
       prisma.report.findMany({
-        where: modernWhere,
+        where,
         include: { facility: true, user: { select: { name: true } } },
-        orderBy: { periodStart: 'desc' }
+        orderBy: { periodStart: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit
       }),
-      prisma.dailyReport.findMany({
-        where: legacyWhere,
-        include: { facility: true, user: { select: { name: true } } },
-        orderBy: { reportingDate: 'desc' }
-      })
+      prisma.report.count({ where })
     ]);
 
-    // --- DE-DUPLICATION LOGIC ---
-    const processedTags = new Set<string>();
-    const combined: any[] = [];
-
-    // Prioritize Modern
-    modernReports.forEach(r => {
-      const dateKey = r.periodStart.toISOString().split('T')[0];
-      const tag = `${r.facilityId}_${dateKey}`;
-      processedTags.add(tag);
-      combined.push({
-        ...r,
-        reportingDate: r.periodStart,
-        published: true,
-        isModern: true,
-        ...(r.dataSnapshot as any)
-      });
-    });
-
-    // Backfill from Legacy
-    legacyReports.forEach(r => {
-      const dateKey = r.reportingDate.toISOString().split('T')[0];
-      const tag = `${r.facilityId}_${dateKey}`;
-      if (!processedTags.has(tag)) {
-        processedTags.add(tag);
-        combined.push({
-          ...r,
-          isModern: false,
-          published: r.published
-        });
-      }
-    });
-
-    // --- FINAL PAGINATION ---
-    combined.sort((a, b) => new Date(b.reportingDate).getTime() - new Date(a.reportingDate).getTime());
-    const totalCount = combined.length;
-    const paginated = combined.slice((page - 1) * limit, page * limit);
+    // Format for frontend (preserving keys)
+    const formatted = reports.map(r => ({
+      ...r,
+      reportingDate: r.periodStart,
+      published: r.status === ReportStatus.PUBLISHED,
+      ...(r.dataSnapshot as any)
+    }));
 
     return NextResponse.json({
-      reports: paginated,
+      reports: formatted,
       pagination: { total: totalCount, page, limit, totalPages: Math.ceil(totalCount / limit) },
       temporal: {
         dataDate: adjustedTo || specificDate || todayStr,
@@ -231,7 +190,7 @@ export async function POST(req: Request) {
         let val = data[field.fieldKey];
         if (val !== undefined) {
           fieldValuesData.push({
-            modernReportId: newReport.id,
+            reportId: newReport.id,
             formFieldId: field.id,
             value: String(val)
           });

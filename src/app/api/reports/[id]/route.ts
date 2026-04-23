@@ -19,13 +19,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         outbreak: true,
         fieldValues: { include: { formField: true } }
       }
-    }) || await prisma.dailyReport.findUnique({
-      where: { id },
-      include: {
-        facility: true,
-        outbreak: true,
-        fieldValues: { include: { formField: true } }
-      }
     });
 
     if (!report) return NextResponse.json({ error: "Report not found" }, { status: 404 });
@@ -50,86 +43,54 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   try {
     const data = await req.json();
 
-    const existingModern = await prisma.report.findUnique({ where: { id } });
-    const existingLegacy = !existingModern ? await prisma.dailyReport.findUnique({ where: { id } }) : null;
-
-    if (!existingModern && !existingLegacy) {
+    const existing = await prisma.report.findUnique({ where: { id } });
+    if (!existing) {
       return NextResponse.json({ error: "Report not found" }, { status: 404 });
     }
 
-    const targetReport = existingModern || existingLegacy;
-    if (session.user.role === "USER" && targetReport?.userId !== session.user.id) {
+    if (session.user.role === "USER" && existing.userId !== session.user.id) {
       return NextResponse.json({ error: "Forbidden: Cannot edit others' reports" }, { status: 403 });
     }
 
-    if ((targetReport as any).isLocked && session.user.role !== "ADMIN") {
+    if (existing.isLocked && session.user.role !== "ADMIN") {
       return NextResponse.json({ error: "Report is locked" }, { status: 403 });
     }
 
     const report = await prisma.$transaction(async (tx) => {
-      if (existingModern) {
-        // Optimized: Collect all values first
-        const valuesToUpdate: Record<string, string> = { ...data.dynamicFields };
-        
-        const outbreakFields = await tx.formField.findMany({
-          where: { outbreakId: existingModern.outbreakId }
-        });
+      // Optimized: Collect all values first
+      const valuesToUpdate: Record<string, string> = { ...data.dynamicFields };
+      
+      const outbreakFields = await tx.formField.findMany({
+        where: { outbreakId: existing.outbreakId }
+      });
 
-        for (const field of outbreakFields) {
-          if (data[field.fieldKey] !== undefined) {
-             valuesToUpdate[field.id] = String(data[field.fieldKey]);
-          }
+      for (const field of outbreakFields) {
+        if (data[field.fieldKey] !== undefined) {
+           valuesToUpdate[field.id] = String(data[field.fieldKey]);
         }
-
-        // 1. Batch delete existing values
-        await tx.reportFieldValue.deleteMany({
-          where: { modernReportId: id }
-        });
-
-        // 2. Batch create new values
-        const fieldValuesData = Object.entries(valuesToUpdate).map(([formFieldId, value]) => ({
-          modernReportId: id,
-          formFieldId: formFieldId,
-          value: String(value),
-        }));
-
-        if (fieldValuesData.length > 0) {
-          await tx.reportFieldValue.createMany({ data: fieldValuesData });
-        }
-
-        const snapshot = await rebuildSnapshot(id, tx);
-        return await tx.report.update({
-          where: { id },
-          data: { dataSnapshot: snapshot as any }
-        });
-      } else {
-        // Update legacy DailyReport
-        const updatedLegacy = await tx.dailyReport.update({
-          where: { id },
-          data: {
-            suspected24h: Number(data.suspected24h) || 0,
-            confirmed24h: Number(data.confirmed24h) || 0,
-            suspectedDeath24h: Number(data.suspectedDeath24h) || 0,
-            confirmedDeath24h: Number(data.confirmedDeath24h) || 0,
-            admitted24h: Number(data.admitted24h) || 0,
-            discharged24h: Number(data.discharged24h) || 0,
-            serumSent24h: Number(data.serumSent24h) || 0,
-          },
-        });
-
-        if (data.dynamicFields && typeof data.dynamicFields === 'object') {
-          await tx.reportFieldValue.deleteMany({ where: { reportId: id } });
-          const legacyFieldValuesData = Object.entries(data.dynamicFields).map(([formFieldId, value]) => ({
-            reportId: id,
-            formFieldId,
-            value: String(value),
-          }));
-          if (legacyFieldValuesData.length > 0) {
-            await tx.reportFieldValue.createMany({ data: legacyFieldValuesData });
-          }
-        }
-        return updatedLegacy;
       }
+
+      // 1. Batch delete existing values
+      await tx.reportFieldValue.deleteMany({
+        where: { reportId: id }
+      });
+
+      // 2. Batch create new values
+      const fieldValuesData = Object.entries(valuesToUpdate).map(([formFieldId, value]) => ({
+        reportId: id,
+        formFieldId: formFieldId,
+        value: String(value),
+      }));
+
+      if (fieldValuesData.length > 0) {
+        await tx.reportFieldValue.createMany({ data: fieldValuesData });
+      }
+
+      const snapshot = await rebuildSnapshot(id, tx);
+      return await tx.report.update({
+        where: { id },
+        data: { dataSnapshot: snapshot as any }
+      });
     }, {
       timeout: 15000 // Increase timeout to 15s
     });
@@ -137,7 +98,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     await createAuditLog({
       userId: session.user.id,
       action: AuditActions.REPORT_UPDATE,
-      entityType: existingModern ? 'Report' : 'DailyReport',
+      entityType: 'Report',
       entityId: report.id,
       details: { updatedBy: session.user.role, status: (report as any).status },
     });
@@ -155,14 +116,12 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
   if (session?.user?.role !== "ADMIN") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   try {
-    const isModern = await prisma.report.findUnique({ where: { id } });
-    if (isModern) {
-      await prisma.report.delete({ where: { id } });
-    } else {
-      await prisma.dailyReport.delete({ where: { id } });
-    }
+    const existing = await prisma.report.findUnique({ where: { id } });
+    if (!existing) return NextResponse.json({ error: "Report not found" }, { status: 404 });
+    
+    await prisma.report.delete({ where: { id } });
     return NextResponse.json({ success: true });
   } catch (error) {
     return NextResponse.json({ error: "Failed to delete report" }, { status: 500 });
   }
-}
+}

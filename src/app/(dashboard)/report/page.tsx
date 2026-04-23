@@ -35,7 +35,7 @@ export default function AuthenticatedReportPage() {
 
   useEffect(() => {
     if (session?.user?.facilityId) {
-      setSelectedFacilityId(session.user.facilityId);
+      setSelectedFacilityId(session.user.facilityId || '');
     }
   }, [session]);
 

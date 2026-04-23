@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { ReportStatus } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 
+/**
+ * GET /api/reports/summary
+ * 
+ * High-performance SQL-native aggregation.
+ * Returns national totals + division/district breakdown in a single query.
+ * Replaces the old N-row fetch + JS .reduce() pattern.
+ */
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
@@ -9,119 +16,104 @@ export async function GET(req: NextRequest) {
     const dateQuery = searchParams.get('date');
     const fromQuery = searchParams.get('from');
     const toQuery = searchParams.get('to');
-    const division = searchParams.get('division');
-    const district = searchParams.get('district');
+    const division = searchParams.get('division') || searchParams.get('divisions');
+    const district = searchParams.get('district') || searchParams.get('districts');
 
-    // 1. Geography Filter
-    const facilityWhere: any = {};
-    if (division) facilityWhere.division = division;
-    if (district) facilityWhere.district = district;
+    // Validate date formats
+    const validDate = (d: string | null) => d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : null;
+    const vDate = validDate(dateQuery);
+    const vFrom = validDate(fromQuery);
+    const vTo = validDate(toQuery);
 
-    // 2. Date Ranges
-    let modernDateFilter: any = null;
-    let legacyDateFilter: any = null;
+    // --- National Totals (single row) ---
+    const totalsResult: any[] = await prisma.$queryRaw`
+      SELECT
+        COALESCE(SUM(COALESCE(NULLIF(r."dataSnapshot"->>'suspected24h', '')::numeric, 0)), 0) AS "suspected24h",
+        COALESCE(SUM(COALESCE(NULLIF(r."dataSnapshot"->>'confirmed24h', '')::numeric, 0)), 0) AS "confirmed24h",
+        COALESCE(SUM(COALESCE(NULLIF(r."dataSnapshot"->>'admitted24h', '')::numeric, 0)), 0) AS "admitted24h",
+        COALESCE(SUM(COALESCE(NULLIF(r."dataSnapshot"->>'discharged24h', '')::numeric, 0)), 0) AS "discharged24h",
+        COALESCE(SUM(COALESCE(NULLIF(r."dataSnapshot"->>'confirmedDeath24h', '')::numeric, 0)), 0) AS "confirmedDeath24h",
+        COALESCE(SUM(COALESCE(NULLIF(r."dataSnapshot"->>'suspectedDeath24h', '')::numeric, 0)), 0) AS "suspectedDeath24h",
+        COALESCE(SUM(COALESCE(NULLIF(r."dataSnapshot"->>'serumSent24h', '')::numeric, 0)), 0) AS "serumSent24h",
+        COUNT(r.id)::int AS "reportCount"
+      FROM "Report" r
+      JOIN "Facility" f ON f.id = r."facilityId"
+      WHERE r."outbreakId" = ${outbreakId}
+        AND r.status = 'PUBLISHED'
+        AND (${vDate}::text IS NULL OR r."periodStart"::date = ${vDate}::date)
+        AND (${vFrom}::text IS NULL OR r."periodStart"::date >= ${vFrom}::date)
+        AND (${vTo}::text IS NULL OR r."periodStart"::date <= ${vTo}::date)
+        AND (${division ?? ''}::text = '' OR f.division = ${division ?? ''})
+        AND (${district ?? ''}::text = '' OR f.district = ${district ?? ''})
+    `;
 
-    if (dateQuery) {
-      const start = new Date(dateQuery);
-      const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
-      modernDateFilter = { gte: start, lt: end };
-      legacyDateFilter = { gte: start, lt: end };
-    } else if (toQuery) {
-      const end = new Date(new Date(toQuery).getTime() + 24 * 60 * 60 * 1000 - 1);
-      modernDateFilter = { lte: end };
-      legacyDateFilter = { lte: end };
-      if (fromQuery) {
-        const start = new Date(fromQuery);
-        modernDateFilter.gte = start;
-        legacyDateFilter.gte = start;
-      }
-    } else if (fromQuery) {
-      modernDateFilter = { gte: new Date(fromQuery) };
-      legacyDateFilter = { gte: new Date(fromQuery) };
-    }
+    // --- Division/District Breakdown ---
+    // Group by division (default), district (if division filter), or facility (if district filter)
+    let groupByCol: string;
+    if (district) groupByCol = 'f."facilityName"';
+    else if (division) groupByCol = 'f.district';
+    else groupByCol = 'f.division';
 
-    // 3. Parallel Fetch
-    const [modernReports, legacyReports] = await Promise.all([
-      prisma.report.findMany({
-        where: {
-          outbreakId,
-          status: ReportStatus.PUBLISHED,
-          ...(modernDateFilter && { periodStart: modernDateFilter }),
-          ...(Object.keys(facilityWhere).length > 0 && { facility: facilityWhere })
-        },
-        select: { 
-          id: true,
-          periodStart: true,
-          facilityId: true,
-          dataSnapshot: true,
-          facility: { select: { division: true, district: true, facilityName: true } }
-        }
-      }),
-      prisma.dailyReport.findMany({
-        where: {
-          outbreakId,
-          ...(legacyDateFilter && { reportingDate: legacyDateFilter }),
-          ...(Object.keys(facilityWhere).length > 0 && { facility: facilityWhere })
-        },
-        include: { facility: { select: { division: true, district: true, facilityName: true } } }
-      })
-    ]);
+    const breakdownResult: any[] = await prisma.$queryRaw(
+      Prisma.sql`
+        SELECT
+          ${Prisma.raw(groupByCol)} AS "groupKey",
+          COALESCE(SUM(COALESCE(NULLIF(r."dataSnapshot"->>'suspected24h', '')::numeric, 0)), 0) AS "suspected24h",
+          COALESCE(SUM(COALESCE(NULLIF(r."dataSnapshot"->>'confirmed24h', '')::numeric, 0)), 0) AS "confirmed24h",
+          COALESCE(SUM(COALESCE(NULLIF(r."dataSnapshot"->>'admitted24h', '')::numeric, 0)), 0) AS "admitted24h",
+          COALESCE(SUM(COALESCE(NULLIF(r."dataSnapshot"->>'discharged24h', '')::numeric, 0)), 0) AS "discharged24h",
+          COALESCE(SUM(COALESCE(NULLIF(r."dataSnapshot"->>'confirmedDeath24h', '')::numeric, 0)), 0) AS "confirmedDeath24h",
+          COALESCE(SUM(COALESCE(NULLIF(r."dataSnapshot"->>'suspectedDeath24h', '')::numeric, 0)), 0) AS "suspectedDeath24h",
+          COALESCE(SUM(COALESCE(NULLIF(r."dataSnapshot"->>'serumSent24h', '')::numeric, 0)), 0) AS "serumSent24h",
+          COUNT(r.id)::int AS "reportCount"
+        FROM "Report" r
+        JOIN "Facility" f ON f.id = r."facilityId"
+        WHERE r."outbreakId" = ${outbreakId}
+          AND r.status = 'PUBLISHED'
+          AND (${vDate ?? ''}::text = '' OR r."periodStart"::date = ${vDate ?? ''}::date)
+          AND (${vFrom ?? ''}::text = '' OR r."periodStart"::date >= ${vFrom ?? ''}::date)
+          AND (${vTo ?? ''}::text = '' OR r."periodStart"::date <= ${vTo ?? ''}::date)
+          AND (${division ?? ''}::text = '' OR f.division = ${division ?? ''})
+          AND (${district ?? ''}::text = '' OR f.district = ${district ?? ''})
+        GROUP BY ${Prisma.raw(groupByCol)}
+        ORDER BY "suspected24h" DESC
+      `
+    );
 
-    // 4. De-duplicated Aggregation
-    const totals: Record<string, number> = {};
-    const breakdown: Record<string, Record<string, number>> = {};
-    const processedTags = new Set<string>();
-
-    const updateAgg = (facilityId: string, facility: any, date: Date, data: Record<string, any>) => {
-      if (!facility || !facilityId) return;
-      
-      const dateKey = date.toISOString().split('T')[0];
-      const tag = `${facilityId}_${dateKey}`;
-      
-      if (processedTags.has(tag)) return;
-      processedTags.add(tag);
-
-      // Determine grouping key
-      let key = facility.division;
-      if (district) key = facility.facilityName;
-      else if (division) key = facility.district;
-      
-      if (!key) return;
-      if (!breakdown[key]) breakdown[key] = {};
-      
-      Object.entries(data).forEach(([k, v]) => {
-        const val = Number(v) || 0;
-        totals[k] = (totals[k] || 0) + val;
-        breakdown[key][k] = (breakdown[key][k] || 0) + val;
-      });
+    // Format totals
+    const t = totalsResult[0] || {};
+    const totals: Record<string, number> = {
+      suspected24h: Number(t.suspected24h) || 0,
+      confirmed24h: Number(t.confirmed24h) || 0,
+      admitted24h: Number(t.admitted24h) || 0,
+      discharged24h: Number(t.discharged24h) || 0,
+      confirmedDeath24h: Number(t.confirmedDeath24h) || 0,
+      suspectedDeath24h: Number(t.suspectedDeath24h) || 0,
+      serumSent24h: Number(t.serumSent24h) || 0,
     };
 
-    // Prioritize Modern Table
-    modernReports.forEach(r => {
-      const snap = r.dataSnapshot as any;
-      if (!snap) return;
-      updateAgg(r.facilityId, r.facility, r.periodStart, snap);
-    });
+    // Format breakdown
+    const breakdown: Record<string, Record<string, number>> = {};
+    for (const row of breakdownResult) {
+      if (!row.groupKey) continue;
+      breakdown[row.groupKey] = {
+        suspected24h: Number(row.suspected24h) || 0,
+        confirmed24h: Number(row.confirmed24h) || 0,
+        admitted24h: Number(row.admitted24h) || 0,
+        discharged24h: Number(row.discharged24h) || 0,
+        confirmedDeath24h: Number(row.confirmedDeath24h) || 0,
+        suspectedDeath24h: Number(row.suspectedDeath24h) || 0,
+        serumSent24h: Number(row.serumSent24h) || 0,
+      };
+    }
 
-    // Backfill from Legacy Table
-    legacyReports.forEach(r => {
-      const keys = ['suspected24h', 'confirmed24h', 'suspectedDeath24h', 'confirmedDeath24h', 'admitted24h', 'discharged24h', 'serumSent24h'];
-      const data: any = {};
-      keys.forEach(k => { data[k] = (r as any)[k] || 0; });
-      updateAgg(r.facilityId, r.facility, r.reportingDate, data);
-    });
-
-    return NextResponse.json({ 
-      totals, 
+    return NextResponse.json({
+      totals,
       breakdown,
-      debug: {
-        modernCount: modernReports.length,
-        legacyCount: legacyReports.length,
-        processedTagsCount: processedTags.size
-      }
+      debug: { reportCount: Number(t.reportCount) || 0 }
     });
   } catch (error: any) {
     console.error('[Summary API Error]', error);
-    return NextResponse.json({ error: 'Aggregation failed' }, { status: 500 });
+    return NextResponse.json({ error: 'Aggregation failed', details: error.message }, { status: 500 });
   }
 }

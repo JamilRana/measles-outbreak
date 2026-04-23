@@ -148,7 +148,7 @@ export default function DailyReportPage() {
             <UnifiedReportForm 
               key={`${selectedOutbreakId}-${selectedDate}-${existingReport?.id || 'new'}`}
               outbreakId={selectedOutbreakId} 
-              facilityId={session?.user?.facilityId}
+              facilityId={session?.user?.facilityId ?? undefined}
               initialData={existingReport}
               onDateChange={(date) => setSelectedDate(date)}
               onSuccess={() => {

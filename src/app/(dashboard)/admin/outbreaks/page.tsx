@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Breadcrumbs from '@/components/Breadcrumbs';
+import { SearchableSelect } from '@/components/SearchableSelect';
 import Link from 'next/link';
 
 interface Outbreak {
@@ -351,39 +352,35 @@ export default function OutbreaksPage() {
                 </div>
                 <div>
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Disease Profile</label>
-                  <select
+                  <SearchableSelect 
+                    label=""
+                    placeholder="Select Target Disease"
+                    options={diseases.map(d => ({ value: d.id, label: `${d.name} (${d.code})` }))}
                     value={form.diseaseId}
-                    onChange={(e) => setForm({ ...form, diseaseId: e.target.value })}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-bold focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all"
-                    required
-                  >
-                    <option value="">Select Target Disease</option>
-                    {diseases.map(d => (
-                      <option key={d.id} value={d.id}>{d.name} ({d.code})</option>
-                    ))}
-                  </select>
+                    onChange={value => setForm({ ...form, diseaseId: value })}
+                  />
                 </div>
                 
                 <div className="grid grid-cols-2 gap-4">
                    <div>
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Reporting Freq.</label>
-                      <select
+                      <SearchableSelect 
+                        label=""
+                        placeholder="Select Frequency"
+                        options={FREQUENCIES.map(f => ({ value: f, label: f }))}
                         value={form.reportingFrequency}
-                        onChange={(e) => setForm({ ...form, reportingFrequency: e.target.value })}
-                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-bold outline-none"
-                      >
-                        {FREQUENCIES.map(f => <option key={f} value={f}>{f}</option>)}
-                      </select>
+                        onChange={value => setForm({ ...form, reportingFrequency: value })}
+                      />
                    </div>
                    <div>
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Current Status</label>
-                      <select
+                      <SearchableSelect 
+                        label=""
+                        placeholder="Select Status"
+                        options={STATUSES.map(s => ({ value: s, label: s }))}
                         value={form.status}
-                        onChange={(e) => setForm({ ...form, status: e.target.value })}
-                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-bold outline-none"
-                      >
-                        {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-                      </select>
+                        onChange={value => setForm({ ...form, status: value })}
+                      />
                    </div>
                 </div>
 

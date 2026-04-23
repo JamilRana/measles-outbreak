@@ -1,77 +1,46 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+/**
+ * GET /api/reports/timeseries
+ * 
+ * SQL-native time-series aggregation.
+ * Returns pre-sorted daily aggregates — no JS-side grouping needed.
+ */
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
-  const days = parseInt(searchParams.get("days") || "30", 10);
-  const outbreakId = searchParams.get("outbreakId");
-  const division = searchParams.get("division");
-  const district = searchParams.get("district");
+  const days = Math.min(Math.max(parseInt(searchParams.get("days") || "30", 10), 1), 365);
+  const outbreakId = searchParams.get("outbreakId") || 'measles-2026';
+  const division = searchParams.get("division") || searchParams.get("divisions");
+  const district = searchParams.get("district") || searchParams.get("districts");
 
   try {
-    const startDate = new Date();
-    startDate.setDate(startDate.getDate() - days);
-    startDate.setHours(0, 0, 0, 0);
+    const result: any[] = await prisma.$queryRaw`
+      SELECT
+        r."periodStart"::date AS date,
+        COALESCE(SUM(COALESCE(NULLIF(r."dataSnapshot"->>'suspected24h', '')::numeric, 0)), 0) AS suspected,
+        COALESCE(SUM(COALESCE(NULLIF(r."dataSnapshot"->>'confirmed24h', '')::numeric, 0)), 0) AS confirmed,
+        COALESCE(SUM(COALESCE(NULLIF(r."dataSnapshot"->>'confirmedDeath24h', '')::numeric, 0)), 0) +
+        COALESCE(SUM(COALESCE(NULLIF(r."dataSnapshot"->>'suspectedDeath24h', '')::numeric, 0)), 0) AS deaths,
+        COALESCE(SUM(COALESCE(NULLIF(r."dataSnapshot"->>'admitted24h', '')::numeric, 0)), 0) AS hospitalized
+      FROM "Report" r
+      JOIN "Facility" f ON f.id = r."facilityId"
+      WHERE r."outbreakId" = ${outbreakId}
+        AND r.status = 'PUBLISHED'
+        AND r."periodStart" >= NOW() - INTERVAL '1 day' * ${days}
+        AND (${division ?? ''}::text = '' OR f.division = ${division ?? ''})
+        AND (${district ?? ''}::text = '' OR f.district = ${district ?? ''})
+      GROUP BY r."periodStart"::date
+      ORDER BY date ASC
+    `;
 
-    // 1. Fetch from Modern table
-    const whereModern: any = {
-      periodStart: { gte: startDate },
-      status: "PUBLISHED"
-    };
-    if (outbreakId) whereModern.outbreakId = outbreakId;
-    if (division || district) {
-      whereModern.facility = {
-        ...(division && { division }),
-        ...(district && { district }),
-      };
-    }
-
-    // 2. Fetch from Legacy table
-    const whereLegacy: any = {
-      reportingDate: { gte: startDate },
-      published: true
-    };
-    if (outbreakId) whereLegacy.outbreakId = outbreakId;
-    if (division || district) {
-      whereLegacy.facility = {
-        ...(division && { division }),
-        ...(district && { district }),
-      };
-    }
-
-    const [modernReports, legacyReports] = await Promise.all([
-      prisma.report.findMany({ where: whereModern, select: { periodStart: true, dataSnapshot: true } }),
-      prisma.dailyReport.findMany({ where: whereLegacy })
-    ]);
-
-    const byDate: Record<string, { suspected: number; confirmed: number; deaths: number; hospitalized: number }> = {};
-
-    // Process Modern
-    modernReports.forEach(r => {
-      const dateKey = r.periodStart.toISOString().split("T")[0];
-      if (!byDate[dateKey]) byDate[dateKey] = { suspected: 0, confirmed: 0, deaths: 0, hospitalized: 0 };
-      
-      const snap = r.dataSnapshot as any;
-      byDate[dateKey].suspected += (Number(snap.suspected24h) || 0);
-      byDate[dateKey].confirmed += (Number(snap.confirmed24h) || 0);
-      byDate[dateKey].deaths += (Number(snap.suspectedDeath24h) || 0) + (Number(snap.confirmedDeath24h) || 0);
-      byDate[dateKey].hospitalized += (Number(snap.admitted24h) || 0);
-    });
-
-    // Process Legacy
-    legacyReports.forEach((r) => {
-      const dateKey = r.reportingDate.toISOString().split("T")[0];
-      if (!byDate[dateKey]) byDate[dateKey] = { suspected: 0, confirmed: 0, deaths: 0, hospitalized: 0 };
-      
-      byDate[dateKey].suspected += r.suspected24h;
-      byDate[dateKey].confirmed += r.confirmed24h;
-      byDate[dateKey].deaths += r.suspectedDeath24h + r.confirmedDeath24h;
-      byDate[dateKey].hospitalized += r.admitted24h;
-    });
-
-    const timeseries = Object.entries(byDate)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([date, data]) => ({ date, ...data }));
+    const timeseries = result.map(row => ({
+      date: row.date instanceof Date ? row.date.toISOString().split("T")[0] : String(row.date),
+      suspected: Number(row.suspected) || 0,
+      confirmed: Number(row.confirmed) || 0,
+      deaths: Number(row.deaths) || 0,
+      hospitalized: Number(row.hospitalized) || 0,
+    }));
 
     return NextResponse.json(timeseries);
   } catch (error) {

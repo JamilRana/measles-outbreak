@@ -5,32 +5,32 @@ declare module "next-auth" {
     user: {
       id: string;
       role: string;
-      facilityName: string;
-      facilityId: string;
-      facilityCode?: string;
-      facilityType?: string;
-      division?: string;
-      district?: string;
-      upazila?: string;
-      managedDivisions?: string[];
-      managedDistricts?: string[];
-      isActive?: boolean;
+      facilityId: string | null;
+      facilityName: string | null;
+      facilityCode: string | null;
+      facilityType: string | null;
+      division: string | null;
+      district: string | null;
+      managedDivisions: string[];
+      managedDistricts: string[];
+      upazila: string | null;
+      isActive: boolean;
     } & DefaultSession["user"];
   }
 
   interface User {
     id: string;
     role: string;
-    facilityName: string;
-    facilityId: string;
-    facilityCode?: string;
-    facilityType?: string;
-    division?: string;
-    district?: string;
-    upazila?: string;
-    managedDivisions?: string[];
-    managedDistricts?: string[];
-    isActive?: boolean;
+    facilityId: string | null;
+    facilityName: string | null;
+    facilityCode: string | null;
+    facilityType?: string | null;
+    division: string | null;
+    district: string | null;
+    managedDivisions: string[];
+    managedDistricts: string[];
+    upazila?: string | null;
+    isActive: boolean;
   }
 }
 
@@ -38,15 +38,15 @@ declare module "next-auth/jwt" {
   interface JWT {
     id: string;
     role: string;
-    facilityName: string;
-    facilityId: string;
-    facilityCode?: string;
-    facilityType?: string;
-    division?: string;
-    district?: string;
-    upazila?: string;
-    managedDivisions?: string[];
-    managedDistricts?: string[];
-    isActive?: boolean;
+    facilityId: string | null;
+    facilityName: string | null;
+    facilityCode: string | null;
+    facilityType: string | null;
+    division: string | null;
+    district: string | null;
+    managedDivisions: string[];
+    managedDistricts: string[];
+    upazila: string | null;
+    isActive: boolean;
   }
 }

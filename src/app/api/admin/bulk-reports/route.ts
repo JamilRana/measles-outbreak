@@ -124,6 +124,7 @@ export async function POST(req: Request) {
     }
 
     const results = { success: 0, failed: 0, errors: [] as string[] };
+    const { rebuildSnapshot } = await import('@/lib/snapshot');
 
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
@@ -142,7 +143,7 @@ export async function POST(req: Request) {
         let reportingDate: Date;
         const dateVal = row["reporting date"];
         if (typeof dateVal === 'number') {
-            reportingDate = XLSX.SSF.parse_date_code(dateVal) ? new Date(Math.round((dateVal - 25569) * 86400 * 1000)) : new Date();
+            reportingDate = new Date(Math.round((dateVal - 25569) * 86400 * 1000));
         } else {
             reportingDate = new Date(dateVal);
         }
@@ -153,48 +154,69 @@ export async function POST(req: Request) {
             continue;
         }
 
-        const startOfDay = new Date(reportingDate);
-        startOfDay.setHours(0, 0, 0, 0);
-        const endOfDay = new Date(reportingDate);
-        endOfDay.setHours(23, 59, 59, 999);
-        
+        reportingDate.setUTCHours(0, 0, 0, 0);
+
         // Dynamic Payload Extraction
-        const dataPayload: any = {};
+        const dataPayload: Record<string, string> = {};
         for (const field of formFields) {
           const val = row[field.fieldKey.toLowerCase()] ?? row[field.label.toLowerCase()];
-          if (val !== undefined && field.fieldType === "NUMBER") {
-            dataPayload[field.fieldKey] = parseInt(val) || 0;
+          if (val !== undefined) {
+             dataPayload[field.id] = String(val) || "0";
           }
         }
 
-        const existing = await prisma.dailyReport.findFirst({
-          where: {
-            facilityId: user.facilityId,
-            outbreakId: outbreakId,
-            reportingDate: {
-              gte: startOfDay,
-              lte: endOfDay,
-            },
-          },
+        const report = await prisma.$transaction(async (tx) => {
+          const existing = await tx.report.findUnique({
+            where: {
+              facilityId_outbreakId_periodStart: {
+                facilityId: user.facilityId!,
+                outbreakId: outbreakId,
+                periodStart: reportingDate
+              }
+            }
+          });
+
+          let targetReportId: string;
+
+          if (existing) {
+            targetReportId = existing.id;
+            // Update mode: Clear and re-insert field values
+            await tx.reportFieldValue.deleteMany({
+              where: { reportId: targetReportId }
+            });
+          } else {
+            const created = await tx.report.create({
+              data: {
+                facilityId: user.facilityId!,
+                userId: user.id,
+                outbreakId,
+                periodStart: reportingDate,
+                periodEnd: reportingDate,
+                status: "PUBLISHED",
+              }
+            });
+            targetReportId = created.id;
+          }
+
+          // Insert field values
+          if (Object.keys(dataPayload).length > 0) {
+            await tx.reportFieldValue.createMany({
+              data: Object.entries(dataPayload).map(([fieldId, val]) => ({
+                reportId: targetReportId,
+                formFieldId: fieldId,
+                value: val
+              }))
+            });
+          }
+
+          // Rebuild snapshot
+          const snapshot = await rebuildSnapshot(targetReportId, tx);
+          return await tx.report.update({
+            where: { id: targetReportId },
+            data: { dataSnapshot: snapshot as any }
+          });
         });
 
-        if (existing) {
-          await prisma.dailyReport.update({
-            where: { id: existing.id },
-            data: dataPayload,
-          });
-        } else {
-          await prisma.dailyReport.create({
-            data: {
-              ...dataPayload,
-              facilityId: user.facilityId,
-              userId: user.id,
-              reportingDate: reportingDate,
-              outbreakId: outbreakId,
-              published: true
-            },
-          });
-        }
         results.success++;
       } catch (err: any) {
         results.failed++;
@@ -206,7 +228,7 @@ export async function POST(req: Request) {
     await createAuditLog({
       userId: session.user.id,
       action: AuditActions.BULK_UPLOAD,
-      entityType: "DailyReport",
+      entityType: "Report",
       entityId: outbreakId,
       details: {
         fileName: file.name,

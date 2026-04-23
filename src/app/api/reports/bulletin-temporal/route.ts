@@ -6,7 +6,6 @@ import { ReportStatus } from '@prisma/client';
  * GET /api/reports/bulletin-temporal
  * 
  * Returns daily aggregated statistics for the bulletin.
- * Properly de-duplicates between modern and legacy records.
  */
 export async function GET(req: NextRequest) {
   try {
@@ -16,45 +15,26 @@ export async function GET(req: NextRequest) {
 
     const end = to ? new Date(new Date(to).getTime() + 86400000 - 1) : new Date();
 
-    const [modernReports, legacyReports] = await Promise.all([
-      prisma.report.findMany({
-        where: {
-          outbreakId,
-          status: ReportStatus.PUBLISHED,
-          periodStart: { lte: end }
-        },
-        select: {
-          facilityId: true,
-          periodStart: true,
-          dataSnapshot: true
-        }
-      }),
-      prisma.dailyReport.findMany({
-        where: {
-          outbreakId,
-          reportingDate: { lte: end }
-        },
-        select: {
-          facilityId: true,
-          reportingDate: true,
-          suspected24h: true,
-          confirmed24h: true,
-          admitted24h: true,
-          discharged24h: true,
-          suspectedDeath24h: true,
-          confirmedDeath24h: true
-        }
-      })
-    ]);
+    const reports = await prisma.report.findMany({
+      where: {
+        outbreakId,
+        status: ReportStatus.PUBLISHED,
+        periodStart: { lte: end }
+      },
+      select: {
+        facilityId: true,
+        periodStart: true,
+        dataSnapshot: true
+      }
+    });
 
     const dailyStats: Record<string, any> = {};
-    const processedTags = new Set<string>();
 
-    const updateDaily = (facilityId: string, date: Date, data: any) => {
-      const dateKey = date.toISOString().split('T')[0];
-      const tag = `${facilityId}_${dateKey}`;
-      if (processedTags.has(tag)) return;
-      processedTags.add(tag);
+    reports.forEach(r => {
+      const snap = r.dataSnapshot as any;
+      if (!snap) return;
+
+      const dateKey = r.periodStart.toISOString().split('T')[0];
 
       if (!dailyStats[dateKey]) {
         dailyStats[dateKey] = {
@@ -68,24 +48,12 @@ export async function GET(req: NextRequest) {
         };
       }
 
-      dailyStats[dateKey].suspected24h += (Number(data.suspected24h) || 0);
-      dailyStats[dateKey].confirmed24h += (Number(data.confirmed24h) || 0);
-      dailyStats[dateKey].admitted24h += (Number(data.admitted24h) || 0);
-      dailyStats[dateKey].recovered24h += (Number(data.discharged24h || data.recovered24h) || 0);
-      dailyStats[dateKey].suspectedDeath24h += (Number(data.suspectedDeath24h) || 0);
-      dailyStats[dateKey].confirmedDeath24h += (Number(data.confirmedDeath24h) || 0);
-    };
-
-    // Process Modern
-    modernReports.forEach(r => {
-      const snap = r.dataSnapshot as any;
-      if (!snap) return;
-      updateDaily(r.facilityId, r.periodStart, snap);
-    });
-
-    // Process Legacy
-    legacyReports.forEach(r => {
-      updateDaily(r.facilityId, r.reportingDate, r);
+      dailyStats[dateKey].suspected24h += (Number(snap.suspected24h) || 0);
+      dailyStats[dateKey].confirmed24h += (Number(snap.confirmed24h) || 0);
+      dailyStats[dateKey].admitted24h += (Number(snap.admitted24h) || 0);
+      dailyStats[dateKey].recovered24h += (Number(snap.discharged24h || snap.recovered24h) || 0);
+      dailyStats[dateKey].suspectedDeath24h += (Number(snap.suspectedDeath24h) || 0);
+      dailyStats[dateKey].confirmedDeath24h += (Number(snap.confirmedDeath24h) || 0);
     });
 
     // Sort Descending and Calculate Cumulatives

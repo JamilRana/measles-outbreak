@@ -21,6 +21,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import Breadcrumbs from '@/components/Breadcrumbs';
 import { DIVISIONS, DISTRICTS_BY_DIVISION } from '@/lib/constants';
+import { SearchableSelect } from '@/components/SearchableSelect';
 
 interface Facility {
   id: string;
@@ -329,17 +330,25 @@ export default function FacilityManagementPage() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-2">Division *</label>
-                    <select required value={formData.division} onChange={e => setFormData({...formData, division: e.target.value, district: ''})} className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4">
-                      <option value="">Select Division</option>
-                      {DIVISIONS.map(d => <option key={d} value={d}>{d}</option>)}
-                    </select>
+                    <SearchableSelect 
+                      label=""
+                      placeholder="Select Division"
+                      options={DIVISIONS.map(d => ({ value: d, label: d }))}
+                      value={formData.division}
+                      onChange={value => {
+                        setFormData({...formData, division: value, district: ''})
+                      }}
+                    />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-2">District *</label>
-                    <select required value={formData.district} onChange={e => setFormData({...formData, district: e.target.value})} disabled={!formData.division} className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4">
-                      <option value="">Select District</option>
-                      {formData.division && DISTRICTS_BY_DIVISION[formData.division]?.map(dist => <option key={dist} value={dist}>{dist}</option>)}
-                    </select>
+                    <SearchableSelect 
+                      label=""
+                      placeholder="Select District"
+                      options={(formData.division ? DISTRICTS_BY_DIVISION[formData.division] : [])?.map(dist => ({ value: dist, label: dist })) || []}
+                      value={formData.district}
+                      onChange={value => setFormData({...formData, district: value})}
+                    />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-2">Upazila</label>

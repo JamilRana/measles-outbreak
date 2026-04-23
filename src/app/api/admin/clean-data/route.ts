@@ -18,31 +18,22 @@ export async function POST(req: Request) {
       const start = startOfDay(d);
       const end = endOfDay(d);
 
-      await prisma.$transaction([
-        prisma.dailyReport.deleteMany({
-          where: {
-            reportingDate: { gte: start, lte: end },
-          },
-        }),
-        prisma.report.deleteMany({
-          where: {
-            periodStart: { gte: start, lte: end },
-          },
-        })
-      ]);
+      await prisma.report.deleteMany({
+        where: {
+          periodStart: { gte: start, lte: end },
+        },
+      });
 
       return NextResponse.json({ message: `All reports for ${date} have been cleared.` });
     } else if (mode === "ALL") {
        await prisma.$transaction([
          prisma.reportFieldValue.deleteMany({}),
-         prisma.dailyReport.deleteMany({}),
          prisma.report.deleteMany({})
        ]);
        return NextResponse.json({ message: "All historical reports have been cleared." });
     } else if (mode === "FACILITIES") {
       await prisma.$transaction([
         prisma.reportFieldValue.deleteMany({}),
-        prisma.dailyReport.deleteMany({}),
         prisma.report.deleteMany({}),
         prisma.user.deleteMany({ where: { NOT: { role: 'ADMIN' } } }),
         prisma.facility.deleteMany({})

@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createAuditLog, AuditActions } from "@/lib/audit";
 import { ReportStatus } from "@prisma/client";
+import { revalidateTag } from "next/cache";
 
 /**
  * POST /api/reports/[id]/publish
@@ -22,53 +23,35 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   }
 
   try {
-    const isModern = await prisma.report.findUnique({ where: { id } });
-    const isLegacy = !isModern ? await prisma.dailyReport.findUnique({ where: { id } }) : null;
+    const existing = await prisma.report.findUnique({ where: { id } });
 
-    if (!isModern && !isLegacy) {
+    if (!existing) {
       return NextResponse.json({ error: "Report not found" }, { status: 404 });
     }
 
-    if (isModern) {
-      const isPublished = isModern.status === ReportStatus.PUBLISHED;
-      const newStatus = isPublished ? ReportStatus.SUBMITTED : ReportStatus.PUBLISHED;
-      
-      await prisma.report.update({
-        where: { id },
-        data: { 
-          status: newStatus, 
-          publishedAt: newStatus === ReportStatus.PUBLISHED ? new Date() : null 
-        }
-      });
-      
-      await createAuditLog({
-        userId: session.user.id,
-        action: newStatus === ReportStatus.PUBLISHED ? AuditActions.REPORT_PUBLISH : AuditActions.REPORT_UNPUBLISH,
-        entityType: 'Report',
-        entityId: id,
-        details: { from: isModern.status, to: newStatus }
-      });
+    const isPublished = existing.status === ReportStatus.PUBLISHED;
+    const newStatus = isPublished ? ReportStatus.SUBMITTED : ReportStatus.PUBLISHED;
+    
+    await prisma.report.update({
+      where: { id },
+      data: { 
+        status: newStatus, 
+        publishedAt: newStatus === ReportStatus.PUBLISHED ? new Date() : null 
+      }
+    });
+    
+    await createAuditLog({
+      userId: session.user.id,
+      action: newStatus === ReportStatus.PUBLISHED ? AuditActions.REPORT_PUBLISH : AuditActions.REPORT_UNPUBLISH,
+      entityType: 'Report',
+      entityId: id,
+      details: { from: existing.status, to: newStatus }
+    });
 
-      return NextResponse.json({ success: true, status: newStatus });
-    } else {
-      const isPublished = isLegacy?.published;
-      const newPublished = !isPublished;
-      
-      await prisma.dailyReport.update({
-        where: { id },
-        data: { published: newPublished }
-      });
-      
-      await createAuditLog({
-        userId: session.user.id,
-        action: newPublished ? AuditActions.REPORT_PUBLISH : AuditActions.REPORT_UNPUBLISH,
-        entityType: 'DailyReport',
-        entityId: id,
-        details: { from: isPublished, to: newPublished }
-      });
+    // Invalidate dashboard cache
+    revalidateTag('dashboard', 'default');
 
-      return NextResponse.json({ success: true, published: newPublished });
-    }
+    return NextResponse.json({ success: true, status: newStatus });
   } catch (error) {
     console.error("Publish toggle error:", error);
     return NextResponse.json({ error: "Failed to update publish status" }, { status: 500 });

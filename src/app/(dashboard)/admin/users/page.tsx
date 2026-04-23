@@ -22,11 +22,13 @@ import {
   Pencil,
   PlusCircle,
   Globe,
-  Loader2
+  Loader2,
+  Hospital
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Breadcrumbs from '@/components/Breadcrumbs';
 import { DIVISIONS, DISTRICTS_BY_DIVISION } from '@/lib/constants';
+import { SearchableSelect } from '@/components/SearchableSelect';
 
 interface User {
   id: string;
@@ -289,9 +291,13 @@ export default function UserManagementPage() {
 
                       <div className="space-y-3">
                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Access Role</label>
-                         <select required value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl py-4 px-6 focus:outline-none focus:border-indigo-500 transition-all">
-                            {ROLE_OPTIONS.map(r => <option key={r} value={r}>{r}</option>)}
-                         </select>
+                         <SearchableSelect 
+                            label=""
+                            placeholder="Select Role"
+                            options={ROLE_OPTIONS.map(r => ({ value: r, label: r }))}
+                            value={formData.role}
+                            onChange={value => setFormData({...formData, role: value})}
+                         />
                       </div>
 
                       <div className="md:col-span-2 space-y-3">
@@ -299,12 +305,21 @@ export default function UserManagementPage() {
                             <span>Reporting Facility Assignment</span>
                             <span className="text-[9px] lowercase italic font-normal text-amber-500">Unset for regional/national roles</span>
                          </label>
-                         <select value={formData.facilityId} onChange={e => setFormData({...formData, facilityId: e.target.value})} className="w-full bg-slate-950 border-2 border-slate-800 text-white rounded-3xl py-4 px-6 focus:outline-none focus:ring-4 focus:ring-indigo-500/20 transition-all">
+                         {/* <select value={formData.facilityId} onChange={e => setFormData({...formData, facilityId: e.target.value})} className="w-full bg-slate-950 border-2 border-slate-800 text-white rounded-3xl py-4 px-6 focus:outline-none focus:ring-4 focus:ring-indigo-500/20 transition-all">
                             <option value="">-- No Local Facility Assigned --</option>
                             {facilities.map(f => (
                                <option key={f.id} value={f.id}>{f.facilityName} ({f.facilityCode}) · {f.district}</option>
                             ))}
-                         </select>
+                         </select> */}
+<SearchableSelect 
+                 label="Facility"
+                 placeholder="Select Facility"
+                 options={[{ value: "", label: "• No Facility Assigned (Central Role)" }, ...facilities.map(f => ({ value: f.id, label: f.facilityName }))]}
+                 value={formData.facilityId}
+                 onChange={value => setFormData({...formData, facilityId: value})}
+                 icon={Hospital}
+               />
+
                       </div>
                       
                       <div className="md:col-span-2 space-y-3">

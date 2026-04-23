@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { revalidateTag } from 'next/cache';
 
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
@@ -22,17 +23,20 @@ export async function POST(request: Request) {
     const endOfDay = new Date(date);
     endOfDay.setHours(23, 59, 59, 999);
 
-    const result = await prisma.dailyReport.updateMany({
+    const result = await prisma.report.updateMany({
       where: {
-        reportingDate: {
+        periodStart: {
           gte: startOfDay,
           lte: endOfDay
         }
       },
       data: {
-        published: true
+        status: 'PUBLISHED'
       }
     });
+
+    // Invalidate dashboard cache immediately
+    revalidateTag('dashboard', 'default');
 
     return NextResponse.json({ count: result.count });
   } catch (error) {

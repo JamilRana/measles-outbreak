@@ -24,18 +24,20 @@ import {
 } from 'recharts';
 import { motion, AnimatePresence } from 'motion/react';
 
-interface DailyReport {
+interface Report {
   id: string;
-  reportingDate: string;
-  suspected24h: number;
-  confirmed24h: number;
-  suspectedDeath24h: number;
-  confirmedDeath24h: number;
-  admitted24h: number;
-  discharged24h: number;
-  serumSent24h: number;
-  createdAt: string;
-  user: {
+  periodStart: string;
+  status: string;
+  dataSnapshot: {
+    suspected24h: number;
+    confirmed24h: number;
+    suspectedDeath24h: number;
+    confirmedDeath24h: number;
+    admitted24h: number;
+    discharged24h: number;
+    serumSent24h: number;
+  };
+  facility: {
     facilityName: string;
     division: string;
     district: string;
@@ -44,7 +46,7 @@ interface DailyReport {
 
 export default function MyReportsPage() {
   const { data: session } = useSession();
-  const [reports, setReports] = useState<DailyReport[]>([]);
+  const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [dateFilter, setDateFilter] = useState("");
@@ -77,14 +79,17 @@ export default function MyReportsPage() {
   };
 
   const totals = useMemo(() => {
-    return reports.reduce((acc, report) => ({
-      suspected24h: acc.suspected24h + report.suspected24h,
-      confirmed24h: acc.confirmed24h + report.confirmed24h,
-      deaths24h: acc.deaths24h + report.confirmedDeath24h + report.suspectedDeath24h,
-      admitted24h: acc.admitted24h + report.admitted24h,
-      discharged24h: acc.discharged24h + report.discharged24h,
-      totalReports: acc.totalReports + 1,
-    }), { suspected24h: 0, confirmed24h: 0, deaths24h: 0, admitted24h: 0, discharged24h: 0, totalReports: 0 });
+    return reports.reduce((acc, report) => {
+      const snap = report.dataSnapshot || {};
+      return {
+        suspected24h: acc.suspected24h + (Number(snap.suspected24h) || 0),
+        confirmed24h: acc.confirmed24h + (Number(snap.confirmed24h) || 0),
+        deaths24h: acc.deaths24h + (Number(snap.confirmedDeath24h) || 0) + (Number(snap.suspectedDeath24h) || 0),
+        admitted24h: acc.admitted24h + (Number(snap.admitted24h) || 0),
+        discharged24h: acc.discharged24h + (Number(snap.discharged24h) || 0),
+        totalReports: acc.totalReports + 1,
+      };
+    }, { suspected24h: 0, confirmed24h: 0, deaths24h: 0, admitted24h: 0, discharged24h: 0, totalReports: 0 });
   }, [reports]);
 
   const indicators = useMemo(() => {
@@ -97,13 +102,14 @@ export default function MyReportsPage() {
   const monthlyData = useMemo(() => {
     const data: Record<string, any> = {};
     reports.forEach(report => {
-      const month = new Date(report.reportingDate).toLocaleString('en-US', { month: 'short', year: '2-digit' });
+      const month = new Date(report.periodStart).toLocaleString('en-US', { month: 'short', year: '2-digit' });
       if (!data[month]) {
         data[month] = { name: month, suspected: 0, confirmed: 0, deaths: 0 };
       }
-      data[month].suspected += report.suspected24h;
-      data[month].confirmed += report.confirmed24h;
-      data[month].deaths += report.confirmedDeath24h + report.suspectedDeath24h;
+      const snap = report.dataSnapshot || {};
+      data[month].suspected += (Number(snap.suspected24h) || 0);
+      data[month].confirmed += (Number(snap.confirmed24h) || 0);
+      data[month].deaths += (Number(snap.confirmedDeath24h) || 0) + (Number(snap.suspectedDeath24h) || 0);
     });
     return Object.values(data).reverse();
   }, [reports]);
@@ -112,15 +118,15 @@ export default function MyReportsPage() {
     let filtered = [...reports];
     if (searchTerm) {
       filtered = filtered.filter(r => 
-        r.user.facilityName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        r.user.division.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        r.user.district.toLowerCase().includes(searchTerm.toLowerCase())
+        r.facility?.facilityName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        r.facility?.division.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        r.facility?.district.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
     if (dateFilter) {
-      filtered = filtered.filter(r => r.reportingDate.startsWith(dateFilter));
+      filtered = filtered.filter(r => r.periodStart.startsWith(dateFilter));
     }
-    return filtered.sort((a, b) => new Date(b.reportingDate).getTime() - new Date(a.reportingDate).getTime());
+    return filtered.sort((a, b) => new Date(b.periodStart).getTime() - new Date(a.periodStart).getTime());
   }, [reports, searchTerm, dateFilter]);
 
   const paginatedReports = useMemo(() => {
@@ -257,18 +263,21 @@ export default function MyReportsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {!loading && paginatedReports.map((report) => (
-                <tr key={report.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-6 py-4 font-bold text-slate-700">
-                    {new Date(report.reportingDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                  </td>
-                  <td className="px-6 py-4"><span className="px-2 py-1 bg-amber-50 text-amber-700 rounded-lg font-bold text-xs">{report.suspected24h}</span></td>
-                  <td className="px-6 py-4"><span className="px-2 py-1 bg-rose-50 text-rose-700 rounded-lg font-bold text-xs">{report.confirmed24h}</span></td>
-                  <td className="px-6 py-4"><span className="px-2 py-1 bg-slate-800 text-white rounded-lg font-bold text-xs">{report.suspectedDeath24h + report.confirmedDeath24h}</span></td>
-                  <td className="px-6 py-4"><span className="px-2 py-1 bg-blue-50 text-blue-700 rounded-lg font-bold text-xs">{report.admitted24h}</span></td>
-                  <td className="px-6 py-4"><span className="px-2 py-1 bg-emerald-50 text-emerald-700 rounded-lg font-bold text-xs">{report.discharged24h}</span></td>
-                </tr>
-              ))}
+              {!loading && paginatedReports.map((report) => {
+                const snap = report.dataSnapshot || {};
+                return (
+                  <tr key={report.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-6 py-4 font-bold text-slate-700">
+                      {new Date(report.periodStart).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </td>
+                    <td className="px-6 py-4"><span className="px-2 py-1 bg-amber-50 text-amber-700 rounded-lg font-bold text-xs">{Number(snap.suspected24h) || 0}</span></td>
+                    <td className="px-6 py-4"><span className="px-2 py-1 bg-rose-50 text-rose-700 rounded-lg font-bold text-xs">{Number(snap.confirmed24h) || 0}</span></td>
+                    <td className="px-6 py-4"><span className="px-2 py-1 bg-slate-800 text-white rounded-lg font-bold text-xs">{(Number(snap.suspectedDeath24h) || 0) + (Number(snap.confirmedDeath24h) || 0)}</span></td>
+                    <td className="px-6 py-4"><span className="px-2 py-1 bg-blue-50 text-blue-700 rounded-lg font-bold text-xs">{Number(snap.admitted24h) || 0}</span></td>
+                    <td className="px-6 py-4"><span className="px-2 py-1 bg-emerald-50 text-emerald-700 rounded-lg font-bold text-xs">{Number(snap.discharged24h) || 0}</span></td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
           {loading && <div className="p-12 text-center"><div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto" /></div>}

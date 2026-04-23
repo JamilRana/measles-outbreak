@@ -18,12 +18,13 @@ export async function GET(req: Request) {
     const yesterday = subDays(new Date(), 1);
     const dateStr = format(yesterday, "yyyy-MM-dd");
 
-    const reports = await prisma.dailyReport.findMany({
+    const reports = await prisma.report.findMany({
       where: {
-        reportingDate: {
+        periodStart: {
           gte: startOfDay(yesterday),
           lte: endOfDay(yesterday),
         },
+        status: "PUBLISHED"
       },
       include: {
         facility: {
@@ -34,7 +35,7 @@ export async function GET(req: Request) {
           }
         }
       },
-      orderBy: { reportingDate: 'desc' },
+      orderBy: { periodStart: 'desc' },
     });
 
     if (reports.length === 0) {
@@ -58,11 +59,11 @@ export async function GET(req: Request) {
     doc.text(`Generated: ${format(new Date(), "yyyy-MM-dd HH:mm")}`, 14, 34);
     doc.text(`Total Facilities Reported: ${reports.length}`, 14, 40);
 
-    const totalSuspected = reports.reduce((sum: number, r: any) => sum + (r.suspected24h || 0), 0);
-    const totalConfirmed = reports.reduce((sum: number, r: any) => sum + (r.confirmed24h || 0), 0);
-    const totalDeaths = reports.reduce((sum: number, r: any) => sum + ((r.suspectedDeath24h || 0) + (r.confirmedDeath24h || 0)), 0);
-    const totalAdmitted = reports.reduce((sum: number, r: any) => sum + (r.admitted24h || 0), 0);
-    const totalDischarged = reports.reduce((sum: number, r: any) => sum + (r.discharged24h || 0), 0);
+    const totalSuspected = reports.reduce((sum: number, r: any) => sum + (Number(r.dataSnapshot?.suspected24h) || 0), 0);
+    const totalConfirmed = reports.reduce((sum: number, r: any) => sum + (Number(r.dataSnapshot?.confirmed24h) || 0), 0);
+    const totalDeaths = reports.reduce((sum: number, r: any) => sum + ((Number(r.dataSnapshot?.suspectedDeath24h) || 0) + (Number(r.dataSnapshot?.confirmedDeath24h) || 0)), 0);
+    const totalAdmitted = reports.reduce((sum: number, r: any) => sum + (Number(r.dataSnapshot?.admitted24h) || 0), 0);
+    const totalDischarged = reports.reduce((sum: number, r: any) => sum + (Number(r.dataSnapshot?.discharged24h) || 0), 0);
 
     doc.setFontSize(12);
     doc.setTextColor(0);
@@ -75,14 +76,14 @@ export async function GET(req: Request) {
     doc.text(`Total Discharged: ${totalDischarged}`, 14, 82);
 
     const tableData = reports.map((r: any) => [
-      r.facility.division || "-",
-      r.facility.district || "-",
-      r.facility.facilityName || "-",
-      r.suspected24h || 0,
-      r.confirmed24h || 0,
-      (r.suspectedDeath24h || 0) + (r.confirmedDeath24h || 0),
-      r.admitted24h || 0,
-      r.discharged24h || 0,
+      r.facility?.division || "-",
+      r.facility?.district || "-",
+      r.facility?.facilityName || "-",
+      r.dataSnapshot?.suspected24h || 0,
+      r.dataSnapshot?.confirmed24h || 0,
+      (Number(r.dataSnapshot?.suspectedDeath24h) || 0) + (Number(r.dataSnapshot?.confirmedDeath24h) || 0),
+      r.dataSnapshot?.admitted24h || 0,
+      r.dataSnapshot?.discharged24h || 0,
     ]);
 
     autoTable(doc, {
@@ -102,16 +103,16 @@ export async function GET(req: Request) {
     const pdfBuffer = Buffer.from(doc.output('arraybuffer'));
 
     const excelData = reports.map((r: any) => ({
-      Division: r.facility.division,
-      District: r.facility.district,
-      Facility: r.facility.facilityName,
-      'Suspected (24h)': r.suspected24h,
-      'Confirmed (24h)': r.confirmed24h,
-      'Suspected Deaths (24h)': r.suspectedDeath24h,
-      'Confirmed Deaths (24h)': r.confirmedDeath24h,
-      'Admitted (24h)': r.admitted24h,
-      'Discharged (24h)': r.discharged24h,
-      'Serum Sent (24h)': r.serumSent24h,
+      Division: r.facility?.division,
+      District: r.facility?.district,
+      Facility: r.facility?.facilityName,
+      'Suspected (24h)': r.dataSnapshot?.suspected24h,
+      'Confirmed (24h)': r.dataSnapshot?.confirmed24h,
+      'Suspected Deaths (24h)': r.dataSnapshot?.suspectedDeath24h,
+      'Confirmed Deaths (24h)': r.dataSnapshot?.confirmedDeath24h,
+      'Admitted (24h)': r.dataSnapshot?.admitted24h,
+      'Discharged (24h)': r.dataSnapshot?.discharged24h,
+      'Serum Sent (24h)': r.dataSnapshot?.serumSent24h,
     }));
 
     const ws = XLSX.utils.json_to_sheet(excelData);

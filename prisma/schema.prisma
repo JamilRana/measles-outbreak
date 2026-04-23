@@ -33,7 +33,6 @@ model Facility {
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
   backlogSlots      BacklogSlot[]
-  dailyReports      DailyReport[]
   facilityTypeRel   FacilityType?      @relation(fields: [facilityTypeId], references: [id])
   reports           Report[]
   submissionWindows SubmissionWindow[]
@@ -59,7 +58,6 @@ model User {
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
   auditLogs        AuditLog[]
-  dailyReports     DailyReport[]
   reports          Report[]
   facility         Facility?     @relation(fields: [facilityId], references: [id])
 
@@ -101,7 +99,6 @@ model Outbreak {
   targetDistricts       String[]           @default([])
   targetFacilityTypeIds String[]           @default([])
   backlogSlots          BacklogSlot[]
-  dailyReports          DailyReport[]
   formFields            FormField[]
   disease               Disease            @relation(fields: [diseaseId], references: [id])
   reports               Report[]
@@ -137,47 +134,17 @@ model FormField {
 
 model ReportFieldValue {
   id             String       @id @default(cuid())
-  reportId       String?
-  modernReportId String?
+  reportId       String
   formFieldId    String
   value          String
   formField      FormField    @relation(fields: [formFieldId], references: [id])
-  report         Report?      @relation(fields: [modernReportId], references: [id], onDelete: Cascade)
-  dailyReport    DailyReport? @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  report         Report       @relation(fields: [reportId], references: [id], onDelete: Cascade)
 
   @@unique([reportId, formFieldId])
-  @@unique([modernReportId, formFieldId])
   @@index([reportId])
-  @@index([modernReportId])
 }
 
-model DailyReport {
-  id                String             @id @default(cuid())
-  reportingDate     DateTime
-  facilityId        String
-  userId            String
-  suspected24h      Int                @default(0)
-  confirmed24h      Int                @default(0)
-  suspectedDeath24h Int                @default(0)
-  confirmedDeath24h Int                @default(0)
-  admitted24h       Int                @default(0)
-  discharged24h     Int                @default(0)
-  serumSent24h      Int                @default(0)
-  published         Boolean            @default(false)
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-  isLocked          Boolean            @default(false)
-  outbreakId        String
-  facility          Facility           @relation(fields: [facilityId], references: [id])
-  outbreak          Outbreak           @relation(fields: [outbreakId], references: [id])
-  user              User               @relation(fields: [userId], references: [id])
-  fieldValues       ReportFieldValue[]
 
-  @@unique([facilityId, outbreakId, reportingDate])
-  @@index([outbreakId])
-  @@index([reportingDate])
-  @@index([facilityId, reportingDate])
-}
 
 model Report {
   id           String             @id @default(cuid())
@@ -204,6 +171,8 @@ model Report {
   @@index([periodStart])
   @@index([facilityId, periodStart])
   @@index([status])
+  @@index([outbreakId, status, periodStart(sort: Desc)])
+  @@index([facilityId, outbreakId, periodStart(sort: Desc)])
 }
 
 model SubmissionWindow {

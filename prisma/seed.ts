@@ -1,5 +1,7 @@
 import { PrismaClient, Role, OutbreakStatus, FieldType, ReportStatus } from '@prisma/client'
 import bcrypt from 'bcryptjs'
+import fs from 'fs'
+import path from 'path'
 
 const prisma = new PrismaClient()
 
@@ -11,22 +13,21 @@ async function main() {
   // ========================================
   console.log('🗑️  Clearing existing data...')
 
-  // Delete dependent records first
-  await prisma.submissionWindow.deleteMany()
-  console.log('   ✓ Deleted submission windows')
+  // Delete dependent records first in correct order
+  await prisma.reportFieldValue.deleteMany()
+  console.log('   ✓ Deleted report field values')
+
+  await prisma.report.deleteMany()
+  console.log('   ✓ Deleted reports')
 
   await prisma.formField.deleteMany()
   console.log('   ✓ Deleted form fields')
 
-  // Delete reports first (they reference outbreak)
-  await prisma.reportFieldValue.deleteMany()
-  console.log('   ✓ Deleted report field values')
-  
-  await prisma.dailyReport.deleteMany()
-  console.log('   ✓ Deleted daily reports')
-  
-  await prisma.report.deleteMany()
-  console.log('   ✓ Deleted reports')
+  await prisma.submissionWindow.deleteMany()
+  console.log('   ✓ Deleted submission windows')
+
+  await prisma.backlogSlot.deleteMany()
+  console.log('   ✓ Deleted backlog slots')
 
   await prisma.outbreak.deleteMany()
   console.log('   ✓ Deleted outbreaks')
@@ -284,9 +285,17 @@ const newFacilities = [
 
 
   for (const f of newFacilities) {
-    // Create facility
-    const facility = await prisma.facility.create({
-      data: {
+    // Create or update facility
+    const facility = await prisma.facility.upsert({
+      where: { facilityCode: f.facilityCode },
+      update: {
+        facilityName: f.facilityName,
+        division: f.division,
+        district: f.district,
+        upazila: f.upazila,
+        facilityTypeId: typeMap[f.typeSlug],
+      },
+      create: {
         facilityCode: f.facilityCode,
         facilityName: f.facilityName,
         division: f.division,
@@ -296,11 +305,21 @@ const newFacilities = [
       }
     })
 
-    // Create associated user (skip if no email)
+    // Create or update associated user (skip if no email)
     if (f.email) {
       const hashedPassword = await bcrypt.hash(f.password, 10)
-      await prisma.user.create({
-        data: {
+      await prisma.user.upsert({
+        where: { email: f.email },
+        update: {
+          password: hashedPassword,
+          name: f.facilityName,
+          nameNormalized: (f.facilityName.toLowerCase().replace(/\s+/g, '_') + '_' + f.facilityCode).substring(0, 50),
+          role: f.role as Role,
+          facilityId: facility.id,
+          managedDivisions: f.role === 'EDITOR' ? [f.division] : [],
+          isActive: true,
+        },
+        create: {
           email: f.email,
           password: hashedPassword,
           name: f.facilityName,
@@ -420,15 +439,191 @@ const newFacilities = [
   console.log('   ✓ Created submission window')
 
   // ========================================
+  // STEP 8: SEED HISTORICAL REPORTS FROM JSON
+  // ========================================
+  const reportsPath = path.join(__dirname, '..', 'reports_by_email.json')
+  let importedCount = 0
+  if (fs.existsSync(reportsPath)) {
+    console.log('📊 Seeding historical reports from reports_by_email.json...')
+    const data = JSON.parse(fs.readFileSync(reportsPath, 'utf8'))
+    
+    // Get all facilities and form fields for mapping
+    const dbFacilities = await prisma.facility.findMany()
+    const dbFields = await prisma.formField.findMany({ where: { outbreakId: outbreak.id } })
+    const fieldMap = Object.fromEntries(dbFields.map(f => [f.fieldKey, f.id]))
+
+    const admin = await prisma.user.findFirst({ where: { role: Role.ADMIN } })
+
+    // First, collect all reports into a map to avoid duplicates within the JSON
+    const reportAggregator: Record<string, any> = {};
+    const skippedFacilities = new Set<string>();
+
+    let skipCount = 0;
+    let mergeCount = 0;
+    let totalJsonEntries = 0;
+
+    // Get all users with their facilityId for email-based lookup
+    const dbUsers = await prisma.user.findMany({
+      where: { email: { in: Object.keys(data) } },
+      select: { email: true, facilityId: true, id: true }
+    });
+    const userMap = Object.fromEntries(dbUsers.map(u => [u.email, u]));
+
+    for (const [email, reports] of Object.entries(data)) {
+      const user = userMap[email];
+      
+      for (const r of (reports as any)) {
+        totalJsonEntries++;
+        if (!r.reportingDate) {
+          skipCount++;
+          continue;
+        }
+        
+        const [m_str, d_str, y_str] = r.reportingDate.split('/')
+        if (!m_str || !d_str || !y_str) {
+          skipCount++;
+          continue;
+        }
+        const reportDate = new Date(Date.UTC(Number(y_str), Number(m_str) - 1, Number(d_str)))
+        
+        // Priority: Email match (most accurate)
+        let facilityId = user?.facilityId;
+        
+        // Fallback: Name match if email not found or user has no facility
+        if (!facilityId) {
+          const normalize = (s: string) => s.toLowerCase()
+            .replace(/hospital|limited|pvt|ltd|plc|medcial|college|general|specialized|\./gi, '')
+            .replace(/[^a-z0-9]/g, '')
+            .trim();
+
+          const rn = normalize(r.facilityName || '');
+          const rd = (r.district || '').toLowerCase().trim();
+
+          const facility = dbFacilities.find(f => {
+            const fn = normalize(f.facilityName);
+            const fd = (f.district || '').toLowerCase().trim();
+            return (fn === rn && (!rd || fd === rd)) || 
+                   (fn.includes(rn) && rn.length > 5 && fd === rd);
+          });
+          
+          if (facility) facilityId = facility.id;
+        }
+
+        if (facilityId) {
+          const key = `${facilityId}_${outbreak.id}_${reportDate.toISOString()}`;
+          if (!reportAggregator[key]) {
+            reportAggregator[key] = {
+              facilityId: facilityId,
+              outbreakId: outbreak.id,
+              userId: user?.id || admin?.id || 'system',
+              periodStart: reportDate,
+              suspected24h: 0,
+              confirmed24h: 0,
+              suspectedDeath24h: 0,
+              confirmedDeath24h: 0,
+              admitted24h: 0,
+              discharged24h: 0
+            }
+          } else {
+            mergeCount++;
+          }
+          
+          reportAggregator[key].suspected24h += (r.suspectedCases || 0);
+          reportAggregator[key].confirmed24h += (r.confirmedCases || 0);
+          reportAggregator[key].suspectedDeath24h += (r.suspectedDeaths || 0);
+          reportAggregator[key].confirmedDeath24h += (r.confirmedDeaths || 0);
+          reportAggregator[key].admitted24h += (r.admitted || 0);
+          reportAggregator[key].discharged24h += (r.discharged || 0);
+        } else {
+          skipCount++;
+          if (r.facilityName) skippedFacilities.add(`${r.facilityName} (${email})`);
+        }
+      }
+    }
+
+    console.log(`   📊 JSON Analysis:`);
+    console.log(`      Total Entries: ${totalJsonEntries}`);
+    console.log(`      Skipped (Facility/Date issues): ${skipCount}`);
+    console.log(`      Merged (Duplicate Dates): ${mergeCount}`);
+    console.log(`      Final Unique Reports: ${Object.keys(reportAggregator).length}`);
+    
+    if (skippedFacilities.size > 0) {
+      console.log(`      ⚠️  Sample Skipped Facility Names (${skippedFacilities.size} unique):`);
+      Array.from(skippedFacilities).slice(0, 15).forEach(f => console.log(`         - ${f}`));
+    }
+
+    // We can't easily use createMany for upsert, but since we cleared data, 
+    // we can use createMany for speed if we use fresh IDs.
+    // However, if we want to be safe with IDs and relations, let's use a smarter batching.
+    
+    // We'll generate IDs manually to link them
+    const crypto = await import('node:crypto');
+    const uniqueReports = Object.values(reportAggregator);
+    
+    const reportsToCreate = uniqueReports.map(r => {
+      const snap = {
+        suspected24h: r.suspected24h,
+        confirmed24h: r.confirmed24h,
+        suspectedDeath24h: r.suspectedDeath24h,
+        confirmedDeath24h: r.confirmedDeath24h,
+        admitted24h: r.admitted24h,
+        discharged24h: r.discharged24h,
+        serumSent24h: 0
+      };
+      
+      return {
+        id: crypto.randomUUID(),
+        outbreakId: r.outbreakId,
+        facilityId: r.facilityId,
+        userId: admin?.id || 'system',
+        periodStart: r.periodStart,
+        periodEnd: r.periodStart,
+        status: ReportStatus.PUBLISHED,
+        dataSnapshot: snap as any,
+        publishedAt: new Date()
+      };
+    });
+
+    await prisma.report.createMany({ data: reportsToCreate });
+
+    const fieldValuesToCreate = [];
+    for (const report of reportsToCreate) {
+      const snap = report.dataSnapshot as any;
+      for (const [key, val] of Object.entries(snap)) {
+        fieldValuesToCreate.push({
+          reportId: report.id,
+          formFieldId: fieldMap[key],
+          value: String(val)
+        });
+      }
+    }
+
+    // Chunk field values to avoid overwhelming the DB in one query
+    const chunkSize = 1000;
+    for (let i = 0; i < fieldValuesToCreate.length; i += chunkSize) {
+      await prisma.reportFieldValue.createMany({
+        data: fieldValuesToCreate.slice(i, i + chunkSize)
+      });
+    }
+
+    importedCount = uniqueReports.length;
+    console.log(`   ✓ Seeded ${importedCount} historical reports using batching`)
+    console.log(`   ✓ Seeded ${importedCount} historical reports`)
+  } else {
+    console.log('⚠️  reports_by_email.json not found, skipping report seeding.')
+  }
+
+  // ========================================
   // DONE
   // ========================================
   console.log('\n✅ Seed completed successfully!')
   console.log(`   • Facility Types: ${facilityTypes.length}`)
   console.log(`   • Facilities: ${newFacilities.length}`)
-  console.log(`   • Users: ${newFacilities.filter(f => f.email).length + 1}`)
+  console.log(`   • Users: ${newFacilities.filter(f => f.email).length + 2}`)
   console.log(`   • Diseases: 1`)
   console.log(`   • Outbreaks: 1`)
   console.log(`   • Form Fields: ${fields.length}`)
+  console.log(`   • Historical Reports: ${importedCount}`)
   console.log(`   • Settings: 1`)
   console.log(`   • Submission Windows: 1`)
 }

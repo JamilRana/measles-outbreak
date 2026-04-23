@@ -146,7 +146,6 @@ export async function POST(request: Request) {
         mode: "EDIT"
       });
     }
-
     // 4. Create Modern Report
     const report = await prisma.$transaction(async (tx) => {
       const newReport = await tx.report.create({
@@ -162,7 +161,7 @@ export async function POST(request: Request) {
 
       if (dynamicFields && typeof dynamicFields === 'object') {
         const fieldValuesData = Object.entries(dynamicFields).map(([formFieldId, value]) => ({
-          modernReportId: newReport.id,
+          reportId: newReport.id,
           formFieldId: formFieldId,
           value: String(value),
         }));
@@ -198,23 +197,19 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: "Missing report ID" }, { status: 400 });
     }
 
-    const existingModern = await prisma.report.findUnique({ where: { id: reportId } });
-    if (!existingModern) {
-       // Potential legacy support:
-       const existingLegacy = await prisma.dailyReport.findUnique({ where: { id: reportId } });
-       if (!existingLegacy) return NextResponse.json({ error: "Report not found" }, { status: 404 });
-       // Legacy edit logic ... (optional)
-       return NextResponse.json({ error: "Legacy reports cannot be edited via this route" }, { status: 403 });
+    const existing = await prisma.report.findUnique({ where: { id: reportId } });
+    if (!existing) {
+       return NextResponse.json({ error: "Report not found" }, { status: 404 });
     }
 
-    if (existingModern.isLocked) {
+    if (existing.isLocked) {
       return NextResponse.json({ error: "Report is locked" }, { status: 403 });
     }
 
     // Server-side field validation (same engine as client, same rules)
     if (dynamicFields && typeof dynamicFields === 'object') {
       const formFields = await prisma.formField.findMany({
-        where: { outbreakId: existingModern.outbreakId },
+        where: { outbreakId: existing.outbreakId },
         orderBy: { sortOrder: 'asc' },
       });
 
@@ -249,12 +244,12 @@ export async function PUT(request: Request) {
       if (dynamicFields && typeof dynamicFields === 'object') {
         // 1. Remove existing values for this report
         await tx.reportFieldValue.deleteMany({
-          where: { modernReportId: reportId }
+          where: { reportId }
         });
 
         // 2. Insert new values
         const fieldValuesData = Object.entries(dynamicFields).map(([formFieldId, value]) => ({
-          modernReportId: reportId,
+          reportId,
           formFieldId: formFieldId,
           value: String(value),
         }));
@@ -271,32 +266,6 @@ export async function PUT(request: Request) {
         data: { dataSnapshot: snapshot as any }
       });
 
-      // Synchronize with Legacy Table if exists
-      const legacy = await tx.dailyReport.findUnique({
-        where: {
-          facilityId_outbreakId_reportingDate: {
-            facilityId: existingModern.facilityId,
-            outbreakId: existingModern.outbreakId,
-            reportingDate: existingModern.periodStart
-          }
-        }
-      });
-
-      if (legacy) {
-        await tx.dailyReport.update({
-          where: { id: legacy.id },
-          data: {
-            suspected24h: Number(snapshot.suspected24h || 0),
-            admitted24h: Number(snapshot.admitted24h || 0),
-            discharged24h: Number(snapshot.discharged24h || 0),
-            suspectedDeath24h: Number(snapshot.suspectedDeath24h || 0),
-            confirmed24h: Number(snapshot.confirmed24h || 0),
-            confirmedDeath24h: Number(snapshot.confirmedDeath24h || 0),
-            serumSent24h: Number(snapshot.serumSent24h || 0),
-          }
-        });
-      }
-
       return updatedReport;
     }, {
       timeout: 15000 // Increase timeout to 15s
@@ -308,3 +277,5 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: "Failed to update report" }, { status: 500 });
   }
 }
+
+

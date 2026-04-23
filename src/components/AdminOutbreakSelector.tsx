@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Activity, ChevronDown, Loader2 } from "lucide-react";
+import { SearchableSelect } from "./SearchableSelect";
 
 interface Outbreak {
   id: string;
@@ -63,12 +64,8 @@ export default function AdminOutbreakSelector({ onSelect, defaultValue }: AdminO
   const selectedOutbreak = outbreaks.find(o => o.id === selectedId);
 
   return (
-    <div className="relative group">
-      <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-600 transition-colors pointer-events-none z-10">
-        <Activity className="w-4 h-4" />
-      </div>
-      <div className="relative">
-        <select
+    <div className="group z-99999">
+        {/* <select
           value={selectedId}
           onChange={(e) => handleChange(e.target.value)}
           className="w-full pl-11 pr-10 py-3 bg-white border border-slate-200 rounded-2xl text-slate-900 appearance-none focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all text-xs font-black uppercase tracking-tight"
@@ -79,11 +76,15 @@ export default function AdminOutbreakSelector({ onSelect, defaultValue }: AdminO
               {ob.name} ({ob.status})
             </option>
           ))}
-        </select>
-        <div className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none transition-transform group-focus-within:rotate-180">
-          <ChevronDown className="w-4 h-4" />
-        </div>
-      </div>
+        </select> */}
+        <SearchableSelect 
+                label="Outbreak"
+                placeholder="Select Outbreak Context"
+                options={outbreaks.map(o => ({ value: o.id, label: o.name }))}
+                value={selectedId}
+                onChange={setSelectedId}
+                icon={Activity}
+              />
     </div>
   );
 }

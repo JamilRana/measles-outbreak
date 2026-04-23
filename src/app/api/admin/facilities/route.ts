@@ -130,22 +130,21 @@ export async function DELETE(req: Request) {
     }
 
     // Check for associated data
-    const [userCount, dailyReportCount, reportCount, windowCount, slotCount] = await Promise.all([
+    const [userCount, reportCount, windowCount, slotCount] = await Promise.all([
       prisma.user.count({ where: { facilityId: id } }),
-      prisma.dailyReport.count({ where: { facilityId: id } }),
       prisma.report.count({ where: { facilityId: id } }),
       prisma.submissionWindow.count({ where: { facilityId: id } }),
       prisma.backlogSlot.count({ where: { facilityId: id } })
     ]);
 
-    const totalDataPoints = userCount + dailyReportCount + reportCount + windowCount + slotCount;
+    const totalDataPoints = userCount + reportCount + windowCount + slotCount;
 
     if (totalDataPoints > 0) {
       return NextResponse.json({ 
         error: "Cannot delete facility with existing data", 
         details: {
           users: userCount,
-          reports: dailyReportCount + reportCount,
+          reports: reportCount,
           scheduling: windowCount + slotCount
         }
       }, { status: 400 });

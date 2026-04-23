@@ -133,3 +133,74 @@ export async function generateGovtPDF(reports: any[], filterDate: string) {
 
   doc.save(`measles_report_${fileNameDate}.pdf`);
 }
+
+export async function generateGovtPDFBuffer(summary: any, cumulative: any, filterDate: string) {
+  const doc = new jsPDF({
+    orientation: "portrait",
+    unit: "mm",
+    format: "a4"
+  });
+
+  const dateObj = new Date(filterDate);
+  const formattedDate = format(dateObj, "dd MMMM yyyy");
+
+  // Logo & Header
+  doc.setFontSize(10);
+  doc.text("Government of the People's Republic of Bangladesh", 105, 15, { align: "center" });
+  doc.text("Ministry of Health and Family Welfare", 105, 20, { align: "center" });
+  doc.text("Directorate General of Health Services, Mohakhali, Dhaka-1212", 105, 25, { align: "center" });
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(16);
+  doc.text("NATIONAL MEASLES SITREP", 105, 40, { align: "center" });
+  
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(12);
+  doc.text(formattedDate, 105, 48, { align: "center" });
+
+  // Summary Table
+  const totals = summary?.totals || {};
+  autoTable(doc, {
+    startY: 60,
+    head: [['Indicator', 'Last 24 Hours', 'Cumulative Volume']],
+    body: [
+      ['Suspected Cases', totals.suspected24h || 0, cumulative.totals?.suspected24h || 0],
+      ['Confirmed Cases', totals.confirmed24h || 0, cumulative.totals?.confirmed24h || 0],
+      ['Admitted', totals.admitted24h || 0, cumulative.totals?.admitted24h || 0],
+      ['Total Deaths', (Number(totals.suspectedDeath24h) || 0) + (Number(totals.confirmedDeath24h) || 0), (Number(cumulative.totals?.suspectedDeath24h) || 0) + (Number(cumulative.totals?.confirmedDeath24h) || 0)],
+    ],
+    theme: 'grid',
+    styles: { halign: 'center', fontSize: 10 },
+    headStyles: { fillColor: [30, 41, 59] }
+  });
+
+  // Division breakdown
+  doc.setFont("helvetica", "bold");
+  doc.text("Division-wise breakdown:", 14, (doc as any).lastAutoTable.finalY + 15);
+
+  const breakdown = summary?.breakdown || {};
+  const cumBreakdown = cumulative?.breakdown || {};
+  const rows = Object.keys(breakdown).map(div => [
+    div,
+    breakdown[div].suspected24h || 0,
+    breakdown[div].confirmed24h || 0,
+    (Number(breakdown[div].suspectedDeath24h) || 0) + (Number(breakdown[div].confirmedDeath24h) || 0),
+    cumBreakdown[div]?.suspected24h || 0,
+    (Number(cumBreakdown[div]?.suspectedDeath24h) || 0) + (Number(cumBreakdown[div]?.confirmedDeath24h) || 0)
+  ]);
+
+  autoTable(doc, {
+    startY: (doc as any).lastAutoTable.finalY + 20,
+    head: [['Division', 'Susp(24h)', 'Conf(24h)', 'Death(24h)', 'Susp(Cum)', 'Death(Cum)']],
+    body: rows,
+    theme: 'grid',
+    styles: { halign: 'center', fontSize: 8 },
+    headStyles: { fillColor: [51, 65, 85] }
+  });
+
+  const finalY = (doc as any).lastAutoTable.finalY + 20;
+  doc.setFontSize(8);
+  doc.text(`Report generated on: ${format(new Date(), "PPpp")}`, 14, finalY);
+
+  return doc.output("arraybuffer");
+}

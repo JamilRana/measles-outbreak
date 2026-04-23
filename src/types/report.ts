@@ -1,29 +1,40 @@
-import { FormField } from './form';
-import { Outbreak } from './outbreak';
-
-export interface DailyReport {
+export interface Report {
   id: string;
-  reportingDate: string;
+  periodStart: Date | string;
+  periodEnd: Date | string;
+  facilityId: string;
+  userId: string;
+  outbreakId: string;
+  status: 'SUBMITTED' | 'PUBLISHED' | 'DRAFT';
+  isLocked: boolean;
+  publishedAt?: string | null;
+  dataSnapshot: Record<string, any>;
+  createdAt: string;
   updatedAt: string;
-  suspected24h: number;
-  confirmed24h: number;
-  suspectedDeath24h: number;
-  confirmedDeath24h: number;
-  admitted24h: number;
-  discharged24h: number;
-  serumSent24h: number;
   facility?: {
     facilityName: string;
     division: string;
     district: string;
+    facilityCode: string;
   };
-  outbreak?: {
+  user?: {
     name: string;
   };
-  fieldValues?: { formFieldId: string; value: string }[];
-  [key: string]: any;
+  fieldValues?: {
+    formFieldId: string;
+    value: string;
+    formField?: {
+      fieldKey: string;
+      label: string;
+    };
+  }[];
 }
 
-export interface ExistingReport extends DailyReport {
-  facilityId: string;
+// Helper to access common stats from a report (via snapshot or fieldValues)
+export function getReportValue(report: Report, key: string, defaultValue: number = 0): number {
+  if (report.dataSnapshot && report.dataSnapshot[key] !== undefined) {
+    return Number(report.dataSnapshot[key]);
+  }
+  const fv = report.fieldValues?.find(v => v.formField?.fieldKey === key);
+  return fv ? Number(fv.value) : defaultValue;
 }
