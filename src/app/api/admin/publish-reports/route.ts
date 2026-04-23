@@ -3,7 +3,6 @@ import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { revalidateTag } from 'next/cache';
-import { invalidateByPattern } from '@/lib/redis';
 
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
@@ -32,14 +31,12 @@ export async function POST(request: Request) {
         }
       },
       data: {
-        status: 'PUBLISHED',
-        publishedAt: new Date()
+        status: 'PUBLISHED'
       }
     });
 
-    // Invalidate dashboard caches (Next.js tags + Redis)
+    // Invalidate dashboard cache immediately
     revalidateTag('dashboard', 'default');
-    await invalidateByPattern('summary:*');
 
     return NextResponse.json({ count: result.count });
   } catch (error) {
