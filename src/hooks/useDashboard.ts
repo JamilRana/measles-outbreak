@@ -34,7 +34,7 @@ export function useCumulativeSummary(params: URLSearchParams | null) {
  */
 export function useDashboardConfig(outbreakId: string | null) {
   return useSWR(
-    outbreakId ? `/api/public/fields?outbreakId=${outbreakId}&coreOnly=true` : null,
+    outbreakId ? `/api/public/config?outbreakId=${outbreakId}` : null,
     fetcher,
     { revalidateOnFocus: false, dedupingInterval: 300_000 }
   );
