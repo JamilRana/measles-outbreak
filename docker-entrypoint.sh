@@ -6,7 +6,7 @@ set -e
 echo "Waiting for database to be ready..."
 # The healthcheck in docker-compose handles this mostly, but prisma migrate deploy ensures it.
 
-echo "Running prisma migrate deploy..."
+echo "Running prisma migrate deploy..." 
 npx prisma migrate deploy
 
 echo "Running prisma generate..."
