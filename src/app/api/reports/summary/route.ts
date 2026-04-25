@@ -25,16 +25,31 @@ export async function GET(req: NextRequest) {
     const vFrom = validDate(fromQuery);
     const vTo = validDate(toQuery);
 
-    // --- National Totals (single row) ---
+    // 1. Fetch Core Fields for Dynamic Aggregation
+    const coreFields = await prisma.formField.findMany({
+      where: { outbreakId, isCoreField: true },
+      select: { fieldKey: true }
+    });
+
+    // Fallback if no core fields defined
+    const fallbackFields = [
+      'suspected24h', 'confirmed24h', 'admitted24h', 'discharged24h',
+      'confirmedDeath24h', 'suspectedDeath24h', 'serumSent24h'
+    ];
+    
+    const fieldsToAggregate = coreFields.length > 0 
+      ? coreFields.map(f => f.fieldKey)
+      : fallbackFields;
+
+    // Build dynamic SQL select parts
+    const aggSql = fieldsToAggregate.map(key => 
+      Prisma.sql`COALESCE(SUM(COALESCE(NULLIF(r."dataSnapshot"->>${key}, '')::numeric, 0)), 0) AS ${Prisma.raw(`"${key}"`)}`
+    );
+
+    // --- National Totals ---
     const totalsResult: any[] = await prisma.$queryRaw`
       SELECT
-        COALESCE(SUM(COALESCE(NULLIF(r."dataSnapshot"->>'suspected24h', '')::numeric, 0)), 0) AS "suspected24h",
-        COALESCE(SUM(COALESCE(NULLIF(r."dataSnapshot"->>'confirmed24h', '')::numeric, 0)), 0) AS "confirmed24h",
-        COALESCE(SUM(COALESCE(NULLIF(r."dataSnapshot"->>'admitted24h', '')::numeric, 0)), 0) AS "admitted24h",
-        COALESCE(SUM(COALESCE(NULLIF(r."dataSnapshot"->>'discharged24h', '')::numeric, 0)), 0) AS "discharged24h",
-        COALESCE(SUM(COALESCE(NULLIF(r."dataSnapshot"->>'confirmedDeath24h', '')::numeric, 0)), 0) AS "confirmedDeath24h",
-        COALESCE(SUM(COALESCE(NULLIF(r."dataSnapshot"->>'suspectedDeath24h', '')::numeric, 0)), 0) AS "suspectedDeath24h",
-        COALESCE(SUM(COALESCE(NULLIF(r."dataSnapshot"->>'serumSent24h', '')::numeric, 0)), 0) AS "serumSent24h",
+        ${Prisma.join(aggSql, ', ')},
         COUNT(r.id)::int AS "reportCount"
       FROM "Report" r
       JOIN "Facility" f ON f.id = r."facilityId"
@@ -48,7 +63,6 @@ export async function GET(req: NextRequest) {
     `;
 
     // --- Division/District Breakdown ---
-    // Group by division (default), district (if division filter), or facility (if district filter)
     let groupByCol: string;
     if (district) groupByCol = 'f."facilityName"';
     else if (division) groupByCol = 'f.district';
@@ -58,13 +72,7 @@ export async function GET(req: NextRequest) {
       Prisma.sql`
         SELECT
           ${Prisma.raw(groupByCol)} AS "groupKey",
-          COALESCE(SUM(COALESCE(NULLIF(r."dataSnapshot"->>'suspected24h', '')::numeric, 0)), 0) AS "suspected24h",
-          COALESCE(SUM(COALESCE(NULLIF(r."dataSnapshot"->>'confirmed24h', '')::numeric, 0)), 0) AS "confirmed24h",
-          COALESCE(SUM(COALESCE(NULLIF(r."dataSnapshot"->>'admitted24h', '')::numeric, 0)), 0) AS "admitted24h",
-          COALESCE(SUM(COALESCE(NULLIF(r."dataSnapshot"->>'discharged24h', '')::numeric, 0)), 0) AS "discharged24h",
-          COALESCE(SUM(COALESCE(NULLIF(r."dataSnapshot"->>'confirmedDeath24h', '')::numeric, 0)), 0) AS "confirmedDeath24h",
-          COALESCE(SUM(COALESCE(NULLIF(r."dataSnapshot"->>'suspectedDeath24h', '')::numeric, 0)), 0) AS "suspectedDeath24h",
-          COALESCE(SUM(COALESCE(NULLIF(r."dataSnapshot"->>'serumSent24h', '')::numeric, 0)), 0) AS "serumSent24h",
+          ${Prisma.join(aggSql, ', ')},
           COUNT(r.id)::int AS "reportCount"
         FROM "Report" r
         JOIN "Facility" f ON f.id = r."facilityId"
@@ -76,35 +84,26 @@ export async function GET(req: NextRequest) {
           AND (${division ?? ''}::text = '' OR f.division = ${division ?? ''})
           AND (${district ?? ''}::text = '' OR f.district = ${district ?? ''})
         GROUP BY ${Prisma.raw(groupByCol)}
-        ORDER BY "suspected24h" DESC
+        ORDER BY ${Prisma.raw(fieldsToAggregate[0])} DESC
       `
     );
 
     // Format totals
     const t = totalsResult[0] || {};
-    const totals: Record<string, number> = {
-      suspected24h: Number(t.suspected24h) || 0,
-      confirmed24h: Number(t.confirmed24h) || 0,
-      admitted24h: Number(t.admitted24h) || 0,
-      discharged24h: Number(t.discharged24h) || 0,
-      confirmedDeath24h: Number(t.confirmedDeath24h) || 0,
-      suspectedDeath24h: Number(t.suspectedDeath24h) || 0,
-      serumSent24h: Number(t.serumSent24h) || 0,
-    };
+    const totals: Record<string, number> = {};
+    fieldsToAggregate.forEach(key => {
+      totals[key] = Number(t[key]) || 0;
+    });
 
     // Format breakdown
     const breakdown: Record<string, Record<string, number>> = {};
     for (const row of breakdownResult) {
       if (!row.groupKey) continue;
-      breakdown[row.groupKey] = {
-        suspected24h: Number(row.suspected24h) || 0,
-        confirmed24h: Number(row.confirmed24h) || 0,
-        admitted24h: Number(row.admitted24h) || 0,
-        discharged24h: Number(row.discharged24h) || 0,
-        confirmedDeath24h: Number(row.confirmedDeath24h) || 0,
-        suspectedDeath24h: Number(row.suspectedDeath24h) || 0,
-        serumSent24h: Number(row.serumSent24h) || 0,
-      };
+      const rowData: Record<string, number> = {};
+      fieldsToAggregate.forEach(key => {
+        rowData[key] = Number(row[key]) || 0;
+      });
+      breakdown[row.groupKey] = rowData;
     }
 
     return NextResponse.json({

@@ -1,9 +1,0 @@
-{
-  "crons": [
-    {
-      "path": "/api/admin/cron/daily-report?secret=CRON_SECRET",
-      "schedule": "0 3 * * *"
-    }
-  ],
-  "framework": "nextjs"
-}

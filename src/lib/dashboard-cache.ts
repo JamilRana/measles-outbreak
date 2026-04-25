@@ -134,7 +134,7 @@ export function getCachedDashboardConfig(outbreakId: string) {
         outbreak,
         kpiFields: coreFields.map(f => ({
           id: f.id,
-          key: f.fieldKey,
+          fieldKey: f.fieldKey,
           label: f.label,
           labelBn: f.labelBn,
           section: f.section,
