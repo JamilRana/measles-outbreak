@@ -70,17 +70,23 @@ export async function GET(request: Request) {
       }
     }
 
-    // Check backlog
+    // Check outbreak settings (backlog + default cutoff)
     const outbreak = await prisma.outbreak.findUnique({
       where: { id: outbreakId },
       select: {
         allowBacklogReporting: true,
         backlogStartDate: true,
         backlogEndDate: true,
+        cutoffHour: true,
+        cutoffMinute: true,
       }
     });
 
-    if (outbreak?.allowBacklogReporting) {
+    if (!outbreak) {
+      return NextResponse.json({ error: "Outbreak not found" }, { status: 404 });
+    }
+
+    if (outbreak.allowBacklogReporting) {
       const start = outbreak.backlogStartDate;
       const end = outbreak.backlogEndDate;
       const isInBacklog = (!start || reportingDate >= start) && (!end || reportingDate <= end);
@@ -94,9 +100,20 @@ export async function GET(request: Request) {
       }
     }
 
-    // Check if today and within default hours
+    // Check if today and within default hours (from outbreak settings)
     const today = getBdDateString();
     if (dateStr === today) {
+      const cutoff = new Date(now);
+      cutoff.setHours(outbreak.cutoffHour, outbreak.cutoffMinute, 0, 0);
+      
+      if (now > cutoff) {
+        return NextResponse.json({ 
+          open: false, 
+          type: 'DAILY_CLOSED',
+          details: { name: 'Daily Submission Closed', cutoff: `${String(outbreak.cutoffHour).padStart(2, '0')}:${String(outbreak.cutoffMinute).padStart(2, '0')}` }
+        });
+      }
+
       return NextResponse.json({ 
         open: true, 
         type: 'FALLBACK',

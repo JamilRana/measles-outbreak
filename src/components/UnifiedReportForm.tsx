@@ -163,7 +163,7 @@ export default function UnifiedReportForm({
 }: UnifiedReportFormProps) {
   const { t, i18n } = useTranslation();
   const { data: session } = useSession();
-  const [mode, setMode] = useState<'CREATE' | 'EDIT' | 'VIEW'>(initialMode || 'CREATE');
+  const [mode, setMode] = useState<'CREATE' | 'EDIT' | 'VIEW'>(initialMode || 'VIEW');
   const [windowInfo, setWindowInfo] = useState<{ open: boolean; type: string | null; details: any } | null>(null);
 
   useEffect(() => {
@@ -613,6 +613,12 @@ export default function UnifiedReportForm({
                 <p className="text-sm text-amber-700 font-medium">
                   {validationErrors.filter(ve => ve.severity === 'warning').length} warning{validationErrors.filter(ve => ve.severity === 'warning').length > 1 ? 's' : ''} — review highlighted fields. You can still submit.
                 </p>
+              </div>
+            )}
+            {isDataLoading && fields.length > 0 && (
+              <div className="absolute inset-0 bg-white/60 backdrop-blur-[2px] z-20 flex flex-col items-center justify-center rounded-3xl">
+                <Loader2 className="w-8 h-8 text-indigo-500 animate-spin mb-2" />
+                <p className="text-xs font-black text-indigo-500 uppercase tracking-widest">Verifying Window...</p>
               </div>
             )}
             {Object.entries(groupedFields).map(([section, sectionFields]) => {
