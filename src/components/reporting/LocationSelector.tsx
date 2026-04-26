@@ -99,7 +99,7 @@ export default function LocationSelector({ onSelect, disabled }: LocationSelecto
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
           <div className="space-y-1.5">
             <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest ml-1">
-              {t('report.fields.division')} <span className="text-red-500">*</span>
+              Division <span className="normal-case font-bold opacity-70">(বিভাগ)</span> <span className="text-red-500">*</span>
             </label>
             <div className="relative">
               <select
@@ -122,7 +122,7 @@ export default function LocationSelector({ onSelect, disabled }: LocationSelecto
 
           <div className="space-y-1.5">
             <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest ml-1">
-              {t('report.fields.district')} <span className="text-red-500">*</span>
+              District <span className="normal-case font-bold opacity-70">(জেলা)</span> <span className="text-red-500">*</span>
             </label>
             <div className="relative">
               <select
@@ -146,7 +146,7 @@ export default function LocationSelector({ onSelect, disabled }: LocationSelecto
         {/* Facility Combobox - FIXED BOX MODEL */}
         <div className="space-y-1.5 w-full">
           <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest ml-1">
-            {t('report.fields.facilityName')} <span className="text-red-500">*</span>
+            Facility Name <span className="normal-case font-bold opacity-70">(স্বাস্থ্যসেবা কেন্দ্রের নাম)</span> <span className="text-red-500">*</span>
           </label>
           
           <div className="relative w-full">

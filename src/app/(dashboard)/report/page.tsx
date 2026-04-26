@@ -122,12 +122,14 @@ export default function AuthenticatedReportPage() {
         <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="bg-white border border-slate-100 rounded-xl p-4 shadow-sm">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 block">1. Outbreak Context</label>
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 block">
+                1. Outbreak Context <span className="normal-case font-bold opacity-60">(১. প্রাদুর্ভাবের প্রেক্ষাপট)</span>
+              </label>
               <OutbreakSelector onSelect={setSelectedOutbreakId} defaultValue={selectedOutbreakId} />
             </div>
             {!session?.user?.facilityId && (
               <div className="bg-white border border-slate-100 rounded-xl p-4 shadow-sm">
-                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 block">2. Reporting Location</label>
+                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 block">2. Reporting Location <span className="normal-case font-bold opacity-60">(২. রিপোর্টিং অবস্থান)</span></label>
                  <LocationSelector onSelect={handleLocationSelect} />
               </div>
             )}

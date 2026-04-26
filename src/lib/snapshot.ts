@@ -9,7 +9,7 @@ import { Prisma } from "@prisma/client";
  */
 export async function rebuildSnapshot(reportId: string, tx: any) {
   const values = await tx.reportFieldValue.findMany({
-    where: { modernReportId: reportId },
+    where: { reportId: reportId },
     include: { formField: true }
   });
 

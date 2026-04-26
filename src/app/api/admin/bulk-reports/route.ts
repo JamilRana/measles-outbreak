@@ -14,6 +14,7 @@ export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const outbreakId = searchParams.get("outbreakId");
+    const format = searchParams.get("format") || "xlsx";
 
     if (!outbreakId) {
       return new Response("Outbreak ID is required", { status: 400 });
@@ -53,6 +54,16 @@ export async function GET(req: Request) {
     const worksheet = XLSX.utils.json_to_sheet(data);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Sample Reports");
+
+    if (format === "csv") {
+      const csv = XLSX.utils.sheet_to_csv(worksheet);
+      return new Response(csv, {
+        headers: {
+          "Content-Type": "text/csv",
+          "Content-Disposition": `attachment; filename="sample_reports_${outbreakId}.csv"`
+        }
+      });
+    }
 
     const buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
 

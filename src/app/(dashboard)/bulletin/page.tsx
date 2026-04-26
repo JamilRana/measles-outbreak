@@ -121,11 +121,11 @@ const GovernmentSummary = ({ stats, toBnNum, divisionStats, leaders }: any) => {
           </tr>
           <tr className="text-[9px] font-bold bg-white">
             <th className="border border-slate-900 py-2 w-[16%]">গত ২৪ ঘণ্টায় সন্দেহজনক হাম রোগীর সংখ্যা</th>
-            <th className="border border-slate-900 py-2 w-[16%]">০৭-০৪-২০২৬ থেকে অদ্যাবধি মোট সন্দেহজনক হাম রোগীর সংখ্যা</th>
+            <th className="border border-slate-900 py-2 w-[16%]">১৫-০৩-২০২৬ থেকে অদ্যাবধি মোট সন্দেহজনক হাম রোগীর সংখ্যা</th>
             <th className="border border-slate-900 py-2 w-[16%]">গত ২৪ ঘণ্টায় নিশ্চিত হাম রোগীর সংখ্যা</th>
-            <th className="border border-slate-900 py-2 w-[16%]">০৭-০৪-২০২৬ থেকে অদ্যাবধি মোট নিশ্চিত হাম রোগীর সংখ্যা</th>
-            <th className="border border-slate-900 py-2 w-[18%]">০৭-০৪-২০২৬ থেকে অদ্যাবধি মোট সন্দেহজনক হাম রোগীর ভর্তির সংখ্যা</th>
-            <th className="border border-slate-900 py-2 w-[18%]">০৭-০৪-২০২৬ থেকে অদ্যাবধি হাসপাতাল হতে মোট ছাড় পাওয়া রোগীর সংখ্যা</th>
+            <th className="border border-slate-900 py-2 w-[16%]">১৫-০৩-২০২৬ থেকে অদ্যাবধি মোট নিশ্চিত হাম রোগীর সংখ্যা</th>
+            <th className="border border-slate-900 py-2 w-[18%]">১৫-০৩-২০২৬ থেকে অদ্যাবধি মোট সন্দেহজনক হাম রোগীর ভর্তির সংখ্যা</th>
+            <th className="border border-slate-900 py-2 w-[18%]">১৫-০৩-২০২৬ থেকে অদ্যাবধি হাসপাতাল হতে মোট ছাড় পাওয়া রোগীর সংখ্যা</th>
           </tr>
         </thead>
         <tbody>
@@ -153,9 +153,9 @@ const GovernmentSummary = ({ stats, toBnNum, divisionStats, leaders }: any) => {
             <th className="border border-slate-900 py-2 w-[16%]">সন্দেহজনক হাম রোগে মৃত্যু <br/><b>{leaders.division}</b></th>
             <th className="border border-slate-900 py-2 w-[16%]">সন্দেহজনক হাম রোগে মৃত্যু <br/><b>{leaders.district}</b></th>
             <th className="border border-slate-900 py-2 w-[16%]">গত ২৪ ঘণ্টায় নিশ্চিত হাম রোগে মৃত্যুর সংখ্যা</th>
-            <th className="border border-slate-900 py-2 w-[16%]">০৭-০৪-২০২৬ থেকে অদ্যাবধি মোট নিশ্চিত হাম রোগে মৃত্যুর সংখ্যা</th>
+            <th className="border border-slate-900 py-2 w-[16%]">১৫-০৩-২০২৬ থেকে অদ্যাবধি মোট নিশ্চিত হাম রোগে মৃত্যুর সংখ্যা</th>
             <th className="border border-slate-900 py-2 w-[16%]">গত ২৪ ঘণ্টায় সন্দেহজনক হাম রোগে মৃত্যুর সংখ্যা</th>
-            <th className="border border-slate-900 py-2 w-[16%]">০৭-০৪-২০২৬ থেকে অদ্যাবধি মোট সন্দেহজনক হাম রোগে মৃত্যুর সংখ্যা</th>
+            <th className="border border-slate-900 py-2 w-[16%]">১৫-০৩-২০২৬ থেকে অদ্যাবধি মোট সন্দেহজনক হাম রোগে মৃত্যুর সংখ্যা</th>
           </tr>
         </thead>
         <tbody>
@@ -261,7 +261,7 @@ const GovernmentBreakdownTable = ({ divisionStats, toBnNum, stats }: any) => {
               <th className={`${headerStyles.death} py-1`} rowSpan={2}>গত ২৪ ঘণ্টায় নিশ্চিত হাম রোগে মৃত্যুর সংখ্যা</th>
               <th className={`${headerStyles.confirmed} py-1`} rowSpan={2}>গত ২৪ ঘণ্টায় নিশ্চিত হাম রোগীর সংখ্যা</th>
               <th className={`${headerStyles.deathSus} py-1`} rowSpan={2}>গত ২৪ ঘণ্টায় সন্দেহজনক হাম রোগে মৃত্যুর সংখ্যা</th>
-              <th className="bg-slate-200 border-x border-slate-900 py-1" colSpan={6}>অদ্যাবধি (০৭-০৪-২০২৬ থেকে)</th>
+              <th className="bg-slate-200 border-x border-slate-900 py-1" colSpan={6}>অদ্যাবধি (১৫-০৩-২০২৬ থেকে)</th>
             </tr>
             <tr className="bg-slate-100 font-bold border-b border-slate-900">
               <th className={`${headerStyles.suspected} py-2`}>মোট সন্দেহজনক হাম রোগীর সংখ্যা</th>

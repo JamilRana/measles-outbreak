@@ -62,7 +62,8 @@ const DynamicInput = ({
     lab: FlaskConical
   };
   const Icon = iconMap[field.section || 'cases'] || Activity;
-  const label = i18n.language === 'bn' ? field.labelBn || field.label : field.label;
+  const label = field.label;
+  const labelBn = field.labelBn;
   const hasError   = fieldErrors.length > 0;
   const hasWarning = !hasError && fieldWarnings.length > 0;
 
@@ -82,7 +83,11 @@ const DynamicInput = ({
       <div className="flex flex-col gap-1">
         <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
           <Icon className="w-3.5 h-3.5 opacity-50" />
-          {label} {field.isRequired && <span className="text-red-500">*</span>}
+          <span className="flex items-baseline gap-1">
+            <span>{label}</span>
+            {labelBn && <span className="text-[10px] text-slate-400 normal-case font-medium">({labelBn})</span>}
+          </span>
+          {field.isRequired && <span className="text-red-500">*</span>}
         </label>
         <select
           value={value}
@@ -105,7 +110,11 @@ const DynamicInput = ({
     <div className="flex flex-col gap-1">
       <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
         <Icon className="w-3.5 h-3.5 opacity-50" />
-        {label} {field.isRequired && <span className="text-red-500">*</span>}
+        <span className="flex items-baseline gap-1">
+          <span>{label}</span>
+          {labelBn && <span className="text-[10px] text-slate-400 normal-case font-medium lowercase">({labelBn})</span>}
+        </span>
+        {field.isRequired && <span className="text-red-500">*</span>}
       </label>
       <input
         type={field.fieldType === 'NUMBER' ? 'number' : field.fieldType === 'DATE' ? 'date' : 'text'}
@@ -404,7 +413,9 @@ export default function UnifiedReportForm({
               {mode === 'VIEW' ? <Lock className="w-6 h-6" /> : <Calendar className="w-6 h-6" />}
             </div>
             <div className="flex-1">
-              <p className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.2em] mb-0.5">Reporting Date</p>
+              <p className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.2em] mb-0.5">
+                Reporting Date <span className="normal-case font-bold opacity-70">(রিপোর্টিং তারিখ)</span>
+              </p>
               <div className="relative group">
                 <input
                   type="date"
@@ -516,19 +527,19 @@ export default function UnifiedReportForm({
                           <div className="flex-1 h-px bg-slate-100"></div>
                         </div>
                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6">
-                           {sectionFields.map(field => {
-                            const fieldLabel = i18n.language === 'bn' ? field.labelBn || field.label : field.label;
-                            return (
+                           {sectionFields.map(field => (
                               <div key={field.id} className="group">
-                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter mb-2 truncate" title={fieldLabel}>{fieldLabel}</p>
+                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter mb-2 truncate flex items-center gap-1" title={`${field.label} ${field.labelBn ? `(${field.labelBn})` : ''}`}>
+                                  <span>{field.label}</span>
+                                  {field.labelBn && <span className="normal-case font-medium opacity-60">({field.labelBn})</span>}
+                                </p>
                                 <div className="p-4 bg-slate-50 border border-slate-100 rounded-xl group-hover:bg-white group-hover:border-indigo-100 transition-all">
                                   <p className={`text-2xl font-black ${formData[field.fieldKey] && formData[field.fieldKey] !== '0' ? 'text-indigo-600' : 'text-slate-300'}`}>
                                     {formData[field.fieldKey] || '0'}
                                   </p>
                                 </div>
                               </div>
-                            );
-                          })}
+                           ))}
                         </div>
                       </div>
                     );

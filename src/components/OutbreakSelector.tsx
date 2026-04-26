@@ -61,7 +61,7 @@ export default function OutbreakSelector({ onSelect, defaultValue }: OutbreakSel
         <Activity className="w-4 h-4" />
       </div>
         <SearchableSelect 
-                label="Outbreak"
+                label="Outbreak (প্রাদুর্ভাব)"
                 placeholder="Select Outbreak Context"
                 options={outbreaks.map(o => ({ value: o.id, label: o.name }))}
                 value={selectedId}
