@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
 import { getCachedData } from '@/lib/redis';
+import { autoPublishReports } from '@/lib/publish-manager';
 
 export async function GET(req: NextRequest) {
   try {
@@ -17,6 +18,9 @@ export async function GET(req: NextRequest) {
     const cacheKey = `summary:${outbreakId}:${dateQuery}:${fromQuery}:${toQuery}:${division}:${district}`;
 
     const data = await getCachedData(cacheKey, async () => {
+      // 0. Trigger Auto-Publish if applicable
+      await autoPublishReports(outbreakId);
+
       // Validate date formats
       const validDate = (d: string | null) => d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : null;
       const vDate = validDate(dateQuery);

@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { rebuildSnapshot } from "@/lib/snapshot";
 import { ReportStatus } from "@prisma/client";
+import { autoPublishReports } from "@/lib/publish-manager";
 
 /**
  * GET /api/reports
@@ -47,6 +48,9 @@ export async function GET(req: Request) {
     }
 
     if (effectiveOutbreakId) {
+      // Auto-publish reports if we are past the publish time
+      await autoPublishReports(effectiveOutbreakId);
+
       outbreak = await prisma.outbreak.findUnique({
         where: { id: effectiveOutbreakId },
         select: { publishTimeHour: true, publishTimeMinute: true }

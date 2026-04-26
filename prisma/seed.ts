@@ -366,6 +366,9 @@ const newFacilities = [
       name: 'National Measles Outbreak 2026',
       status: OutbreakStatus.ACTIVE,
       startDate: new Date('2026-01-01'),
+      cutoffHour: 10,
+      editDeadlineHour: 10,
+      publishTimeHour: 14,
     }
   })
   console.log('   ✓ Created measles disease and outbreak')
@@ -421,7 +424,7 @@ const newFacilities = [
   
   const opensAt = new Date(today)
   const closesAt = new Date(today)
-  closesAt.setHours(14, 0, 0, 0)
+  closesAt.setHours(10, 0, 0, 0)
 
   await prisma.submissionWindow.create({
     data: {

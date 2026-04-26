@@ -10,11 +10,11 @@ export async function GET(request: Request) {
     let targetId = outbreakId || settings?.defaultOutbreakId;
     
     let config = {
-      cutoffHour: 14,
+      cutoffHour: 10,
       cutoffMinute: 0,
       editDeadlineHour: 10,
       editDeadlineMinute: 0,
-      publishTimeHour: 9,
+      publishTimeHour: 14,
       publishTimeMinute: 0,
       controlRoomContact: process.env.NEXT_PUBLIC_CONTROL_ROOM_CONTACT || "MIS, DGHS",
       outbreakBacklog: null as any,
@@ -69,11 +69,11 @@ export async function GET(request: Request) {
   } catch (error) {
     console.error("[ConfigAPI] Error:", error);
     return NextResponse.json({
-      cutoffHour: 14,
+      cutoffHour: 10,
       cutoffMinute: 0,
       editDeadlineHour: 10,
       editDeadlineMinute: 0,
-      publishTimeHour: 9,
+      publishTimeHour: 14,
       publishTimeMinute: 0,
       controlRoomContact: "MIS, DGHS",
     });
