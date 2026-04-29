@@ -23,7 +23,20 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Outbreak not found" }, { status: 404 });
     }
 
-    return NextResponse.json(config);
+    // Dynamic Publication Status Logic
+    const { getBdTime } = require("@/lib/timezone");
+    const now = getBdTime();
+    const outbreak = config.outbreak;
+    
+    const publishTime = new Date(now);
+    publishTime.setHours(outbreak.publishTimeHour || 0, outbreak.publishTimeMinute || 0, 0, 0);
+    
+    const publicationStatus = now < publishTime ? "PENDING" : "VERIFIED";
+
+    return NextResponse.json({
+      ...config,
+      publicationStatus
+    });
   } catch (error) {
     console.error("Fetch public config error:", error);
     return NextResponse.json({ error: "Failed to fetch dashboard configuration" }, { status: 500 });

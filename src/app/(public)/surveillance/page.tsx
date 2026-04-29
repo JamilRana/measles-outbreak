@@ -29,8 +29,6 @@ export default function LandingPage() {
     hospitalized: 0
   });
   const [loading, setLoading] = useState(true);
-  const [dataDate, setDataDate] = useState<string | null>(null);
-  const [isPending, setIsPending] = useState(false);
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -38,11 +36,6 @@ export default function LandingPage() {
         const res = await fetch('/api/reports/summary');
         const data = await res.json();
         setStats(data.totals);
-        
-        const effective = data.debug?.dataDate;
-        const today = new Date().toISOString().split('T')[0];
-        setDataDate(effective);
-        setIsPending(effective && effective !== today);
       } catch (e) {
         console.error('Failed to fetch stats');
       } finally {
@@ -122,20 +115,6 @@ export default function LandingPage() {
 
         {/* Float Stats Line */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-16">
-          {isPending && (
-            <motion.div 
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="flex justify-center mb-6"
-            >
-              <div className="bg-amber-500/10 border border-amber-500/20 px-4 py-2 rounded-xl backdrop-blur-sm">
-                <p className="text-[10px] font-black text-amber-200 uppercase tracking-widest flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse" />
-                  Today's SitRep Pending • Showing Data for: {dataDate}
-                </p>
-              </div>
-            </motion.div>
-          )}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
              <StatMini label="Suspected" value={stats.suspected} color="amber" />
              <StatMini label="Confirmed" value={stats.confirmed} color="rose" />

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { getBdTime, getBdDateString, getLatestReportDate } from "@/lib/timezone";
+import { getBdTime, getBdDateString } from "@/lib/timezone";
 import { BD_DISTRICT_COORDS } from "@/lib/bd-districts";
 
 /**
@@ -24,9 +24,29 @@ export async function GET(req: Request) {
     // Temporal Visibility Logic
     const session = await getServerSession(authOptions);
     const isAdmin = session?.user?.role === 'ADMIN' || session?.user?.role === 'EDITOR';
-    
-    // Honest Response: If date provided, use it. If not, default to latest available.
-    const effectiveDate = date || getLatestReportDate();
+    const now = getBdTime();
+    const today = getBdDateString(now);
+    let effectiveDate = date;
+
+    const outbreak = await prisma.outbreak.findUnique({
+      where: { id: outbreakId },
+      select: { publishTimeHour: true, publishTimeMinute: true }
+    });
+
+    let isPending = false;
+    if (outbreak && !isAdmin) {
+      const publishTime = new Date(now);
+      publishTime.setHours(outbreak.publishTimeHour, outbreak.publishTimeMinute, 0, 0);
+      
+      // ONLY trigger pending status if explicitly requesting today's date
+      if (now < publishTime && effectiveDate === today) {
+        isPending = true;
+      }
+    }
+
+    if (isPending) {
+      return NextResponse.json([]);
+    }
 
     const validDate = (d: string | null) => d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : null;
     const vDate = validDate(effectiveDate);

@@ -29,10 +29,12 @@ export async function GET(req: Request) {
   });
 
   let effectiveEnd = "NOW()";
+  let isPending = false;
   if (outbreak && !isAdmin) {
     const publishTime = new Date(now);
     publishTime.setHours(outbreak.publishTimeHour, outbreak.publishTimeMinute, 0, 0);
     if (now < publishTime) {
+      isPending = true;
       // If before publish time, shift the "now" for the interval to yesterday end
       effectiveEnd = `(CURRENT_DATE - INTERVAL '1 second')`;
     }

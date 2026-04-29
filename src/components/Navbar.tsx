@@ -31,21 +31,11 @@ export default function Navbar() {
             <span className="text-xl font-bold tracking-tight hidden md:inline">{t('app.title')}</span>
           </Link>
 
-          <div className="flex items-center gap-3">
-            <button
-              onClick={toggleLanguage}
-              className="flex hidden items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-indigo-100 hover:text-white transition-all text-sm font-semibold"
-              title="Switch language"
-            >
-              <Globe className="w-4 h-4" />
-              <span className="hidden sm:inline">{i18n.language === 'bn' ? 'English' : 'বাংলা'}</span>
-            </button>
-
+          <div className="flex items-center gap-1">
+            <NavLink href="/dashboard" icon={<LayoutDashboard className="w-4 h-4" />} label={t('nav.dashboard')} />
+            <NavLink href="/bulletin" icon={<FileBarChart className="w-4 h-4" />} label="Bulletin" />
             {session ? (
               <>
-                <div className="flex gap-1">
-                  <NavLink href="/dashboard" icon={<LayoutDashboard className="w-4 h-4" />} label={t('nav.dashboard')} />
-                  <NavLink href="/bulletin" icon={<FileBarChart className="w-4 h-4" />} label="Bulletin" />
                   {canSubmit && (
                     <NavLink href="/report" icon={<Zap className="w-4 h-4" />} label={t('nav.report')} />
                   )}
@@ -55,8 +45,6 @@ export default function Navbar() {
                   {canViewAdmin && (
                     <NavLink href="/admin" icon={<Settings className="w-4 h-4" />} label={t('nav.admin')} />
                   )}
-                </div>
-                
                 <div className="h-6 w-[1px] bg-indigo-500/50 mx-1" />
                 
                 <div className="hidden sm:flex flex-col items-end">
@@ -77,6 +65,14 @@ export default function Navbar() {
                 {t('nav.signIn')}
               </Link>
             )}
+                        <button
+              onClick={toggleLanguage}
+              className="flex hidden items-center px-1.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-indigo-100 hover:text-white transition-all text-sm font-semibold"
+              title="Switch language"
+            >
+              <Globe className="w-4 h-4" />
+              <span className="hidden sm:inline">{i18n.language === 'bn' ? 'English' : 'বাংলা'}</span>
+            </button>
           </div>
         </div>
       </div>

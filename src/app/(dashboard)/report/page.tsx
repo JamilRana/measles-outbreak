@@ -14,7 +14,7 @@ import { ShieldAlert, ArrowLeft } from 'lucide-react';
 import { hasPermission } from '@/lib/rbac';
 
 export default function AuthenticatedReportPage() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const [selectedOutbreakId, setSelectedOutbreakId] = useState('');
   const [selectedDate, setSelectedDate] = useState(getBdDateString());
   const [selectedFacilityId, setSelectedFacilityId] = useState('');
@@ -23,6 +23,14 @@ export default function AuthenticatedReportPage() {
   const [currentTime, setCurrentTime] = useState<Date>(getBdTime());
   const [mounted, setMounted] = useState(false);
   const [formMode, setFormMode] = useState<'CREATE' | 'EDIT' | 'VIEW'>('CREATE');
+
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      window.location.href = '/login';
+    }
+  }, [status]);
+
+  if (status === 'loading' || status === 'unauthenticated') return null;
 
   const canSubmit = hasPermission(session?.user?.role || "", 'report:create');
 

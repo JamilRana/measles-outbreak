@@ -13,7 +13,7 @@ import {
   CheckCircle2,
   Activity
 } from 'lucide-react';
-import { getBdDateString, getLatestReportDate } from '@/lib/timezone';
+import { getBdDateString } from '@/lib/timezone';
 import { DIVISIONS } from '@/lib/constants';
 import Image from 'next/image';
 import BreakdownTable from '@/components/BreakdownTable';
@@ -364,7 +364,7 @@ export default function BulletinPage() {
   const [summaryBreakdown, setSummaryBreakdown] = useState<any>(null);
   const [cumSummaryBreakdown, setCumSummaryBreakdown] = useState<any>(null);
   const [districtBreakdown, setDistrictBreakdown] = useState<any>(null);
-  const [selectedDate, setSelectedDate] = useState(getLatestReportDate());
+  const [selectedDate, setSelectedDate] = useState(getBdDateString());
   const [temporal, setTemporal] = useState<any>(null);
   const [logPage, setLogPage] = useState(1);
   const [dailyLogHistory, setDailyLogHistory] = useState<any[]>([]);
@@ -377,12 +377,13 @@ export default function BulletinPage() {
   const fetchReports = async () => {
     setLoading(true);
     try {
+      const outbreakId = 'measles-2026';
       // Parallel Fetching for non-dependent resources (Temporal + Today + Cumulative)
       const [temporalRes, todaySummaryRes, cumSummaryRes, districtData] = await Promise.all([
-        fetch(`/api/reports/bulletin-temporal?to=${selectedDate}`),
-        fetch(`/api/reports/summary?date=${selectedDate}`),
-        fetch(`/api/reports/summary?to=${selectedDate}`),
-        fetch(`/api/reports/summary?to=${selectedDate}&groupBy=district`)
+        fetch(`/api/reports/bulletin-temporal?outbreakId=${outbreakId}&to=${selectedDate}`),
+        fetch(`/api/reports/summary?outbreakId=${outbreakId}&date=${selectedDate}`),
+        fetch(`/api/reports/summary?outbreakId=${outbreakId}`),
+        fetch(`/api/reports/summary?outbreakId=${outbreakId}&date=${selectedDate}&groupBy=district`)
       ]);
 
       const [temporalData, todaySumData, cumSumData, districtDataJson] = await Promise.all([
@@ -465,26 +466,30 @@ export default function BulletinPage() {
   }, [summaryBreakdown, cumSummaryBreakdown]);
 
   const leaders = useMemo(() => {
-    // Top division by cumulative confirmed death
-    const divLeaderArr = [...divisionStats].sort((a,b) => b.cumulative.confirmedDeath - a.cumulative.confirmedDeath);
+    // Top division by suspected death in last 24h
+    const divLeaderArr = [...divisionStats].sort((a,b) => b.today.suspectedDeath - a.today.suspectedDeath);
     const divLeader = divLeaderArr[0];
     
-    // Top district from districtBreakdown
+    // Top district from districtBreakdown (already filtered for selected date)
     let districtName = 'ঢাকা';
     let districtDeaths = 0;
     if (districtBreakdown) {
        const sortedDistricts = Object.entries(districtBreakdown)
-         .map(([name, data]: [string, any]) => ({ name, deaths: data.confirmedDeath24h || 0 }))
+         .map(([name, data]: [string, any]) => ({ 
+           name, 
+           deaths: (Number(data.suspectedDeath24h) || 0) 
+         }))
          .sort((a, b) => b.deaths - a.deaths);
-       if (sortedDistricts.length > 0 && sortedDistricts[0].deaths > 0) {
+       
+       if (sortedDistricts.length > 0) {
          districtName = sortedDistricts[0].name;
          districtDeaths = sortedDistricts[0].deaths;
        }
     }
 
     return {
-      division: divLeader?.cumulative.confirmedDeath > 0 ? divLeader.name : 'ঢাকা',
-      divisionDeaths: divLeader?.cumulative.confirmedDeath || 0,
+      division: divLeader?.today.suspectedDeath > 0 ? divLeader.name : 'ঢাকা',
+      divisionDeaths: divLeader?.today.suspectedDeath || 0,
       district: districtName,
       districtDeaths: districtDeaths
     };

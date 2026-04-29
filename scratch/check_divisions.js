@@ -3,8 +3,11 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 async function main() {
-  const outbreak = await prisma.outbreak.findFirst();
-  console.log('Outbreak Settings:', JSON.stringify(outbreak, null, 2));
+  const divisions = await prisma.facility.groupBy({
+    by: ['division'],
+    _count: { id: true }
+  });
+  console.log('Divisions in Database:', divisions);
 }
 
 main().catch(console.error).finally(() => prisma.$disconnect());

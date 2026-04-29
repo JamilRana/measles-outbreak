@@ -69,7 +69,7 @@ import {
   MapSkeleton, 
   ChartSkeleton 
 } from "@/components/skeletons";
-import { getBdDateString, getBdTime, getLatestReportDate } from "@/lib/timezone";
+import { getBdDateString, getBdTime } from "@/lib/timezone";
 import Image from "next/image";
 
 // Dynamic imports with ssr: false for components that use browser APIs
@@ -178,7 +178,7 @@ export default function DashboardPage() {
   
   // -- Filter State --
   const [viewMode, setViewMode] = useState<"all" | "today">("today");
-  const [filterDate, setFilterDate] = useState(getLatestReportDate());
+  const [filterDate, setFilterDate] = useState(getBdDateString());
   const [dateRange, setDateRange] = useState({ from: "", to: "" });
   const [selectedOutbreakId, setSelectedOutbreakId] = useState<string | null>(null);
   const [selectedDivision, setSelectedDivision] = useState<string | null>(null);
@@ -308,7 +308,21 @@ export default function DashboardPage() {
     return values;
   }, [indicators, stats]);
 
-  const publicationStatus: string = summary?.debug?.reportCount === 0 ? "PENDING" : "VERIFIED";
+  const publicationStatus = useMemo(() => {
+    if (!config?.outbreak) return "VERIFIED";
+    const now = getBdTime();
+    const today = getBdDateString(now);
+    
+    // If viewing today, check against current time vs publish time
+    if (viewMode === "today" && filterDate === today) {
+      const publishTime = new Date(now);
+      publishTime.setHours(config.outbreak.publishTimeHour || 0, config.outbreak.publishTimeMinute || 0, 0, 0);
+      return now < publishTime ? "PENDING" : "VERIFIED";
+    }
+    
+    // Historical data or Cumulative view is always considered verified
+    return "VERIFIED";
+  }, [config, filterDate, viewMode]);
   const allReports = summary?.reports || []; // For title fallback
   const sevenDayTrend = [0, 0, 0, 0, 0, 0, 0]; // Placeholder for trend
 
@@ -494,7 +508,7 @@ export default function DashboardPage() {
         </div>
       </div>
       
-      {(summary?.totals && !summary.totals.isPublished && summary.totals.hasReports) && (
+      {(publicationStatus as string) === "PENDING" && filterDate === getBdDateString() && (
         <motion.div 
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -502,7 +516,7 @@ export default function DashboardPage() {
         >
           <AlertCircle className="w-5 h-5 text-amber-600" />
           <p className="text-xs font-bold text-amber-700 uppercase tracking-widest">
-             Report is pending publication for {summary?.debug?.dataDate}. Showing last verified snapshot.
+             Today's report is pending publication. Official statistics will be available after the release time.
           </p>
         </motion.div>
       )}
