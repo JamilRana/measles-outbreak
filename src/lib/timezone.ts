@@ -41,3 +41,16 @@ export function isEditable(editDeadlineHour: number, editDeadlineMinute: number)
   deadline.setHours(editDeadlineHour, editDeadlineMinute, 0, 0);
   return now <= deadline;
 }
+
+export function getLatestReportDate(publishHour: number = 16, publishMinute: number = 0): string {
+  const now = getBdTime();
+  const publishTime = new Date(now);
+  publishTime.setHours(publishHour, publishMinute, 0, 0);
+  
+  if (now < publishTime) {
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    return getBdDateString(yesterday);
+  }
+  return getBdDateString(now);
+}

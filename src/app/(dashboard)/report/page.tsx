@@ -155,7 +155,7 @@ export default function AuthenticatedReportPage() {
                 />
               )}
 
-              <div className="bg-white border border-slate-100 rounded-xl p-4 md:p-8 shadow-sm">
+              <div className="bg-white border border-slate-200 rounded-2xl p-4 md:p-8 shadow-sm">
                  <UnifiedReportForm 
                    outbreakId={selectedOutbreakId}
                    facilityId={selectedFacilityId}

@@ -85,7 +85,7 @@ export default function LocationSelector({ onSelect, disabled }: LocationSelecto
   };
 
   return (
-    <div className="bg-white border border-slate-100 rounded-xl shadow-sm relative">
+    <div className="bg-white border border-slate-200 rounded-2xl shadow-sm relative">
       {/* Header */}
       <div className="px-5 py-3 border-b border-slate-50 bg-blue-50/50 flex items-center gap-2 rounded-t-xl">
         <Navigation className="w-4 h-4 text-blue-600" />
@@ -96,9 +96,9 @@ export default function LocationSelector({ onSelect, disabled }: LocationSelecto
       
       <div className="p-6">
         {/* Division & District Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+        <div className="grid grid-cols-1 gap-6 mb-6">
           <div className="space-y-1.5">
-            <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest ml-1">
+            <label className="text-[11px] font-black text-slate-600 uppercase tracking-widest ml-1">
               Division <span className="normal-case font-bold opacity-70">(বিভাগ)</span> <span className="text-red-500">*</span>
             </label>
             <div className="relative">
@@ -111,7 +111,7 @@ export default function LocationSelector({ onSelect, disabled }: LocationSelecto
                   setSearchQuery('');
                 }}
                 disabled={disabled}
-                className="block w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-900 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5 transition-all outline-none appearance-none disabled:bg-slate-50"
+                className="block w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-bold text-slate-900 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5 transition-all outline-none appearance-none disabled:bg-slate-50"
               >
                 <option value="">{t('common.selectOption')}</option>
                 {DIVISIONS.map(d => <option key={d} value={d}>{d}</option>)}
@@ -121,7 +121,7 @@ export default function LocationSelector({ onSelect, disabled }: LocationSelecto
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest ml-1">
+            <label className="text-[11px] font-black text-slate-600 uppercase tracking-widest ml-1">
               District <span className="normal-case font-bold opacity-70">(জেলা)</span> <span className="text-red-500">*</span>
             </label>
             <div className="relative">
@@ -133,7 +133,7 @@ export default function LocationSelector({ onSelect, disabled }: LocationSelecto
                   setSearchQuery('');
                 }}
                 disabled={!selectedDivision || disabled}
-                className="block w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-900 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5 transition-all outline-none appearance-none disabled:bg-slate-50"
+                className="block w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-bold text-slate-900 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5 transition-all outline-none appearance-none disabled:bg-slate-50"
               >
                 <option value="">{t('common.selectOption')}</option>
                 {districts.map(d => <option key={d} value={d}>{d}</option>)}
@@ -145,7 +145,7 @@ export default function LocationSelector({ onSelect, disabled }: LocationSelecto
 
         {/* Facility Combobox - FIXED BOX MODEL */}
         <div className="space-y-1.5 w-full">
-          <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest ml-1">
+          <label className="text-[11px] font-black text-slate-600 uppercase tracking-widest ml-1">
             Facility Name <span className="normal-case font-bold opacity-70">(স্বাস্থ্যসেবা কেন্দ্রের নাম)</span> <span className="text-red-500">*</span>
           </label>
           

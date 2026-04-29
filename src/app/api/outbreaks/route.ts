@@ -36,6 +36,9 @@ export async function GET(req: Request) {
   }
 }
 
+import { CreateOutbreakSchema } from "@/lib/validations/outbreak";
+import { validateRequest } from "@/lib/validations/api";
+
 export async function POST(req: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -44,14 +47,18 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
+    const validation = await validateRequest(CreateOutbreakSchema, body);
+    
+    if (!validation.success) {
+      return validation.response;
+    }
+
     const { 
       name, diseaseId, startDate, endDate, status, isActive, 
-      allowBacklogReporting, backlogStartDate, backlogEndDate
-    } = body;
-
-    if (!name || !diseaseId || !startDate) {
-      return NextResponse.json({ error: "Name, Disease, and Start Date are required" }, { status: 400 });
-    }
+      allowBacklogReporting, backlogStartDate, backlogEndDate,
+      reportingFrequency, submissionCutoff, editDeadline, publishTime,
+      targetDivisions, targetDistricts, targetFacilityTypeIds
+    } = validation.data;
 
     const outbreak = await prisma.outbreak.create({
       data: {
@@ -59,21 +66,21 @@ export async function POST(req: Request) {
         diseaseId,
         startDate: new Date(startDate),
         endDate: endDate ? new Date(endDate) : null,
-        status: status || 'DRAFT',
-        isActive: isActive ?? true,
-        allowBacklogReporting: allowBacklogReporting ?? false,
+        status,
+        isActive,
+        allowBacklogReporting,
         backlogStartDate: (allowBacklogReporting && backlogStartDate) ? new Date(backlogStartDate) : null,
         backlogEndDate: (allowBacklogReporting && backlogEndDate) ? new Date(backlogEndDate) : null,
-        reportingFrequency: body.reportingFrequency || 'DAILY',
-        cutoffHour: body.submissionCutoff ? parseInt(body.submissionCutoff.split(':')[0]) : 14,
-        cutoffMinute: body.submissionCutoff ? parseInt(body.submissionCutoff.split(':')[1]) : 0,
-        editDeadlineHour: body.editDeadline ? parseInt(body.editDeadline.split(':')[0]) : 10,
-        editDeadlineMinute: body.editDeadline ? parseInt(body.editDeadline.split(':')[1]) : 0,
-        publishTimeHour: body.publishTime ? parseInt(body.publishTime.split(':')[0]) : 9,
-        publishTimeMinute: body.publishTime ? parseInt(body.publishTime.split(':')[1]) : 0,
-        targetDivisions: body.targetDivisions || [],
-        targetDistricts: body.targetDistricts || [],
-        targetFacilityTypeIds: body.targetFacilityTypeIds || [],
+        reportingFrequency,
+        cutoffHour: submissionCutoff ? parseInt(submissionCutoff.split(':')[0]) : 14,
+        cutoffMinute: submissionCutoff ? parseInt(submissionCutoff.split(':')[1]) : 0,
+        editDeadlineHour: editDeadline ? parseInt(editDeadline.split(':')[0]) : 10,
+        editDeadlineMinute: editDeadline ? parseInt(editDeadline.split(':')[1]) : 0,
+        publishTimeHour: publishTime ? parseInt(publishTime.split(':')[0]) : 9,
+        publishTimeMinute: publishTime ? parseInt(publishTime.split(':')[1]) : 0,
+        targetDivisions,
+        targetDistricts,
+        targetFacilityTypeIds,
       },
     });
 

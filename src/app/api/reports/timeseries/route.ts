@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { getBdTime, getBdDateString } from "@/lib/timezone";
 
 /**
  * GET /api/reports/timeseries
@@ -13,6 +17,26 @@ export async function GET(req: Request) {
   const outbreakId = searchParams.get("outbreakId") || 'measles-2026';
   const division = searchParams.get("division") || searchParams.get("divisions");
   const district = searchParams.get("district") || searchParams.get("districts");
+  
+  const session = await getServerSession(authOptions);
+  const isAdmin = session?.user?.role === 'ADMIN' || session?.user?.role === 'EDITOR';
+  const now = getBdTime();
+  const today = getBdDateString(now);
+
+  const outbreak = await prisma.outbreak.findUnique({
+    where: { id: outbreakId },
+    select: { publishTimeHour: true, publishTimeMinute: true }
+  });
+
+  let effectiveEnd = "NOW()";
+  if (outbreak && !isAdmin) {
+    const publishTime = new Date(now);
+    publishTime.setHours(outbreak.publishTimeHour, outbreak.publishTimeMinute, 0, 0);
+    if (now < publishTime) {
+      // If before publish time, shift the "now" for the interval to yesterday end
+      effectiveEnd = `(CURRENT_DATE - INTERVAL '1 second')`;
+    }
+  }
 
   try {
     const result: any[] = await prisma.$queryRaw`
@@ -27,7 +51,8 @@ export async function GET(req: Request) {
       JOIN "Facility" f ON f.id = r."facilityId"
       WHERE r."outbreakId" = ${outbreakId}
         AND r.status = 'PUBLISHED'
-        AND r."periodStart" >= NOW() - INTERVAL '1 day' * ${days}
+        AND r."periodStart" >= ${effectiveEnd === "NOW()" ? Prisma.raw("NOW()") : Prisma.raw("CURRENT_DATE")} - INTERVAL '1 day' * ${days}
+        AND r."periodStart" <= ${Prisma.raw(effectiveEnd)}
         AND (${division ?? ''}::text = '' OR f.division = ${division ?? ''})
         AND (${district ?? ''}::text = '' OR f.district = ${district ?? ''})
       GROUP BY r."periodStart"::date

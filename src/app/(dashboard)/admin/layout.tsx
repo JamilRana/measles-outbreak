@@ -10,12 +10,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   // A simple check: only ADMIN and MANAGER (represented by EDITOR in some contexts) 
   // should access administrative infrastructure.
   const role = session?.user?.role || "";
-  const isAdmin = role === "ADMIN";
-  const isManager = role === "MANAGER" || role === "EDITOR";
+  const canAccessAdmin = hasPermission(role, 'user:manage') || hasPermission(role, 'settings:manage') || role === 'ADMIN' || role === 'EDITOR';
 
   if (status === "loading") return null;
 
-  if (session && !isAdmin && !isManager) {
+  if (status === "unauthenticated") {
+    if (typeof window !== "undefined") window.location.href = "/login";
+    return null;
+  }
+
+  if (session && !canAccessAdmin) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
         <div className="bg-white p-12 rounded-[3rem] shadow-xl max-w-md text-center border border-slate-100 relative overflow-hidden">

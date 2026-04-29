@@ -3,6 +3,9 @@ import { prisma } from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
 import { getCachedData } from '@/lib/redis';
 import { autoPublishReports } from '@/lib/publish-manager';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
+import { getBdTime, getBdDateString, getLatestReportDate } from '@/lib/timezone';
 
 export async function GET(req: NextRequest) {
   try {
@@ -13,9 +16,17 @@ export async function GET(req: NextRequest) {
     const toQuery = searchParams.get('to') || '';
     const division = searchParams.get('division') || searchParams.get('divisions') || '';
     const district = searchParams.get('district') || searchParams.get('districts') || '';
+    const groupBy = searchParams.get('groupBy');
 
-    // Build unique cache key
-    const cacheKey = `summary:${outbreakId}:${dateQuery}:${fromQuery}:${toQuery}:${division}:${district}`;
+    // Temporal Visibility Logic
+    const session = await getServerSession(authOptions);
+    const isAdmin = session?.user?.role === 'ADMIN' || session?.user?.role === 'EDITOR';
+    
+    // Default to the latest available published date if no date is provided
+    const effectiveDate = dateQuery || getLatestReportDate();
+
+    // Cache key depends on user role and date
+    const cacheKey = `summary:${outbreakId}:${effectiveDate}:${fromQuery}:${toQuery}:${division}:${district}:${isAdmin ? 'admin' : 'public'}`;
 
     const data = await getCachedData(cacheKey, async () => {
       // 0. Trigger Auto-Publish if applicable
@@ -23,50 +34,77 @@ export async function GET(req: NextRequest) {
 
       // Validate date formats
       const validDate = (d: string | null) => d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : null;
-      const vDate = validDate(dateQuery);
+      const vDate = validDate(effectiveDate);
       const vFrom = validDate(fromQuery);
       const vTo = validDate(toQuery);
 
-      // 1. Fetch Core Fields for Dynamic Aggregation
+      // 1. Fetch Outbreak Config for Publication Time
+      const now = getBdTime();
+      const outbreak = await prisma.outbreak.findUnique({
+        where: { id: outbreakId },
+        select: { publishTimeHour: true, publishTimeMinute: true }
+      });
+      
+      const publishTime = new Date(now);
+      if (outbreak) {
+        publishTime.setHours(outbreak.publishTimeHour || 16, outbreak.publishTimeMinute || 0, 0, 0);
+      }
+
+      // PUBLIC USERS cannot see today's data until publishTime has passed.
+      const isPastPublishTime = now >= publishTime;
+      const effectiveIsPublished = Prisma.sql`(r.status = 'PUBLISHED' ${(!isAdmin && !isPastPublishTime) ? Prisma.sql`AND r."periodStart"::date < ${getBdDateString(now)}::date` : Prisma.empty})`;
+
+      // 2. Fetch Core Fields for Dynamic Aggregation
       const coreFields = await prisma.formField.findMany({
         where: { outbreakId, isCoreField: true },
         select: { fieldKey: true }
       });
 
-      // Fallback if no core fields defined
       const fallbackFields = [
         'suspected24h', 'confirmed24h', 'admitted24h', 'discharged24h',
-        'confirmedDeath24h', 'suspectedDeath24h', 'serumSent24h'
+        'confirmedDeath24h', 'suspectedDeath24h'
       ];
       
       const fieldsToAggregate = coreFields.length > 0 
         ? coreFields.map(f => f.fieldKey)
         : fallbackFields;
 
-      // Build dynamic SQL select parts
-      const aggSql = fieldsToAggregate.map(key => 
-        Prisma.sql`COALESCE(SUM(COALESCE(NULLIF(r."dataSnapshot"->>${key}, '')::numeric, 0)), 0) AS ${Prisma.raw(`"${key}"`)}`
-      );
-
-      // --- National Totals ---
-      const totalsResult: any[] = await prisma.$queryRaw`
-        SELECT
-          ${Prisma.join(aggSql, ', ')},
-          COUNT(r.id)::int AS "reportCount"
+      // 3. National Totals with Publication Guard
+      const [totalsRow]: any[] = await prisma.$queryRaw`
+        SELECT 
+          COUNT(r.id)::integer as "totalCount",
+          COUNT(CASE WHEN ${effectiveIsPublished} THEN 1 END)::integer as "publishedCount",
+          ${Prisma.join(
+            fieldsToAggregate.map(key => 
+              Prisma.sql`COALESCE(SUM(CASE WHEN ${effectiveIsPublished} THEN (COALESCE(NULLIF(r."dataSnapshot"->>${key}, '')::numeric, 0)) ELSE 0 END), 0) AS ${Prisma.raw(`"${key}"`)}`
+            ), 
+            ', '
+          )}
         FROM "Report" r
         JOIN "Facility" f ON f.id = r."facilityId"
         WHERE r."outbreakId" = ${outbreakId}
-          AND r.status = 'PUBLISHED'
           AND (${vDate}::text IS NULL OR r."periodStart"::date = ${vDate}::date)
           AND (${vFrom}::text IS NULL OR r."periodStart"::date >= ${vFrom}::date)
           AND (${vTo}::text IS NULL OR r."periodStart"::date <= ${vTo}::date)
-          AND (${division}::text = '' OR f.division = ${division})
-          AND (${district}::text = '' OR f.district = ${district})
+          AND (${division ?? ''}::text = '' OR f.division = ${division ?? ''})
+          AND (${district ?? ''}::text = '' OR f.district = ${district ?? ''})
       `;
 
-      // --- Division/District Breakdown ---
+      const totalsResource: Record<string, any> = {
+        isPublished: (totalsRow?.publishedCount || 0) > 0,
+        hasReports: (totalsRow?.totalCount || 0) > 0,
+        reportCount: totalsRow?.publishedCount || 0
+      };
+
+      fieldsToAggregate.forEach(key => {
+        totalsResource[key] = Number(totalsRow?.[key]) || 0;
+      });
+
+      // 4. Breakdown with Publication Guard
       let groupByCol: string;
-      if (district) groupByCol = 'f."facilityName"';
+      if (groupBy === 'district') groupByCol = 'f.district';
+      else if (groupBy === 'facility') groupByCol = 'f."facilityName"';
+      else if (district) groupByCol = 'f."facilityName"';
       else if (division) groupByCol = 'f.district';
       else groupByCol = 'f.division';
 
@@ -74,12 +112,16 @@ export async function GET(req: NextRequest) {
         Prisma.sql`
           SELECT
             ${Prisma.raw(groupByCol)} AS "groupKey",
-            ${Prisma.join(aggSql, ', ')},
-            COUNT(r.id)::int AS "reportCount"
+            ${Prisma.join(
+              fieldsToAggregate.map(key => 
+                Prisma.sql`COALESCE(SUM(CASE WHEN ${effectiveIsPublished} THEN (COALESCE(NULLIF(r."dataSnapshot"->>${key}, '')::numeric, 0)) ELSE 0 END), 0) AS ${Prisma.raw(`"${key}"`)}`
+              ),
+              ', '
+            )},
+            COUNT(CASE WHEN ${effectiveIsPublished} THEN 1 END)::int AS "reportCount"
           FROM "Report" r
           JOIN "Facility" f ON f.id = r."facilityId"
           WHERE r."outbreakId" = ${outbreakId}
-            AND r.status = 'PUBLISHED'
             AND (${vDate ?? ''}::text = '' OR r."periodStart"::date = ${vDate ?? ''}::date)
             AND (${vFrom ?? ''}::text = '' OR r."periodStart"::date >= ${vFrom ?? ''}::date)
             AND (${vTo ?? ''}::text = '' OR r."periodStart"::date <= ${vTo ?? ''}::date)
@@ -90,16 +132,10 @@ export async function GET(req: NextRequest) {
         `
       );
 
-      const t = totalsResult[0] || {};
-      const totalsResource: Record<string, number> = {};
-      fieldsToAggregate.forEach(key => {
-        totalsResource[key] = Number(t[key]) || 0;
-      });
-
       const breakdownResource: Record<string, any> = {};
       for (const row of breakdownResult) {
         if (!row.groupKey) continue;
-        const rowData: Record<string, number> = {};
+        const rowData: Record<string, number> = { reportCount: row.reportCount };
         fieldsToAggregate.forEach(key => {
           rowData[key] = Number(row[key]) || 0;
         });
@@ -109,7 +145,11 @@ export async function GET(req: NextRequest) {
       return {
         totals: totalsResource,
         breakdown: breakdownResource,
-        debug: { reportCount: Number(t.reportCount) || 0 }
+        debug: { 
+          dataDate: effectiveDate,
+          isAdmin,
+          isPastPublishTime
+        }
       };
     }, 900); // 15 mins cache
 

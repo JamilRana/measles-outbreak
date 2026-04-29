@@ -69,7 +69,7 @@ import {
   MapSkeleton, 
   ChartSkeleton 
 } from "@/components/skeletons";
-import { getBdDateString, getBdTime } from "@/lib/timezone";
+import { getBdDateString, getBdTime, getLatestReportDate } from "@/lib/timezone";
 import Image from "next/image";
 
 // Dynamic imports with ssr: false for components that use browser APIs
@@ -178,7 +178,7 @@ export default function DashboardPage() {
   
   // -- Filter State --
   const [viewMode, setViewMode] = useState<"all" | "today">("today");
-  const [filterDate, setFilterDate] = useState(getBdDateString());
+  const [filterDate, setFilterDate] = useState(getLatestReportDate());
   const [dateRange, setDateRange] = useState({ from: "", to: "" });
   const [selectedOutbreakId, setSelectedOutbreakId] = useState<string | null>(null);
   const [selectedDivision, setSelectedDivision] = useState<string | null>(null);
@@ -494,7 +494,7 @@ export default function DashboardPage() {
         </div>
       </div>
       
-      {(publicationStatus as string) === "PENDING" && filterDate === getBdDateString() && (
+      {(summary?.totals && !summary.totals.isPublished && summary.totals.hasReports) && (
         <motion.div 
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -502,7 +502,7 @@ export default function DashboardPage() {
         >
           <AlertCircle className="w-5 h-5 text-amber-600" />
           <p className="text-xs font-bold text-amber-700 uppercase tracking-widest">
-             Today's report is pending publication. Showing last verified data.
+             Report is pending publication for {summary?.debug?.dataDate}. Showing last verified snapshot.
           </p>
         </motion.div>
       )}

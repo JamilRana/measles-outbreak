@@ -61,8 +61,12 @@ export async function GET(req: Request) {
         publishTime.setHours(outbreak.publishTimeHour || 0, outbreak.publishTimeMinute || 0, 0, 0);
         const isAdmin = session?.user?.role === "ADMIN" || session?.user?.role === "EDITOR";
         enforcePublishTime = (bdNow < publishTime) && !isAdmin;
+        
+        // Phase 4: If we are specifically looking for a facility/date (Submission), 
+        // we DO NOT want to shift to yesterday, we want the actual date requested.
+        const isSubmissionLookup = !!facilityId;
 
-        if (specificDate === todayStr && enforcePublishTime) {
+        if (specificDate === todayStr && enforcePublishTime && !isSubmissionLookup) {
           const yesterday = new Date(bdNow);
           yesterday.setDate(yesterday.getDate() - 1);
           specificDate = getBdDateString(yesterday);
@@ -83,8 +87,16 @@ export async function GET(req: Request) {
 
     const isAdmin = session?.user?.role === "ADMIN" || session?.user?.role === "EDITOR";
     const where: any = { outbreakId: effectiveOutbreakId };
+    
     if (!isAdmin) {
-      where.status = ReportStatus.PUBLISHED;
+      // Phase 4: Public users usually see only PUBLISHED data for dashboards,
+      // but when querying a specific facility/date (Submission Preview), 
+      // they MUST be able to see their SUBMITTED (unverified) data.
+      if (facilityId && specificDate) {
+        where.status = { in: [ReportStatus.PUBLISHED, ReportStatus.SUBMITTED] };
+      } else {
+        where.status = ReportStatus.PUBLISHED;
+      }
     }
     
     if (facilityId) where.facilityId = facilityId;

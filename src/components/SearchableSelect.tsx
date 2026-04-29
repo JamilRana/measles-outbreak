@@ -39,11 +39,11 @@ export const SearchableSelect = ({ label, options, value, onChange, placeholder,
 
   return (
     <div className="relative" ref={containerRef}>
-      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">{label}</label>
+      <label className="block text-[10px] font-black text-slate-600 uppercase tracking-widest mb-3">{label}</label>
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full bg-white border border-slate-200 rounded-xl py-3 px-4 text-sm font-bold text-slate-700 flex items-center justify-between shadow-sm hover:border-indigo-300 transition-all"
+        className="w-full bg-white border border-slate-300 rounded-xl py-3 px-4 text-sm font-bold text-slate-900 flex items-center justify-between shadow-sm hover:border-indigo-300 transition-all"
       >
         <span className="flex items-center gap-2 truncate">
           {Icon && <Icon className="w-4 h-4 text-indigo-500" />}
@@ -68,7 +68,7 @@ export const SearchableSelect = ({ label, options, value, onChange, placeholder,
                 placeholder="Search..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full bg-slate-50 border-none rounded-xl py-2 pl-10 pr-4 text-xs font-bold text-slate-700 focus:ring-0 outline-none"
+                className="w-full bg-slate-50 border-none rounded-xl py-2 pl-10 pr-4 text-xs font-bold text-slate-900 focus:ring-0 outline-none"
               />
             </div>
             <div className="max-h-[250px] overflow-y-auto custom-scrollbar space-y-1">

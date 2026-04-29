@@ -13,7 +13,7 @@ import {
   CheckCircle2,
   Activity
 } from 'lucide-react';
-import { getBdDateString } from '@/lib/timezone';
+import { getBdDateString, getLatestReportDate } from '@/lib/timezone';
 import { DIVISIONS } from '@/lib/constants';
 import Image from 'next/image';
 import BreakdownTable from '@/components/BreakdownTable';
@@ -160,8 +160,8 @@ const GovernmentSummary = ({ stats, toBnNum, divisionStats, leaders }: any) => {
         </thead>
         <tbody>
           <tr>
-            <td className={tdClass}>{toBnNum(stats.cumulative.suspectedDeath)}</td>
-            <td className={tdClass}>{toBnNum(stats.cumulative.suspectedDeath)}</td>
+            <td className={tdClass}>{toBnNum(leaders.divisionDeaths)}</td>
+            <td className={tdClass}>{toBnNum(leaders.districtDeaths)}</td>
             <td className={tdClass}>{toBnNum(stats.today.confirmedDeath)}</td>
             <td className={tdClass}>{toBnNum(stats.cumulative.confirmedDeath)}</td>
             <td className={tdClass}>{toBnNum(stats.today.suspectedDeath)}</td>
@@ -363,7 +363,8 @@ export default function BulletinPage() {
   const [cumulativeTotals, setCumulativeTotals] = useState<any>(null);
   const [summaryBreakdown, setSummaryBreakdown] = useState<any>(null);
   const [cumSummaryBreakdown, setCumSummaryBreakdown] = useState<any>(null);
-  const [selectedDate, setSelectedDate] = useState(getBdDateString());
+  const [districtBreakdown, setDistrictBreakdown] = useState<any>(null);
+  const [selectedDate, setSelectedDate] = useState(getLatestReportDate());
   const [temporal, setTemporal] = useState<any>(null);
   const [logPage, setLogPage] = useState(1);
   const [dailyLogHistory, setDailyLogHistory] = useState<any[]>([]);
@@ -377,16 +378,18 @@ export default function BulletinPage() {
     setLoading(true);
     try {
       // Parallel Fetching for non-dependent resources (Temporal + Today + Cumulative)
-      const [temporalRes, todaySummaryRes, cumSummaryRes] = await Promise.all([
+      const [temporalRes, todaySummaryRes, cumSummaryRes, districtData] = await Promise.all([
         fetch(`/api/reports/bulletin-temporal?to=${selectedDate}`),
         fetch(`/api/reports/summary?date=${selectedDate}`),
-        fetch(`/api/reports/summary?to=${selectedDate}`)
+        fetch(`/api/reports/summary?to=${selectedDate}`),
+        fetch(`/api/reports/summary?to=${selectedDate}&groupBy=district`)
       ]);
 
-      const [temporalData, todaySumData, cumSumData] = await Promise.all([
+      const [temporalData, todaySumData, cumSumData, districtDataJson] = await Promise.all([
         temporalRes.json(),
         todaySummaryRes.json(),
-        cumSummaryRes.json()
+        cumSummaryRes.json(),
+        districtData.json()
       ]);
 
       setDailyLogHistory(temporalData.history || []);
@@ -394,6 +397,7 @@ export default function BulletinPage() {
       setSummaryBreakdown(todaySumData.breakdown);
       setCumulativeTotals(cumSumData.totals);
       setCumSummaryBreakdown(cumSumData.breakdown);
+      setDistrictBreakdown(districtDataJson.breakdown);
       
       // Set temporal metadata for header display
       setTemporal({ 
@@ -465,13 +469,26 @@ export default function BulletinPage() {
     const divLeaderArr = [...divisionStats].sort((a,b) => b.cumulative.confirmedDeath - a.cumulative.confirmedDeath);
     const divLeader = divLeaderArr[0];
     
-    // We don't have allReports for districts anymore, we'll default to top division or similar
-    // as fetching 2000 reports just for this label was the bottleneck.
+    // Top district from districtBreakdown
+    let districtName = 'ঢাকা';
+    let districtDeaths = 0;
+    if (districtBreakdown) {
+       const sortedDistricts = Object.entries(districtBreakdown)
+         .map(([name, data]: [string, any]) => ({ name, deaths: data.confirmedDeath24h || 0 }))
+         .sort((a, b) => b.deaths - a.deaths);
+       if (sortedDistricts.length > 0 && sortedDistricts[0].deaths > 0) {
+         districtName = sortedDistricts[0].name;
+         districtDeaths = sortedDistricts[0].deaths;
+       }
+    }
+
     return {
       division: divLeader?.cumulative.confirmedDeath > 0 ? divLeader.name : 'ঢাকা',
-      district: divLeader?.cumulative.confirmedDeath > 0 ? divLeader.name : 'ঢাকা' // Placeholder for district or use top division
+      divisionDeaths: divLeader?.cumulative.confirmedDeath || 0,
+      district: districtName,
+      districtDeaths: districtDeaths
     };
-  }, [divisionStats]);
+  }, [divisionStats, districtBreakdown]);
 
   const dailyLog = useMemo(() => {
     return dailyLogHistory;

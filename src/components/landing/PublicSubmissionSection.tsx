@@ -5,8 +5,8 @@ import LocationSelector from '@/components/reporting/LocationSelector';
 import UnifiedReportForm from '@/components/UnifiedReportForm';
 import OutbreakSelector from '@/components/OutbreakSelector';
 import DeadlineCard from '@/components/reporting/DeadlineCard';
+import SimpleHeader from '@/components/SimpleHeader';
 import { getBdDateString, getBdTime } from '@/lib/timezone';
-
 import { useTranslation } from 'react-i18next';
 
 export default function PublicSubmissionSection() {
@@ -18,11 +18,13 @@ export default function PublicSubmissionSection() {
   const [windowStatus, setWindowStatus] = useState<any>(null);
   const [currentTime, setCurrentTime] = useState<Date>(getBdTime());
 
+  // Timer for deadline accuracy
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(getBdTime()), 30000);
     return () => clearInterval(timer);
   }, []);
 
+  // Fetch Config
   useEffect(() => {
     const fetchConfig = async () => {
       if (!selectedOutbreakId) return;
@@ -37,6 +39,7 @@ export default function PublicSubmissionSection() {
     fetchConfig();
   }, [selectedOutbreakId]);
 
+  // Fetch Window Status
   useEffect(() => {
     const fetchWindowStatus = async () => {
       if (!selectedOutbreakId || !selectedFacilityId || !selectedDate) return;
@@ -67,61 +70,75 @@ export default function PublicSubmissionSection() {
     };
   }, [settings, currentTime, selectedDate]);
 
-  const handleLocationSelect = (facilityId: string) => {
-    setSelectedFacilityId(facilityId);
-  };
-
   return (
-    <div className="space-y-8">
-      {settings && deadlineInfo && (
-          <DeadlineCard 
-            cutoffHour={settings.cutoffHour}
-            cutoffMinute={settings.cutoffMinute}
-            editDeadlineHour={settings.editDeadlineHour}
-            editDeadlineMinute={settings.editDeadlineMinute}
-            mode="CREATE"
-            isPastEditDeadline={deadlineInfo.isPastEditDeadline}
-            isPastCutoff={deadlineInfo.isPastCutoff}
-            isToday={deadlineInfo.isToday}
-            allowBacklog={settings.outbreakBacklog?.allowBacklogReporting}
-            backlogStartDate={settings.outbreakBacklog?.backlogStartDate}
-            backlogEndDate={settings.outbreakBacklog?.backlogEndDate}
-            selectedDate={selectedDate}
-            windowStatus={windowStatus}
-          />
-      )}
+    <div className="min-h-screen bg-[#F1F5F9] pb-10">
+      {/* 1. UNIFIED HEADER */}
+      <SimpleHeader 
+        settings={settings}
+        deadlineInfo={deadlineInfo}
+        windowStatus={windowStatus}
+        selectedDate={selectedDate}
+      />
 
-      <div className="bg-white border border-slate-100 rounded-[2rem] p-8 shadow-sm">
-        <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-          <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full"></span>
-          {t('report.sections.generalInfo')}
-        </label>
-        <OutbreakSelector onSelect={setSelectedOutbreakId} />
-      </div>
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          
+          {/* 2. LEFT SIDEBAR: CONFIGURATION (Sticky) */}
+          <aside className="lg:col-span-4 space-y-4 lg:sticky lg:top-24">
+            <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm">
+              <div className="space-y-8">
+                <section>
+                  <label className="text-[11px] font-black text-slate-900 uppercase tracking-[0.2em] mb-3 flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-pulse"></span>
+                    1. Outbreak Context
+                  </label>
+                  <OutbreakSelector onSelect={setSelectedOutbreakId} />
+                </section>
 
-      <div className="relative">
-        <div className="absolute inset-0 flex items-center" aria-hidden="true">
-          <div className="w-full border-t border-slate-200 border-dashed"></div>
+                <section>
+                  <label className="text-[11px] font-black text-slate-900 uppercase tracking-[0.2em] mb-3 flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full"></span>
+                    2. Facility Identity
+                  </label>
+                  <LocationSelector onSelect={setSelectedFacilityId} />
+                </section>
+              </div>
+            </div>
+
+            {/* Visual Guide / Tip */}
+            <div className="hidden lg:block p-6 bg-indigo-50 rounded-3xl border border-indigo-100">
+              <p className="text-[10px] font-bold text-indigo-900 uppercase tracking-widest leading-relaxed">
+                Ensure all daily figures are cross-checked with your local registry before clicking submit.
+              </p>
+            </div>
+          </aside>
+
+          {/* 3. RIGHT COLUMN: MAIN FORM (Less Scrollable) */}
+          <div className="lg:col-span-8">
+            {!selectedFacilityId ? (
+              <div className="bg-white/60 border-2 border-dashed border-slate-300 rounded-[3rem] py-24 text-center">
+                <div className="w-16 h-16 bg-white rounded-2xl shadow-sm flex items-center justify-center mx-auto mb-4 text-slate-300">
+                  <span className="text-2xl font-black">!</span>
+                </div>
+                <p className="text-slate-500 font-bold uppercase text-[10px] tracking-widest">
+                  Select a facility on the left to load the reporting form.
+                </p>
+              </div>
+            ) : (
+              <div className="bg-white border border-slate-200 rounded-[2.5rem] shadow-xl overflow-hidden transition-all">
+                <div className="p-1 sm:p-2">
+                  <UnifiedReportForm 
+                    outbreakId={selectedOutbreakId} 
+                    facilityId={selectedFacilityId}
+                    onDateChange={setSelectedDate}
+                    onSuccess={() => {}}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
         </div>
-        <div className="relative flex justify-center">
-          <span className="bg-[#F8FAFC] px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Identify Location</span>
-        </div>
-      </div>
-
-      <LocationSelector onSelect={handleLocationSelect} />
-
-      {selectedFacilityId && (
-        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-           <div className="bg-white border border-slate-100 rounded-[2rem] p-6 md:p-12 shadow-sm">
-              <UnifiedReportForm 
-                outbreakId={selectedOutbreakId} 
-                facilityId={selectedFacilityId}
-                onDateChange={setSelectedDate}
-                onSuccess={() => {}}
-              />
-           </div>
-        </div>
-      )}
+      </main>
     </div>
   );
 }

@@ -85,7 +85,7 @@ export default function UserManagementPage() {
     try {
       const res = await fetch("/api/admin/users");
       const data = await res.json();
-      setUsers(data);
+      setUsers(Array.isArray(data) ? data : []);
     } catch {
       console.error("Failed to fetch users");
     } finally {
@@ -97,7 +97,7 @@ export default function UserManagementPage() {
     try {
       const res = await fetch("/api/admin/facilities");
       const data = await res.json();
-      setFacilities(data);
+      setFacilities(Array.isArray(data) ? data : []);
     } catch (e) {
       console.error("Failed to fetch facilities");
     }

@@ -24,16 +24,17 @@ import {
 import { motion } from "motion/react";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import { ArrowLeft } from "lucide-react";
+import { hasPermission } from "@/lib/rbac";
 
 export default function AdminPage() {
   const { data: session } = useSession();
   const { t } = useTranslation();
-  const role = session?.user?.role;
-
+  const role = session?.user?.role || "";
   const isAdmin = role === "ADMIN";
-  const isManager = role === "MANAGER";
+  const isEditor = role === "EDITOR";
+  const canManageUsers = hasPermission(role, 'user:manage');
 
-  if (role && !isAdmin && !isManager) {
+  if (role && !isAdmin && !isEditor) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
         <div className="bg-white p-12 rounded-[3rem] shadow-xl max-w-md text-center border border-slate-100 relative overflow-hidden">
@@ -64,15 +65,15 @@ export default function AdminPage() {
       <Breadcrumbs />
       <div>
         <h1 className="text-3xl font-bold text-slate-900">
-          {isAdmin ? t('adminPanel.title') : isManager ? 'Manager Dashboard' : 'Dashboard'}
+          {isAdmin ? t('adminPanel.title') : isEditor ? 'Manager Dashboard' : 'Dashboard'}
         </h1>
         <p className="text-slate-500 mt-1">
-          {isAdmin ? t('adminPanel.subtitle') : isManager ? 'Manage reports and monitor submissions' : 'Access restricted'}
+          {isAdmin ? t('adminPanel.subtitle') : isEditor ? 'Manage reports and monitor submissions' : 'Access restricted'}
         </p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {(isAdmin || isManager) && (
+        {(isAdmin || isEditor) && (
           <>
             <AdminCard 
               href="/admin/submissions" 
@@ -91,7 +92,7 @@ export default function AdminPage() {
           </>
         )}
 
-        {isManager && (
+        {isEditor && (
           <>
             <AdminCard 
               hidden={true} 

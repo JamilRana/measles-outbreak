@@ -11,6 +11,9 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
+# Provide dummy values for build-time environment variables
+ENV DATABASE_URL="postgresql://postgres:postgres@localhost:5432/db?schema=public"
+ENV REDIS_URL="redis://localhost:6379"
 RUN npx prisma generate
 RUN npm run build
 

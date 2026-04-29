@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { getBdTime, getBdDateString, getLatestReportDate } from "@/lib/timezone";
 import { BD_DISTRICT_COORDS } from "@/lib/bd-districts";
 
 /**
@@ -18,8 +21,15 @@ export async function GET(req: Request) {
     const from = searchParams.get("from");
     const to = searchParams.get("to");
 
+    // Temporal Visibility Logic
+    const session = await getServerSession(authOptions);
+    const isAdmin = session?.user?.role === 'ADMIN' || session?.user?.role === 'EDITOR';
+    
+    // Honest Response: If date provided, use it. If not, default to latest available.
+    const effectiveDate = date || getLatestReportDate();
+
     const validDate = (d: string | null) => d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : null;
-    const vDate = validDate(date);
+    const vDate = validDate(effectiveDate);
     const vFrom = validDate(from);
     const vTo = validDate(to);
 
