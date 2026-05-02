@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Activity, ChevronDown } from "lucide-react";
+import { Activity } from "lucide-react";
 
 import { Outbreak } from '@/types/outbreak';
 import { SearchableSelect } from "./SearchableSelect";
@@ -41,12 +41,6 @@ export default function OutbreakSelector({ onSelect, defaultValue }: OutbreakSel
     fetchOutbreaks();
   }, []);
 
-  const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const id = e.target.value;
-    setSelectedId(id);
-    onSelect(id);
-  };
-
   if (isLoading) {
     return (
       <div className="h-10 w-full animate-pulse bg-white/5 rounded-lg" />
@@ -57,9 +51,6 @@ export default function OutbreakSelector({ onSelect, defaultValue }: OutbreakSel
 
   return (
     <div className="relative group">
-      <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-600 transition-colors pointer-events-none">
-        <Activity className="w-4 h-4" />
-      </div>
         <SearchableSelect 
                 label="Outbreak (প্রাদুর্ভাব)"
                 placeholder="Select Outbreak Context"
@@ -68,9 +59,6 @@ export default function OutbreakSelector({ onSelect, defaultValue }: OutbreakSel
                 onChange={setSelectedId}
                 icon={Activity}
               />
-      <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none transition-transform group-focus-within:rotate-180">
-        <ChevronDown className="w-4 h-4" />
-      </div>
     </div>
   );
 }

@@ -53,7 +53,18 @@ export default function Navbar() {
                 </div>
 
                 <button 
-                  onClick={() => signOut({ callbackUrl: "/login" })}
+                  onClick={() => {
+                    const host = window.location.host;
+                    const parts = host.split('.');
+                    // Check if we are on a subdomain (e.g., dhaka.localhost:3000 or dhaka.example.com)
+                    if (parts.length > (host.includes('localhost') ? 1 : 2)) {
+                      // Get the base domain (localhost:3000 or example.com)
+                      const mainHost = parts.slice(host.includes('localhost') ? -1 : -2).join('.');
+                      signOut({ callbackUrl: `${window.location.protocol}//${mainHost}/login` });
+                    } else {
+                      signOut({ callbackUrl: "/login" });
+                    }
+                  }}
                   className="p-2 hover:bg-white/10 rounded-full transition-colors group"
                   title={t('nav.signOut')}
                 >

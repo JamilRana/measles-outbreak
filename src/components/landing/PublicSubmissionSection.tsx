@@ -4,7 +4,6 @@ import React, { useState, useEffect, useMemo } from 'react';
 import LocationSelector from '@/components/reporting/LocationSelector';
 import UnifiedReportForm from '@/components/UnifiedReportForm';
 import OutbreakSelector from '@/components/OutbreakSelector';
-import DeadlineCard from '@/components/reporting/DeadlineCard';
 import SimpleHeader from '@/components/SimpleHeader';
 import { getBdDateString, getBdTime } from '@/lib/timezone';
 import { useTranslation } from 'react-i18next';

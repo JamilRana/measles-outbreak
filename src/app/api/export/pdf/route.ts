@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { generateGovtPDFBuffer } from "@/lib/pdf-report-generator";
 import { getBdDateString } from "@/lib/timezone";
 
@@ -33,7 +34,7 @@ export async function POST(req: NextRequest) {
       FROM "Report"
       WHERE "outbreakId" = ${outbreakId}
       AND "status" = 'PUBLISHED'
-      ${date ? prisma.$queryRaw`AND "periodStart" = ${new Date(date)}` : prisma.$queryRaw``}
+      ${date ? Prisma.sql`AND "periodStart"::date = ${date}::date` : Prisma.empty}
     `;
 
     // Fetch breakdown
@@ -47,7 +48,7 @@ export async function POST(req: NextRequest) {
       FROM "Report"
       WHERE "outbreakId" = ${outbreakId}
       AND "status" = 'PUBLISHED'
-      ${date ? prisma.$queryRaw`AND "periodStart" = ${new Date(date)}` : prisma.$queryRaw``}
+      ${date ? Prisma.sql`AND "periodStart"::date = ${date}::date` : Prisma.empty}
       GROUP BY "division"
     `;
 
@@ -61,6 +62,7 @@ export async function POST(req: NextRequest) {
       FROM "Report"
       WHERE "outbreakId" = ${outbreakId}
       AND "status" = 'PUBLISHED'
+      ${date ? Prisma.sql`AND "periodStart"::date <= ${date}::date` : Prisma.empty}
     `;
 
     const cumulativeBreakdownPromise = prisma.$queryRaw`
@@ -72,6 +74,7 @@ export async function POST(req: NextRequest) {
       FROM "Report"
       WHERE "outbreakId" = ${outbreakId}
       AND "status" = 'PUBLISHED'
+      ${date ? Prisma.sql`AND "periodStart"::date <= ${date}::date` : Prisma.empty}
       GROUP BY "division"
     `;
 

@@ -633,7 +633,7 @@ export default function UnifiedReportForm({
                     </div>
                     <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{sectionFields.length} Channels</div>
                   </div>
-                  <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-8">
+                  <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-4">
                     {sectionFields.map(field => (
                       <DynamicInput 
                         key={field.id} 

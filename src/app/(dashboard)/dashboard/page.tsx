@@ -215,10 +215,18 @@ export default function DashboardPage() {
     if (!selectedOutbreakId) return null;
     const p = new URLSearchParams();
     p.set("outbreakId", selectedOutbreakId);
+    
+    // Fix: Cumulative should reflect totals up to the selected date
+    if (viewMode === "today") {
+      p.set("to", filterDate);
+    } else if (dateRange.to) {
+      p.set("to", dateRange.to);
+    }
+
     if (selectedDivision) p.set("division", selectedDivision);
     if (selectedDistrict) p.set("district", selectedDistrict);
     return p;
-  }, [selectedOutbreakId, selectedDivision, selectedDistrict]);
+  }, [selectedOutbreakId, viewMode, filterDate, dateRange.to, selectedDivision, selectedDistrict]);
 
   const { data: cumulative, isLoading: cumulativeLoading } = useCumulativeSummary(cumulativeParams);
   // -- Countdown Timer --
