@@ -205,21 +205,24 @@ const DailyLogTable = ({ paginatedLog, toBnNum, logPage, totalLogPages, setLogPa
                   <th className="py-3 px-4 border-r border-slate-800" rowSpan={2}>Reporting Date</th>
                   <th className="py-2 border-r border-slate-800" colSpan={2}>Suspected Cases</th>
                   <th className="py-2 border-r border-slate-800" colSpan={2}>Confirmed Cases</th>
-                  <th className="py-2 border-r border-slate-800">Total Admission</th>
-                  <th className="py-2">Total Recovery</th>
+                  <th className="py-2 border-r border-slate-800" colSpan={2}>Total Deaths</th>
+                  <th className="py-2 border-r border-slate-800">Admission</th>
+                  <th className="py-2">Recovery</th>
                </tr>
                <tr className="bg-slate-800 text-[9px] border-t border-slate-700">
                   <th className="py-2 border-r border-slate-700">24H</th><th className="py-2 border-r border-slate-700">Total</th>
                   <th className="py-2 border-r border-slate-700">24H</th><th className="py-2 border-r border-slate-700">Total</th>
-                  <th className="py-2 border-r border-slate-700">Cumulative</th><th className="py-2">Cumulative</th>
+                  <th className="py-2 border-r border-slate-700">24H</th><th className="py-2 border-r border-slate-700">Total</th>
+                  <th className="py-2 border-r border-slate-700">Cum.</th><th className="py-2">Cum.</th>
                </tr>
             </thead>
             <tbody className="bg-white font-bold tabular-nums text-slate-700 divide-y divide-slate-100">
                {paginatedLog.map((log: any, idx: number) => (
-                 <tr key={log.date} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/20'}>
+                  <tr key={log.date} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/20'}>
                     <td className="py-3 border-r border-slate-50 font-black text-slate-900 bg-slate-50/30">{formatDateBn(log.date)}</td>
                     <td className="py-3">{toBnNum(log.suspected24h)}</td><td className="py-3 text-slate-400 bg-slate-50/30">{toBnNum(log.suspectedCum)}</td>
                     <td className="py-3 text-indigo-600">{toBnNum(log.confirmed24h)}</td><td className="py-3 text-indigo-900 bg-slate-50/30">{toBnNum(log.confirmedCum)}</td>
+                    <td className="py-3 text-rose-600">{toBnNum((log.confirmedDeath24h || 0) + (log.suspectedDeath24h || 0))}</td><td className="py-3 text-rose-900 bg-slate-50/30">{toBnNum((log.confirmedDeathCum || 0) + (log.suspectedDeathCum || 0))}</td>
                     <td className="py-3">{toBnNum(log.admittedCum)}</td><td className="py-3 bg-slate-50/30">{toBnNum(log.recoveredCum)}</td>
                  </tr>
                ))}
@@ -382,7 +385,7 @@ export default function BulletinPage() {
       const [temporalRes, todaySummaryRes, cumSummaryRes, districtData] = await Promise.all([
         fetch(`/api/reports/bulletin-temporal?outbreakId=${outbreakId}&to=${selectedDate}`),
         fetch(`/api/reports/summary?outbreakId=${outbreakId}&date=${selectedDate}`),
-        fetch(`/api/reports/summary?outbreakId=${outbreakId}`),
+        fetch(`/api/reports/summary?outbreakId=${outbreakId}&to=${selectedDate}`),
         fetch(`/api/reports/summary?outbreakId=${outbreakId}&date=${selectedDate}&groupBy=district`)
       ]);
 
