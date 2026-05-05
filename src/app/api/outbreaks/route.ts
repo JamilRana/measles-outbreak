@@ -5,20 +5,32 @@ import { prisma } from "@/lib/prisma";
 import { hasPermission } from "@/lib/rbac";
 
 export async function GET(req: Request) {
+  console.log("🔵 [START] GET /outbreaks API called");
+
   try {
+    console.log("🟡 Step 1: Getting session...");
     const session = await getServerSession(authOptions);
-    // Public access for outbreak enumeration (needed for reporting)
-    
+    console.log("🟢 Session:", session ? "FOUND" : "NOT FOUND");
+
+    console.log("🟡 Step 2: Parsing URL params...");
     const { searchParams } = new URL(req.url);
+
     const status = searchParams.get("status");
     const diseaseId = searchParams.get("diseaseId");
     const onlyActive = searchParams.get("active") === 'true';
 
+    console.log("🟢 Params:", { status, diseaseId, onlyActive });
+
+    console.log("🟡 Step 3: Building WHERE clause...");
     const where: any = {};
+
     if (status) where.status = status;
     if (diseaseId) where.diseaseId = diseaseId;
     if (onlyActive) where.isActive = true;
 
+    console.log("🟢 WHERE:", where);
+
+    console.log("🟡 Step 4: Querying database...");
     const outbreaks = await prisma.outbreak.findMany({
       where,
       include: {
@@ -29,10 +41,23 @@ export async function GET(req: Request) {
       orderBy: { createdAt: "desc" },
     });
 
+    console.log("🟢 Query success. Count:", outbreaks.length);
+
+    console.log("🔵 [END] Returning response");
     return NextResponse.json(outbreaks);
-  } catch (error) {
-    console.error("Fetch outbreaks error:", error);
-    return NextResponse.json({ error: "Failed to fetch outbreaks" }, { status: 500 });
+
+  } catch (error: any) {
+    console.error("🔴 [ERROR] Fetch outbreaks failed");
+
+    // Detailed error logs
+    console.error("Message:", error?.message);
+    console.error("Stack:", error?.stack);
+    console.error("Full Error:", error);
+
+    return NextResponse.json(
+      { error: "Failed to fetch outbreaks", details: error?.message },
+      { status: 500 }
+    );
   }
 }
 
