@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasPermission } from "@/lib/rbac";
+import { invalidateByPattern } from "@/lib/redis";
 
 export async function GET(
   req: Request,
@@ -94,6 +95,9 @@ export async function PATCH(
       data
     });
 
+    // Invalidate Cache
+    await invalidateByPattern('outbreaks:*');
+
     return NextResponse.json(outbreak);
   } catch (error) {
     console.error("Update outbreak error:", error);
@@ -123,6 +127,9 @@ export async function DELETE(
     await prisma.outbreak.delete({
       where: { id },
     });
+
+    // Invalidate Cache
+    await invalidateByPattern('outbreaks:*');
 
     return NextResponse.json({ success: true });
   } catch (error) {

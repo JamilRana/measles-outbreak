@@ -3,57 +3,41 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasPermission } from "@/lib/rbac";
+import { getCachedData, invalidateByPattern } from "@/lib/redis";
 
 export async function GET(req: Request) {
-  console.log("🔵 [START] GET /outbreaks API called");
-
   try {
-    console.log("🟡 Step 1: Getting session...");
     const session = await getServerSession(authOptions);
-    console.log("🟢 Session:", session ? "FOUND" : "NOT FOUND");
-
-    console.log("🟡 Step 2: Parsing URL params...");
     const { searchParams } = new URL(req.url);
 
-    const status = searchParams.get("status");
-    const diseaseId = searchParams.get("diseaseId");
+    const status = searchParams.get("status") || "any";
+    const diseaseId = searchParams.get("diseaseId") || "any";
     const onlyActive = searchParams.get("active") === 'true';
 
-    console.log("🟢 Params:", { status, diseaseId, onlyActive });
+    // Granular cache key based on filters
+    const cacheKey = `outbreaks:status=${status}:disease=${diseaseId}:active=${onlyActive}`;
 
-    console.log("🟡 Step 3: Building WHERE clause...");
-    const where: any = {};
+    const outbreaks = await getCachedData(cacheKey, async () => {
+      const where: any = {};
+      if (status !== "any") where.status = status;
+      if (diseaseId !== "any") where.diseaseId = diseaseId;
+      if (onlyActive) where.isActive = true;
 
-    if (status) where.status = status;
-    if (diseaseId) where.diseaseId = diseaseId;
-    if (onlyActive) where.isActive = true;
+      return await prisma.outbreak.findMany({
+        where,
+        include: {
+          disease: {
+            select: { name: true, code: true }
+          }
+        },
+        orderBy: { createdAt: "desc" },
+      });
+    }, 120); // 2 minute safety TTL
 
-    console.log("🟢 WHERE:", where);
-
-    console.log("🟡 Step 4: Querying database...");
-    const outbreaks = await prisma.outbreak.findMany({
-      where,
-      include: {
-        disease: {
-          select: { name: true, code: true }
-        }
-      },
-      orderBy: { createdAt: "desc" },
-    });
-
-    console.log("🟢 Query success. Count:", outbreaks.length);
-
-    console.log("🔵 [END] Returning response");
     return NextResponse.json(outbreaks);
 
   } catch (error: any) {
-    console.error("🔴 [ERROR] Fetch outbreaks failed");
-
-    // Detailed error logs
-    console.error("Message:", error?.message);
-    console.error("Stack:", error?.stack);
-    console.error("Full Error:", error);
-
+    console.error("🔴 [ERROR] Fetch outbreaks failed:", error);
     return NextResponse.json(
       { error: "Failed to fetch outbreaks", details: error?.message },
       { status: 500 }
@@ -85,10 +69,6 @@ export async function POST(req: Request) {
       hasDashboard, targetDivisions, targetDistricts, targetFacilityTypeIds
     } = validation.data;
 
-    console.log("Creating outbreak with data:", {
-      name, diseaseId, startDate, status, isActive
-    });
-
     const outbreak = await prisma.outbreak.create({
       data: {
         name,
@@ -115,6 +95,9 @@ export async function POST(req: Request) {
         targetFacilityTypeIds,
       } as any,
     });
+
+    // Active Invalidation
+    await invalidateByPattern('outbreaks:*');
 
     return NextResponse.json(outbreak, { status: 201 });
   } catch (error: any) {

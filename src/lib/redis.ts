@@ -27,47 +27,57 @@ if (process.env.NODE_ENV !== 'production') globalForRedis.redis = redis;
 export async function getCachedData<T>(
   key: string,
   fetchFn: () => Promise<T>,
-  ttl: number = 3600 // Default 1 hour
+  ttl: number = 60 // Default 60 seconds for safety
 ): Promise<T> {
-  const cached = await redis.get(key);
-  if (cached) {
-    try {
-      console.log(`Cache hit for key: ${key}`);
+  try {
+    const cached = await redis.get(key);
+    if (cached) {
+      console.log(`[Cache] HIT: ${key}`);
       return JSON.parse(cached) as T;
-    } catch (e) {
-      console.error(`Error parsing cache for key: ${key}`, e);
     }
+  } catch (e) {
+    console.error(`[Cache] Error reading key ${key}:`, e);
   }
 
-  console.log(`Cache miss for key: ${key}. Fetching fresh data...`);
+  console.log(`[Cache] MISS: ${key}. Fetching fresh data...`);
   const data = await fetchFn();
   
-  // Don't await set to avoid blocking, but handle errors
-  redis.set(key, JSON.stringify(data), 'EX', ttl).catch(err => {
-    console.error(`Failed to set cache for key: ${key}`, err);
-  });
+  try {
+    await redis.set(key, JSON.stringify(data), 'EX', ttl);
+  } catch (err) {
+    console.error(`[Cache] Failed to set key ${key}:`, err);
+  }
 
   return data;
 }
 
 // Helper for invalidation
 export async function invalidateCache(key: string | string[]) {
-  if (Array.isArray(key)) {
-    if (key.length > 0) {
-      await redis.del(...key);
-    }
-  } else {
-    await redis.del(key);
+  const keys = Array.isArray(key) ? key : [key];
+  if (keys.length === 0) return;
+  
+  try {
+    await redis.del(...keys);
+    console.log(`[Cache] INVALIDATED keys: ${keys.join(', ')}`);
+  } catch (err) {
+    console.error(`[Cache] Invalidation failed for keys ${keys.join(', ')}:`, err);
   }
 }
 
 export async function invalidateByPattern(pattern: string) {
-  const stream = redis.scanStream({ match: pattern });
-  stream.on('data', async (keys: string[]) => {
-    if (keys.length > 0) {
-      const pipeline = redis.pipeline();
-      keys.forEach(k => pipeline.del(k));
-      await pipeline.exec();
-    }
-  });
+  try {
+    let cursor = '0';
+    let totalInvalidated = 0;
+    do {
+      const [nextCursor, keys] = await redis.scan(cursor, 'MATCH', pattern, 'COUNT', 100);
+      cursor = nextCursor;
+      if (keys.length > 0) {
+        await redis.del(...keys);
+        totalInvalidated += keys.length;
+      }
+    } while (cursor !== '0');
+    console.log(`[Cache] PATTERN INVALIDATED: ${pattern} (Total keys: ${totalInvalidated})`);
+  } catch (err) {
+    console.error(`[Cache] Pattern invalidation failed for ${pattern}:`, err);
+  }
 }
