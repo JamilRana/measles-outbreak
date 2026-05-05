@@ -60,6 +60,10 @@ export async function POST(req: Request) {
       hasDashboard, targetDivisions, targetDistricts, targetFacilityTypeIds
     } = validation.data;
 
+    console.log("Creating outbreak with data:", {
+      name, diseaseId, startDate, status, isActive
+    });
+
     const outbreak = await prisma.outbreak.create({
       data: {
         name,
@@ -84,15 +88,24 @@ export async function POST(req: Request) {
         targetDivisions,
         targetDistricts,
         targetFacilityTypeIds,
-      },
+      } as any,
     });
 
     return NextResponse.json(outbreak, { status: 201 });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Create outbreak error:", error);
-    if ((error as any).code === 'P2002') {
-      return NextResponse.json({ error: "Outbreak name already exists" }, { status: 400 });
+    
+    if (error.code === 'P2002') {
+      return NextResponse.json({ error: "An outbreak with this name already exists" }, { status: 400 });
     }
-    return NextResponse.json({ error: "Failed to create outbreak" }, { status: 500 });
+    
+    if (error.code === 'P2025') {
+      return NextResponse.json({ error: "The selected disease was not found in the database" }, { status: 400 });
+    }
+
+    return NextResponse.json({ 
+      error: "Failed to create outbreak", 
+      details: error.message 
+    }, { status: 500 });
   }
 }
