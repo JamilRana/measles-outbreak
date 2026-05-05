@@ -56,14 +56,14 @@ export async function POST(req: Request) {
     const { 
       name, diseaseId, startDate, endDate, status, isActive, 
       allowBacklogReporting, backlogStartDate, backlogEndDate,
-      reportingFrequency, submissionCutoff, editDeadline, publishTime,
-      targetDivisions, targetDistricts, targetFacilityTypeIds
+      reportingFrequency, submissionOpen, submissionCutoff, editDeadline, publishTime,
+      hasDashboard, targetDivisions, targetDistricts, targetFacilityTypeIds
     } = validation.data;
 
     const outbreak = await prisma.outbreak.create({
       data: {
         name,
-        diseaseId,
+        disease: { connect: { id: diseaseId } },
         startDate: new Date(startDate),
         endDate: endDate ? new Date(endDate) : null,
         status,
@@ -72,12 +72,15 @@ export async function POST(req: Request) {
         backlogStartDate: (allowBacklogReporting && backlogStartDate) ? new Date(backlogStartDate) : null,
         backlogEndDate: (allowBacklogReporting && backlogEndDate) ? new Date(backlogEndDate) : null,
         reportingFrequency,
+        submissionOpenHour: submissionOpen ? parseInt(submissionOpen.split(':')[0]) : 0,
+        submissionOpenMinute: submissionOpen ? parseInt(submissionOpen.split(':')[1]) : 0,
         cutoffHour: submissionCutoff ? parseInt(submissionCutoff.split(':')[0]) : 14,
         cutoffMinute: submissionCutoff ? parseInt(submissionCutoff.split(':')[1]) : 0,
         editDeadlineHour: editDeadline ? parseInt(editDeadline.split(':')[0]) : 10,
         editDeadlineMinute: editDeadline ? parseInt(editDeadline.split(':')[1]) : 0,
         publishTimeHour: publishTime ? parseInt(publishTime.split(':')[0]) : 9,
         publishTimeMinute: publishTime ? parseInt(publishTime.split(':')[1]) : 0,
+        hasDashboard,
         targetDivisions,
         targetDistricts,
         targetFacilityTypeIds,

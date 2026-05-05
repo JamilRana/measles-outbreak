@@ -52,7 +52,9 @@ export async function PATCH(
     
     // Core fields
     if (body.name !== undefined) data.name = body.name;
-    if (body.diseaseId !== undefined) data.diseaseId = body.diseaseId;
+    if (body.diseaseId !== undefined) {
+      data.disease = { connect: { id: body.diseaseId } };
+    }
     if (body.status !== undefined) data.status = body.status;
     if (body.isActive !== undefined) data.isActive = body.isActive;
     if (body.reportingFrequency !== undefined) data.reportingFrequency = body.reportingFrequency;
@@ -75,9 +77,12 @@ export async function PATCH(
       }
     };
 
+    mapTime(body.submissionOpen, 'submissionOpenHour', 'submissionOpenMinute');
     mapTime(body.submissionCutoff, 'cutoffHour', 'cutoffMinute');
     mapTime(body.editDeadline, 'editDeadlineHour', 'editDeadlineMinute');
     mapTime(body.publishTime, 'publishTimeHour', 'publishTimeMinute');
+
+    if (body.hasDashboard !== undefined) data.hasDashboard = body.hasDashboard;
 
     // Targeting
     if (body.targetDivisions !== undefined) data.targetDivisions = body.targetDivisions;

@@ -5,6 +5,8 @@ import { motion } from 'motion/react';
 import { Clock, AlertTriangle, AlertCircle, CheckCircle2, Timer } from 'lucide-react';
 
 interface DeadlineCardProps {
+  submissionOpenHour?: number;
+  submissionOpenMinute?: number;
   cutoffHour: number;
   cutoffMinute: number;
   editDeadlineHour: number;
@@ -122,6 +124,15 @@ export default function DeadlineCard({
         message: `Accepting data for ${new Date(selectedDate || '').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}.`,
         color: 'emerald',
         icon: CheckCircle2
+      };
+    }
+
+    if (windowStatus?.type === 'DAILY_NOT_YET_OPEN') {
+      return {
+        title: 'Reporting Not Yet Open',
+        message: `Today's window opens at ${windowStatus.details?.opensAt} BST.`,
+        color: 'slate',
+        icon: Clock
       };
     }
 

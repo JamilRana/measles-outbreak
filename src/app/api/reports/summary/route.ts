@@ -6,6 +6,7 @@ import { autoPublishReports } from '@/lib/publish-manager';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { getBdTime, getBdDateString } from '@/lib/timezone';
+import { hasPermission } from '@/lib/rbac';
 
 export async function GET(req: NextRequest) {
   try {
@@ -20,7 +21,8 @@ export async function GET(req: NextRequest) {
 
     // Temporal Visibility Logic
     const session = await getServerSession(authOptions);
-    const isAdmin = session?.user?.role === 'ADMIN' || session?.user?.role === 'EDITOR';
+    const role = session?.user?.role || "";
+    const isAdmin = role === 'ADMIN' || role === 'EDITOR' || hasPermission(role, 'admin:view');
     const now = getBdTime();
     const today = getBdDateString(now);
     let effectiveDate = dateQuery;
@@ -103,7 +105,7 @@ export async function GET(req: NextRequest) {
       // Shared filter conditions for consistency
       const whereClause = Prisma.sql`
         WHERE r."outbreakId" = ${outbreakId}
-          AND r.status = 'PUBLISHED'
+          AND (r.status = 'PUBLISHED' OR (${isAdmin} AND r.status = 'SUBMITTED'))
           AND (${vDate}::text IS NULL OR r."periodStart"::date = ${vDate}::date)
           AND (${vFrom}::text IS NULL OR r."periodStart"::date >= ${vFrom}::date)
           AND (${vTo}::text IS NULL OR r."periodStart"::date <= ${vTo}::date)

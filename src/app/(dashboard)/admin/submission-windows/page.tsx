@@ -282,8 +282,8 @@ export default function SubmissionWindowsPage() {
     );
   };
 
-  if (session?.user?.role !== 'ADMIN') {
-    return <div className="p-20 text-center font-bold text-slate-400">ADMIN ACCESS REQUIRED</div>;
+  if (session?.user?.role !== 'ADMIN' && session?.user?.role !== 'EDITOR') {
+    return <div className="p-20 text-center font-black text-slate-400 uppercase tracking-widest">Administrative Access Required</div>;
   }
 
   return (
@@ -329,7 +329,7 @@ export default function SubmissionWindowsPage() {
                <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Filter</h3>
                <Filter className="w-4 h-4 text-slate-300" />
              </div>
-<div>
+             <div>
                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Outbreak</label>
                  <SearchableSelect 
                    label=""

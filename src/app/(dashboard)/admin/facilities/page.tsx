@@ -22,6 +22,9 @@ import { motion, AnimatePresence } from 'motion/react';
 import Breadcrumbs from '@/components/Breadcrumbs';
 import { DIVISIONS, DISTRICTS_BY_DIVISION } from '@/lib/constants';
 import { SearchableSelect } from '@/components/SearchableSelect';
+import { hasPermission } from '@/lib/rbac';
+import { useSession } from 'next-auth/react';
+import { AlertCircle } from 'lucide-react';
 
 interface Facility {
   id: string;
@@ -37,6 +40,11 @@ interface Facility {
 }
 
 export default function FacilityManagementPage() {
+  const { data: session } = useSession();
+  const role = session?.user?.role || "";
+  const canManage = hasPermission(role, 'facility:manage');
+  const canView = hasPermission(role, 'facility:view');
+
   const [facilities, setFacilities] = useState<Facility[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -190,6 +198,16 @@ export default function FacilityManagementPage() {
     }
   };
 
+  if (!canView) {
+    return (
+      <div className="p-8 text-center">
+        <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+        <h1 className="text-2xl font-bold text-slate-800">Access Denied</h1>
+        <p className="text-slate-500 mt-2">You need administrative privileges to access this page.</p>
+      </div>
+    );
+  }
+
   const filteredFacilities = facilities.filter(f => 
     f.facilityName.toLowerCase().includes(searchTerm.toLowerCase()) ||
     f.facilityCode.toLowerCase().includes(searchTerm.toLowerCase())
@@ -204,7 +222,7 @@ export default function FacilityManagementPage() {
           <p className="text-slate-500 mt-1">Manage DGHS official facilities and geographic identifiers</p>
         </div>
         <div className="flex items-center gap-4">
-          {selectedIds.length > 0 && (
+          {canManage && selectedIds.length > 0 && (
             <button 
               onClick={handleBulkDelete}
               disabled={isDeletingBulk}
@@ -224,13 +242,15 @@ export default function FacilityManagementPage() {
               className="w-full bg-white border border-slate-200 rounded-2xl py-3 pl-12 pr-4 text-slate-700 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all shadow-sm"
             />
           </div>
-          <button 
-            onClick={openCreateModal}
-            className="flex items-center gap-2 px-5 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-2xl shadow-lg transition-all active:scale-[0.98]"
-          >
-            <Plus className="w-5 h-5" />
-            Register Facility
-          </button>
+          {canManage && (
+            <button 
+              onClick={openCreateModal}
+              className="flex items-center gap-2 px-5 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-2xl shadow-lg transition-all active:scale-[0.98]"
+            >
+              <Plus className="w-5 h-5" />
+              Register Facility
+            </button>
+          )}
         </div>
       </div>
 
@@ -239,20 +259,22 @@ export default function FacilityManagementPage() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50/50 text-slate-500 uppercase text-[10px] font-black tracking-[0.1em]">
-                <th className="pl-8 py-5 w-10">
-                  <input 
-                    type="checkbox" 
-                    checked={selectedIds.length === filteredFacilities.length && filteredFacilities.length > 0} 
-                    onChange={toggleSelectAll}
-                    className="w-4 h-4 rounded border-slate-300 text-indigo-600"
-                  />
-                </th>
-                <th className="px-6 py-5">Facility & Code</th>
+                {canManage && (
+                  <th className="pl-8 py-5 w-10">
+                    <input 
+                      type="checkbox" 
+                      checked={selectedIds.length === filteredFacilities.length && filteredFacilities.length > 0} 
+                      onChange={toggleSelectAll}
+                      className="w-4 h-4 rounded border-slate-300 text-indigo-600"
+                    />
+                  </th>
+                )}
+                <th className={canManage ? "px-6 py-5" : "pl-8 px-6 py-5"}>Facility & Code</th>
                 <th className="px-6 py-5">Geography</th>
                 <th className="px-6 py-5">Contacts</th>
                 <th className="px-6 py-5 text-center">Users</th>
                 <th className="px-6 py-5 text-center">Status</th>
-                <th className="px-8 py-5 text-right">Actions</th>
+                {canManage && <th className="px-8 py-5 text-right">Actions</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -260,15 +282,17 @@ export default function FacilityManagementPage() {
                 <tr><td colSpan={6} className="p-20 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-indigo-500" /></td></tr>
               ) : filteredFacilities.map((fac) => (
                 <tr key={fac.id} className={`hover:bg-slate-50/50 transition-colors ${selectedIds.includes(fac.id) ? 'bg-indigo-50/30' : ''}`}>
-                  <td className="pl-8 py-5">
-                    <input 
-                      type="checkbox" 
-                      checked={selectedIds.includes(fac.id)} 
-                      onChange={() => toggleSelect(fac.id)}
-                      className="w-4 h-4 rounded border-slate-300 text-indigo-600"
-                    />
-                  </td>
-                  <td className="px-6 py-5">
+                  {canManage && (
+                    <td className="pl-8 py-5">
+                      <input 
+                        type="checkbox" 
+                        checked={selectedIds.includes(fac.id)} 
+                        onChange={() => toggleSelect(fac.id)}
+                        className="w-4 h-4 rounded border-slate-300 text-indigo-600"
+                      />
+                    </td>
+                  )}
+                  <td className={canManage ? "px-6 py-5" : "pl-8 px-6 py-5"}>
                     <div className="font-bold text-slate-900">{fac.facilityName}</div>
                     <div className="text-[10px] font-black text-indigo-500 uppercase mt-0.5 tracking-wider">{fac.facilityCode}</div>
                   </td>
@@ -284,25 +308,24 @@ export default function FacilityManagementPage() {
                     <span className="bg-slate-100 text-slate-600 px-3 py-1 rounded-full text-xs font-bold">{fac._count?.users || 0} Accounts</span>
                   </td>
                   <td className="px-6 py-5 text-center">
-                    <button 
-                      onClick={() => handleToggleStatus(fac)}
-                      className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${fac.isActive ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100' : 'bg-rose-50 text-rose-600 hover:bg-rose-100'}`}
-                    >
+                    <div className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${fac.isActive ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
                       {fac.isActive ? 'Active' : 'Inactive'}
-                    </button>
+                    </div>
                   </td>
-                  <td className="px-8 py-5 text-right flex items-center justify-end gap-2">
-                    <button onClick={() => openEditModal(fac)} className="p-2 text-slate-400 hover:text-indigo-600 rounded-xl transition-all">
-                      <Pencil className="w-5 h-5" />
-                    </button>
-                    <button 
-                      onClick={() => handleDeleteFacility(fac.id, fac.facilityName)} 
-                      className="p-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all"
-                      title="Delete Facility"
-                    >
-                      <Trash2 className="w-5 h-5" />
-                    </button>
-                  </td>
+                  {canManage && (
+                    <td className="px-8 py-5 text-right flex items-center justify-end gap-2">
+                      <button onClick={() => openEditModal(fac)} className="p-2 text-slate-400 hover:text-indigo-600 rounded-xl transition-all">
+                        <Pencil className="w-5 h-5" />
+                      </button>
+                      <button 
+                        onClick={() => handleDeleteFacility(fac.id, fac.facilityName)} 
+                        className="p-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all"
+                        title="Delete Facility"
+                      >
+                        <Trash2 className="w-5 h-5" />
+                      </button>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

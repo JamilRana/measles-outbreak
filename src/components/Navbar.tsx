@@ -16,7 +16,7 @@ export default function Navbar() {
     i18n.changeLanguage(newLang);
   };
 
-  const canViewAdmin = hasPermission(session?.user?.role || "", 'user:manage');
+  const canViewAdmin = hasPermission(session?.user?.role || "", 'admin:view');
   const canViewReports = hasPermission(session?.user?.role || "", 'report:read:own');
   const canSubmit = hasPermission(session?.user?.role || "", 'report:create');
 

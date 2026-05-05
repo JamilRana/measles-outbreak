@@ -253,6 +253,13 @@ export default function DashboardPage() {
     return () => clearInterval(timer);
   }, [settings]);
 
+  // Sync default outbreak from settings if not selected
+  useEffect(() => {
+    if (!selectedOutbreakId && settings?.defaultOutbreakId) {
+      setSelectedOutbreakId(settings.defaultOutbreakId);
+    }
+  }, [settings, selectedOutbreakId]);
+
   // Derived Values
   const stats = useMemo(() => {
     const todayRaw = summary?.totals || {};
@@ -277,7 +284,11 @@ export default function DashboardPage() {
   const tableData = useMemo(() => {
     const breakdown = summary?.breakdown || {};
     const cumBreakdown = cumulative?.breakdown || {};
-    const items = selectedDivision ? (DISTRICTS[selectedDivision] || []) : DIVISIONS;
+    let items = selectedDivision ? (DISTRICTS[selectedDivision] || []) : DIVISIONS;
+
+    if (selectedDistrict) {
+      items = items.filter(i => i === selectedDistrict);
+    }
 
     return items.map((item) => {
       const d = breakdown[item] || {};
@@ -302,7 +313,7 @@ export default function DashboardPage() {
         },
       };
     });
-  }, [summary, cumulative, selectedDivision]);
+  }, [summary, cumulative, selectedDivision, selectedDistrict]);
 
   // Derived Indicators from SWR data
   const calculatedIndicators = useMemo(() => {
@@ -529,6 +540,24 @@ export default function DashboardPage() {
         </motion.div>
       )}
 
+      {config?.outbreak?.hasDashboard === false ? (
+        <div className="bg-white border-2 border-slate-100 rounded-[3rem] p-20 text-center shadow-xl">
+           <div className="w-24 h-24 bg-slate-50 text-slate-300 rounded-[2rem] flex items-center justify-center mx-auto mb-8">
+              <ActivitySquare className="w-12 h-12" />
+           </div>
+           <h2 className="text-3xl font-black text-slate-900 tracking-tight mb-4 uppercase">Analytics Unavailable</h2>
+           <p className="text-slate-500 font-medium max-w-lg mx-auto leading-relaxed mb-10">
+              The reporting dashboard has been disabled for this specific outbreak by the administration. 
+              Contact the MIS Department or Control Room for official SitReps.
+           </p>
+           <div className="flex items-center justify-center gap-4">
+              <div className="px-6 py-3 bg-slate-100 rounded-2xl text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">
+                 Status: Restricted
+              </div>
+           </div>
+        </div>
+      ) : (
+        <>
       <div className="flex flex-col sm:flex-row flex-wrap items-center gap-4 p-4 bg-white rounded-3xl border border-slate-200 shadow-sm">
         <div className="flex bg-slate-100 p-1.5 rounded-2xl border border-slate-200">
           {(["today", "all"] as const).map((mode) => (
@@ -549,6 +578,7 @@ export default function DashboardPage() {
               type="date"
               value={filterDate}
               onChange={(e) => setFilterDate(e.target.value)}
+              min="2026-04-10"
               max={getBdDateString()}
               className="bg-transparent border-none focus:ring-0 text-slate-700 text-xs font-bold cursor-pointer"
             />
@@ -563,6 +593,7 @@ export default function DashboardPage() {
                 type="date"
                 value={dateRange.from || ""}
                 onChange={(e) => setDateRange({ ...dateRange, from: e.target.value })}
+                min="2026-04-10"
                 className="bg-transparent border-none focus:ring-0 text-slate-700 text-xs font-bold cursor-pointer"
               />
               <span className="text-slate-400 text-[10px] font-bold uppercase">to</span>
@@ -570,14 +601,15 @@ export default function DashboardPage() {
                 type="date"
                 value={dateRange.to || ""}
                 onChange={(e) => setDateRange({ ...dateRange, to: e.target.value })}
+                min="2026-04-10"
                 className="bg-transparent border-none focus:ring-0 text-slate-700 text-xs font-bold cursor-pointer"
               />
             </div>
           </div>
         )}
 
-        <div className="flex items-center gap-2 px-4 py-2 bg-slate-50 rounded-xl border border-slate-100">
-          <Filter className="w-4 h-4 text-indigo-500" />
+        <div className="flex items-center gap-2 px-4 py-2 bg-slate-50 rounded-xl border border-slate-100 min-w-[200px]">
+          <Filter className="w-12 h-4 text-indigo-500" />
           <SearchableSelect 
             label=""
             placeholder="All Divisions"
@@ -591,7 +623,7 @@ export default function DashboardPage() {
         </div>
 
         {selectedDivision && DISTRICTS[selectedDivision] && (
-          <div className="flex items-center gap-2 px-4 py-2 bg-slate-50 rounded-xl border border-slate-100">
+          <div className="flex items-center gap-2 px-4 py-2 bg-slate-50 rounded-xl border border-slate-100 min-w-[200px]">
             <SearchableSelect 
               label=""
               placeholder="All Districts"
@@ -602,7 +634,7 @@ export default function DashboardPage() {
           </div>
         )}
 
-        <div className="flex items-center gap-2 px-4 py-2 bg-slate-50 rounded-2xl border border-slate-100 min-w-[200px]">
+        <div className="flex items-center hidden gap-2 px-4 py-2 bg-slate-50 rounded-2xl border border-slate-100 min-w-[200px]">
           <Activity className="w-4 h-4 text-indigo-500" />
           <div className="flex-1">
             <OutbreakSelector
@@ -659,7 +691,37 @@ export default function DashboardPage() {
           </>
         )}
       </div>
+<div className="no-print px-4">
+  <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-2xl shadow-slate-200/40 p-8 relative overflow-hidden">
+    {/* Header */}
+    <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest mb-6 flex items-center gap-3">
+      <Skull className="w-5 h-5 text-rose-500 animate-pulse" /> 
+      High Mortality Zones
+    </h3>
 
+    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+      {tableData
+        .sort((a, b) => (b.cumulative.confirmedDeath + b.cumulative.suspectedDeath) - (a.cumulative.confirmedDeath + a.cumulative.suspectedDeath))
+        .slice(0, 5)
+        .map((d: any) => (
+          <div 
+            key={d.name} 
+            className="flex flex-col justify-center p-4 bg-slate-50/50 rounded-2xl hover:bg-rose-50 transition-all cursor-default group border border-transparent hover:border-rose-100"
+          >
+            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1 group-hover:text-rose-600 transition-colors">
+              {d.name}
+            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-lg font-black text-slate-900 group-hover:text-rose-700 transition-colors font-mono">
+                {toBnNumSafe(d.cumulative.confirmedDeath + d.cumulative.suspectedDeath, i18n)}
+              </span>
+              <div className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+            </div>
+          </div>
+        ))}
+    </div>
+  </div>
+</div>
       <OutbreakMap apiEndpoint={`/api/reports/geo?${dynamicFilterParams}`} />
       <EpiInsights apiEndpoint={`/api/reports/timeseries?${dynamicFilterParams}`} />
 
@@ -667,14 +729,13 @@ export default function DashboardPage() {
          <div className="flex flex-col sm:flex-row items-center justify-between gap-6 no-print px-4">
             <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tighter">{selectedDivision ? `${selectedDivision}-WISE` : 'DIVISION-WISE'} DETAILED ANALYSIS</h2>
             <div className="flex gap-4">
-               <button onClick={handleExportPDF} className="flex items-center gap-3 px-8 py-4 bg-slate-900 text-white rounded-2xl text-xs font-black uppercase shadow-2xl"><FileText className="w-5 h-5" /> PDF</button>
                <button onClick={handleExportExcel} className="flex items-center gap-3 px-8 py-4 bg-emerald-700 text-white rounded-2xl text-xs font-black uppercase shadow-2xl"><Download className="w-5 h-5" /> EXCEL</button>
             </div>
          </div>
 
          <div className="bg-white rounded-[3.5rem] border border-slate-200 overflow-hidden shadow-2xl">
             <div className="overflow-x-auto">
-               <table className="w-full border-collapse hidden xl:table">
+               <table className="w-full border-collapse xl:table">
                   <thead className="bg-[#1e293b] text-white text-[9px] font-black uppercase tracking-[0.15em] text-center">
                      <tr>
                         <th rowSpan={2} className="px-8 py-8 text-left border-r border-slate-700 bg-[#0f172a] sticky left-0 z-20">{selectedDivision ? 'DISTRICT' : 'DIVISION'}</th>
@@ -720,7 +781,7 @@ export default function DashboardPage() {
                         </tr>
                      ))}
                      <tr className="bg-slate-900 text-white font-black text-sm text-center">
-                        <td className="py-8 px-8 text-left sticky left-0 bg-slate-900 z-10 uppercase tracking-widest">National Aggregate</td>
+                        <td className="py-8 px-8 text-left sticky left-0 bg-slate-900 z-10 uppercase tracking-widest">{selectedDistrict ? 'District Total' : selectedDivision ? 'Division Aggregate' : 'National Aggregate'}</td>
                         <td className="py-8 bg-slate-800/40">{toBnNumSafe(stats.today.suspected, i18n)}</td>
                         <td className="py-8 bg-slate-800/40">{toBnNumSafe(stats.today.suspectedDeath, i18n)}</td>
                         <td className="py-8 bg-slate-800/40">{toBnNumSafe(stats.today.confirmed, i18n)}</td>
@@ -739,23 +800,8 @@ export default function DashboardPage() {
             </div>
          </div>
       </section>
-
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 no-print px-4">
-         <div className="lg:col-span-1 bg-white rounded-[2.5rem] border border-slate-200 shadow-2xl shadow-slate-200/40 p-10 relative overflow-hidden">
-            <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest mb-8 flex items-center gap-3"><Skull className="w-5 h-5 text-rose-500 animate-pulse" /> High Mortality Zones</h3>
-            <div className="space-y-6">
-               {tableData.sort((a,b) => (b.cumulative.confirmedDeath + b.cumulative.suspectedDeath) - (a.cumulative.confirmedDeath + a.cumulative.suspectedDeath)).slice(0, 5).map((d: any) => (
-                  <div key={d.name} className="flex items-center justify-between p-4 bg-slate-50/50 rounded-2xl hover:bg-rose-50 transition-colors cursor-default group">
-                     <span className="text-xs font-black text-slate-700 uppercase tracking-tight group-hover:text-rose-600 transition-colors">{d.name}</span>
-                     <div className="flex items-center gap-2">
-                        <span className="text-sm font-black text-slate-900 group-hover:text-rose-700 transition-colors font-mono">{toBnNumSafe(d.cumulative.confirmedDeath + d.cumulative.suspectedDeath, i18n)}</span>
-                        <div className="w-1.5 h-1.5 rounded-full bg-rose-500" />
-                     </div>
-                  </div>
-               ))}
-            </div>
-         </div>
-      </div>
+      </>
+      )}
     </div>
   );
 }

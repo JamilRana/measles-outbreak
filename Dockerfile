@@ -1,9 +1,15 @@
 # Stage 1: Dependencies
 FROM node:20-alpine AS deps
+RUN apk add --no-cache libc6-compat
 WORKDIR /app
-COPY package*.json ./
+
+# Install dependencies based on the preferred package manager
+COPY package.json package-lock.json* ./
 COPY prisma ./prisma
-RUN npm install
+RUN \
+  if [ -f package-lock.json ]; then npm ci --network-timeout=100000; \
+  else npm install; \
+  fi
 
 # Stage 2: Builder
 FROM node:20-alpine AS builder

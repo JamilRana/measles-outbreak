@@ -77,6 +77,8 @@ export async function GET(request: Request) {
         allowBacklogReporting: true,
         backlogStartDate: true,
         backlogEndDate: true,
+        submissionOpenHour: true,
+        submissionOpenMinute: true,
         cutoffHour: true,
         cutoffMinute: true,
       }
@@ -103,9 +105,20 @@ export async function GET(request: Request) {
     // Check if today and within default hours (from outbreak settings)
     const today = getBdDateString();
     if (dateStr === today) {
+      const openTime = new Date(now);
+      openTime.setHours(outbreak.submissionOpenHour || 0, outbreak.submissionOpenMinute || 0, 0, 0);
+
       const cutoff = new Date(now);
       cutoff.setHours(outbreak.cutoffHour, outbreak.cutoffMinute, 0, 0);
       
+      if (now < openTime) {
+        return NextResponse.json({ 
+          open: false, 
+          type: 'DAILY_NOT_YET_OPEN',
+          details: { name: 'Submission Not Yet Open', opensAt: `${String(outbreak.submissionOpenHour || 0).padStart(2, '0')}:${String(outbreak.submissionOpenMinute || 0).padStart(2, '0')}` }
+        });
+      }
+
       if (now > cutoff) {
         return NextResponse.json({ 
           open: false, 

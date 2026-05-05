@@ -18,10 +18,14 @@ export const PERMISSIONS = {
   'dashboard:export':         ['ADMIN' as Role, 'EDITOR' as Role, 'VIEWER' as Role],
 
   // Admin
+  'admin:view':       ['ADMIN' as Role, 'EDITOR' as Role, 'VIEWER' as Role],
   'user:manage':      ['ADMIN' as Role],
   'settings:manage':  ['ADMIN' as Role],
-  'outbreak:manage':  ['ADMIN' as Role],
-  'formfield:view':   ['ADMIN' as Role, 'EDITOR' as Role],
+  'outbreak:view':    ['ADMIN' as Role, 'EDITOR' as Role, 'VIEWER' as Role],
+  'outbreak:manage':  ['ADMIN' as Role, 'EDITOR' as Role],
+  'facility:view':    ['ADMIN' as Role, 'EDITOR' as Role, 'VIEWER' as Role],
+  'facility:manage':  ['ADMIN' as Role, 'EDITOR' as Role],
+  'formfield:view':   ['ADMIN' as Role, 'EDITOR' as Role, 'VIEWER' as Role],
   'formfield:manage': ['ADMIN' as Role],
   'data:manage':      ['ADMIN' as Role, 'EDITOR' as Role],
 

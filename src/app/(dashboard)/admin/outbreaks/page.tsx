@@ -25,6 +25,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import Breadcrumbs from '@/components/Breadcrumbs';
 import { SearchableSelect } from '@/components/SearchableSelect';
 import Link from 'next/link';
+import { hasPermission } from '@/lib/rbac';
 
 interface Outbreak {
   id: string;
@@ -48,6 +49,9 @@ interface Outbreak {
   targetDivisions: string[];
   targetDistricts: string[];
   targetFacilityTypeIds: string[];
+  submissionOpenHour: number;
+  submissionOpenMinute: number;
+  hasDashboard: boolean;
 }
 
 interface Disease {
@@ -73,6 +77,10 @@ export default function OutbreaksPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [defaultOutbreakId, setDefaultOutbreakId] = useState<string | null>(null);
+
+  const role = session?.user?.role || "";
+  const canManage = hasPermission(role, 'outbreak:manage');
+  const canView = hasPermission(role, 'outbreak:view');
   
   const [form, setForm] = useState({
     name: '',
@@ -85,9 +93,11 @@ export default function OutbreaksPage() {
     backlogStartDate: '',
     backlogEndDate: '',
     reportingFrequency: 'DAILY',
+    submissionOpen: '00:00',
     submissionCutoff: '14:00',
     editDeadline: '10:00',
     publishTime: '09:00',
+    hasDashboard: true,
     targetDivisions: [] as string[],
     targetDistricts: [] as string[],
     targetFacilityTypeIds: [] as string[],
@@ -143,9 +153,11 @@ export default function OutbreaksPage() {
       backlogStartDate: '',
       backlogEndDate: '',
       reportingFrequency: 'DAILY',
+      submissionOpen: '00:00',
       submissionCutoff: '14:00',
       editDeadline: '10:00',
       publishTime: '09:00',
+      hasDashboard: true,
       targetDivisions: [],
       targetDistricts: [],
       targetFacilityTypeIds: [],
@@ -173,9 +185,11 @@ export default function OutbreaksPage() {
       backlogStartDate: outbreak.backlogStartDate || '',
       backlogEndDate: outbreak.backlogEndDate || '',
       reportingFrequency: outbreak.reportingFrequency || 'DAILY',
+      submissionOpen: `${outbreak.submissionOpenHour?.toString().padStart(2, '0')}:${outbreak.submissionOpenMinute?.toString().padStart(2, '0')}`,
       submissionCutoff: `${outbreak.cutoffHour?.toString().padStart(2, '0')}:${outbreak.cutoffMinute?.toString().padStart(2, '0')}`,
       editDeadline: `${outbreak.editDeadlineHour?.toString().padStart(2, '0')}:${outbreak.editDeadlineMinute?.toString().padStart(2, '0')}`,
       publishTime: `${outbreak.publishTimeHour?.toString().padStart(2, '0')}:${outbreak.publishTimeMinute?.toString().padStart(2, '0')}`,
+      hasDashboard: outbreak.hasDashboard ?? true,
       targetDivisions: outbreak.targetDivisions || [],
       targetDistricts: outbreak.targetDistricts || [],
       targetFacilityTypeIds: outbreak.targetFacilityTypeIds || [],
@@ -288,12 +302,12 @@ export default function OutbreaksPage() {
     }
   };
 
-  if (session?.user?.role !== 'ADMIN') {
+  if (!canView) {
     return (
       <div className="p-8 text-center">
         <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
         <h1 className="text-2xl font-bold text-slate-800">Access Denied</h1>
-        <p className="text-slate-500 mt-2">You need admin privileges to access this page.</p>
+        <p className="text-slate-500 mt-2">You need administrative privileges to access this page.</p>
       </div>
     );
   }
@@ -469,6 +483,17 @@ export default function OutbreaksPage() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-6 border-t border-slate-100">
+                  <div>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5 flex items-center gap-1.5">
+                      <Clock className="w-3 h-3" /> Submission Open
+                    </label>
+                    <input
+                      type="time"
+                      value={form.submissionOpen}
+                      onChange={(e) => setForm({ ...form, submissionOpen: e.target.value })}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-black text-slate-800 outline-none"
+                    />
+                 </div>
                  <div>
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5 flex items-center gap-1.5">
                       <Clock className="w-3 h-3" /> Submission Cutoff
@@ -501,6 +526,20 @@ export default function OutbreaksPage() {
                       onChange={(e) => setForm({ ...form, publishTime: e.target.value })}
                       className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-black text-slate-800 outline-none"
                     />
+                 </div>
+                 <div className="flex flex-col justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setForm({ ...form, hasDashboard: !form.hasDashboard })}
+                      className={`flex items-center justify-center gap-3 px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${
+                        form.hasDashboard 
+                          ? 'bg-indigo-600 text-white shadow-lg' 
+                          : 'bg-slate-50 text-slate-500 border border-slate-200'
+                      }`}
+                    >
+                      {form.hasDashboard ? <ToggleRight className="w-5 h-5" /> : <ToggleLeft className="w-5 h-5" />}
+                      {form.hasDashboard ? 'Dashboard Enabled' : 'Dashboard Disabled'}
+                    </button>
                  </div>
               </div>
 
@@ -564,7 +603,7 @@ export default function OutbreaksPage() {
         )}
       </AnimatePresence>
 
-      {!isCreating && !editingId && (
+      {!isCreating && !editingId && canManage && (
         <button
           onClick={handleCreate}
           className="w-full py-8 bg-white border-2 border-dashed border-slate-200 rounded-[2rem] text-slate-400 hover:border-indigo-500 hover:text-indigo-600 flex flex-col items-center justify-center gap-3 transition-all group hover:bg-indigo-50/30"
@@ -622,12 +661,16 @@ export default function OutbreaksPage() {
                   
                   <div className="grid grid-cols-2 gap-4 pb-6 border-b border-slate-50 mb-6 font-bold text-xs uppercase tracking-tight">
                     <div className="flex flex-col gap-1">
-                       <span className="text-[9px] text-slate-300 font-black tracking-widest leading-none">Frequency</span>
-                       <span className="text-slate-700">{outbreak.reportingFrequency}</span>
+                       <span className="text-[9px] text-slate-300 font-black tracking-widest leading-none">Reporting Window</span>
+                       <span className="text-slate-700">
+                        {outbreak.submissionOpenHour?.toString().padStart(2, '0')}:{outbreak.submissionOpenMinute?.toString().padStart(2, '0')} - {outbreak.cutoffHour?.toString().padStart(2, '0')}:{outbreak.cutoffMinute?.toString().padStart(2, '0')}
+                       </span>
                     </div>
                     <div className="flex flex-col gap-1">
-                       <span className="text-[9px] text-slate-300 font-black tracking-widest leading-none">Cutoff</span>
-                       <span className="text-slate-700">{outbreak.cutoffHour?.toString().padStart(2, '0')}:{outbreak.cutoffMinute?.toString().padStart(2, '0')}</span>
+                       <span className="text-[9px] text-slate-300 font-black tracking-widest leading-none">Dashboard</span>
+                       <span className={outbreak.hasDashboard ? "text-emerald-600" : "text-rose-600"}>
+                        {outbreak.hasDashboard ? 'Enabled' : 'Disabled'}
+                       </span>
                     </div>
                   </div>
 
@@ -651,21 +694,23 @@ export default function OutbreaksPage() {
                 </div>
 
                 <div className="flex flex-col items-end gap-2 ml-4">
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => handleEdit(outbreak)}
-                      className="w-10 h-10 bg-white border border-slate-100 hover:border-indigo-600 hover:text-indigo-600 rounded-xl flex items-center justify-center transition-all shadow-sm group/btn"
-                    >
-                      <Pencil className="w-4 h-4 group-hover/btn:scale-110 transition-transform" />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(outbreak.id)}
-                      className="w-10 h-10 bg-white border border-slate-100 hover:border-red-600 hover:text-red-600 rounded-xl flex items-center justify-center transition-all shadow-sm"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                  {defaultOutbreakId !== outbreak.id && (
+                  {canManage && (
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleEdit(outbreak)}
+                        className="w-10 h-10 bg-white border border-slate-100 hover:border-indigo-600 hover:text-indigo-600 rounded-xl flex items-center justify-center transition-all shadow-sm group/btn"
+                      >
+                        <Pencil className="w-4 h-4 group-hover/btn:scale-110 transition-transform" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(outbreak.id)}
+                        className="w-10 h-10 bg-white border border-slate-100 hover:border-red-600 hover:text-red-600 rounded-xl flex items-center justify-center transition-all shadow-sm"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
+                  {canManage && defaultOutbreakId !== outbreak.id && (
                     <button
                       onClick={() => setAsDefault(outbreak.id)}
                       className="px-4 py-2 bg-slate-900 hover:bg-black text-white rounded-xl text-[9px] font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all mt-2"

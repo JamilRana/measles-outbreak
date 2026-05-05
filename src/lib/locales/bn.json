@@ -103,15 +103,18 @@
     "suspectedCases": "সন্দেহভাজন কেস",
     "last30Days": "শেষ ৩০ দিন",
     "last60Days": "শেষ ৬০ দিন",
-    "last90Days": "শেষ ৯০ দিন"
+    "last90Days": "শেষ ৯০ দিন",
+    "mortality":"মৃত্যু"
   },
   "map": {
     "title": "আক্রান্ত এলাকার মানচিত্র",
     "deaths": "মৃত্যু",
     "confirmedCases": "নিশ্চিত কেস",
+    "suspectedCases": "সন্দেহভাজন কেস",
     "hospitalizations": "হাসপাতালে ভর্তি",
     "toggleDeaths": "মৃত্যু দেখুন",
     "toggleConfirmed": "নিশ্চিত কেস দেখুন",
+    "toggleSuspected": "সন্দেহভাজন কেস দেখুন",
     "toggleHospitalized": "ভর্তি দেখুন",
     "district": "জেলা",
     "division": "বিভাগ"

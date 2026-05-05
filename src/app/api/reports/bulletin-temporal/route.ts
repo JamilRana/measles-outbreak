@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ReportStatus } from '@prisma/client';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
+import { hasPermission } from '@/lib/rbac';
 
 /**
  * GET /api/reports/bulletin-temporal
@@ -10,6 +13,10 @@ import { ReportStatus } from '@prisma/client';
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
+    const session = await getServerSession(authOptions);
+    const role = session?.user?.role || "";
+    const isAdmin = role === 'ADMIN' || role === 'EDITOR' || hasPermission(role, 'admin:view');
+
     const outbreakId = searchParams.get('outbreakId') || 'measles-2026';
     const to = searchParams.get('to');
 
@@ -18,7 +25,7 @@ export async function GET(req: NextRequest) {
     const reports = await prisma.report.findMany({
       where: {
         outbreakId,
-        status: ReportStatus.PUBLISHED,
+        status: { in: isAdmin ? [ReportStatus.PUBLISHED, ReportStatus.SUBMITTED] : [ReportStatus.PUBLISHED] },
         periodStart: { lte: end }
       },
       select: {
@@ -84,7 +91,9 @@ export async function GET(req: NextRequest) {
       };
     });
 
-    const items = sortedDates.map(d => log[d]);
+    const items = sortedDates
+      .filter(d => d >= '2026-04-10')
+      .map(d => log[d]);
 
     return NextResponse.json({
       history: items,

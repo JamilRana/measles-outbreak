@@ -37,6 +37,8 @@ import { format, eachDayOfInterval, isSameDay } from 'date-fns';
 import { useTranslation } from 'react-i18next';
 import Link from 'next/link';
 import Breadcrumbs from '@/components/Breadcrumbs';
+import { useSession } from 'next-auth/react';
+import { hasPermission } from '@/lib/rbac';
 import AdminOutbreakSelector from '@/components/AdminOutbreakSelector';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
@@ -162,6 +164,10 @@ const CustomMultiSelect = ({
 
 export default function UnifiedReportingHub() {
   const { t, i18n } = useTranslation();
+  const { data: session } = useSession();
+  const role = session?.user?.role || "";
+  const canManage = hasPermission(role, 'data:manage') || role === 'ADMIN' || role === 'EDITOR';
+  const canView = hasPermission(role, 'admin:view');
   
   // App State
   const [viewMode, setViewMode] = useState<'STATUS' | 'LOGS' | 'GAPS'>('STATUS');
@@ -340,9 +346,16 @@ export default function UnifiedReportingHub() {
     const submittedOnDate = facilities.filter(f => reportMap.has(f.id)).length;
     
     let totalSuspected = 0, totalConfirmed = 0;
+    let totalSuspectedDeaths = 0, totalConfirmedDeaths = 0;
+    let totalAdmitted = 0, totalDischarged = 0;
+    
     reports.forEach(r => {
-      totalSuspected += r.suspected24h || 0;
-      totalConfirmed += r.confirmed24h || 0;
+      totalSuspected += Number(r.suspected24h || 0);
+      totalConfirmed += Number(r.confirmed24h || 0);
+      totalSuspectedDeaths += Number(r.suspectedDeath24h || 0);
+      totalConfirmedDeaths += Number(r.confirmedDeath24h || 0);
+      totalAdmitted += Number(r.admitted24h || 0);
+      totalDischarged += Number(r.discharged24h || 0);
     });
 
     const verifiedCount = reports.filter(r => r.published).length;
@@ -354,6 +367,10 @@ export default function UnifiedReportingHub() {
       rateToday: total > 0 ? Math.round((submittedOnDate / total) * 100) : 0,
       periodSuspected: totalSuspected,
       periodConfirmed: totalConfirmed,
+      periodSuspectedDeaths: totalSuspectedDeaths,
+      periodConfirmedDeaths: totalConfirmedDeaths,
+      periodAdmitted: totalAdmitted,
+      periodDischarged: totalDischarged,
       verifiedCount
     };
   }, [facilities, reportMap, reports]);
@@ -630,14 +647,16 @@ export default function UnifiedReportingHub() {
       </div>
 
       {/* KPI Section */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
          {[
            { label: viewMode === 'STATUS' ? 'Targeted Units' : 'Total Submissions', value: viewMode === 'STATUS' ? filteredFacilities.length : (pagination?.total || 0), icon: Building2, color: 'indigo' },
-           { label: viewMode === 'STATUS' ? 'Compliance' : 'Suspected', value: viewMode === 'STATUS' ? `${stats.rateToday}%` : stats.periodSuspected, icon: viewMode === 'STATUS' ? Check : Activity, color: 'emerald' },
-           { label: viewMode === 'STATUS' ? 'Unreported' : 'Confirmed', value: viewMode === 'STATUS' ? (filteredFacilities.length - (viewMode === 'STATUS' ? stats.submittedToday : 0)) : stats.periodConfirmed, icon: viewMode === 'STATUS' ? AlertCircle : TrendingUp, color: 'rose' },
+           { label: viewMode === 'STATUS' ? 'Compliance' : 'Suspected Cases', value: viewMode === 'STATUS' ? `${stats.rateToday}%` : stats.periodSuspected, icon: viewMode === 'STATUS' ? Check : Activity, color: 'emerald' },
+           { label: viewMode === 'STATUS' ? 'Unreported' : 'Confirmed Cases', value: viewMode === 'STATUS' ? (filteredFacilities.length - (viewMode === 'STATUS' ? stats.submittedToday : 0)) : stats.periodConfirmed, icon: viewMode === 'STATUS' ? AlertCircle : TrendingUp, color: 'rose' },
+           { label: 'Suspected Deaths', value: stats.periodSuspectedDeaths, icon: ShieldAlert, color: 'rose' },
+           { label: 'Confirmed Deaths', value: stats.periodConfirmedDeaths, icon: ShieldAlert, color: 'rose' },
            { label: 'Publication Scope', value: `${stats.verifiedCount} Verified`, icon: Globe, color: 'indigo' }
          ].map((stat, i) => (
-           <div key={i} className="bg-white p-7 rounded-[2rem] border border-slate-200 shadow-sm hover:shadow-md transition-shadow relative group">
+            <div key={i} className="bg-white p-7 rounded-[2rem] border border-slate-200 shadow-sm hover:shadow-md transition-shadow relative group">
               <div className="absolute top-0 right-0 p-6 opacity-[0.03] text-slate-900 group-hover:scale-110 transition-transform">
                 <stat.icon className="w-16 h-16" />
               </div>
@@ -952,28 +971,36 @@ export default function UnifiedReportingHub() {
                   >
                     <Eye className="w-4 h-4" />
                   </button>
-                  <button 
-                    onClick={() => setEntryModal({ isOpen: true, mode: 'EDIT', item: report, outbreakId: report.outbreakId || selectedOutbreakId })}
-                    className="p-2.5 text-slate-400 hover:text-indigo-600 hover:bg-white hover:shadow-sm rounded-xl transition-all" 
-                    title="Edit Context"
-                  >
-                    <Edit2 className="w-4 h-4" />
-                  </button>
-                  <button 
-                    onClick={() => handleDeleteReport(report.id)}
-                    className="p-2.5 text-slate-400 hover:text-rose-600 hover:bg-white hover:shadow-sm rounded-xl transition-all" 
-                    title="Purge Record"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  {canManage && (
+                    <>
+                      <button 
+                        onClick={() => setEntryModal({ isOpen: true, mode: 'EDIT', item: report, outbreakId: report.outbreakId || selectedOutbreakId })}
+                        className="p-2.5 text-slate-400 hover:text-indigo-600 hover:bg-white hover:shadow-sm rounded-xl transition-all" 
+                        title="Edit Context"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button 
+                        onClick={() => handleDeleteReport(report.id)}
+                        className="p-2.5 text-slate-400 hover:text-rose-600 hover:bg-white hover:shadow-sm rounded-xl transition-all" 
+                        title="Purge Record"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </>
+                  )}
                 </>
               ) : (
-                <button 
-                  onClick={() => setEntryModal({ isOpen: true, mode: 'CREATE', item: facility, outbreakId: selectedOutbreakId })}
-                  className="px-4 py-2 text-[9px] font-black uppercase text-indigo-600 hover:bg-white hover:shadow-md border border-transparent hover:border-slate-100 rounded-xl transition-all tracking-widest bg-slate-50 whitespace-nowrap"
-                >
-                  Show
-                </button>
+                canManage ? (
+                  <button 
+                    onClick={() => setEntryModal({ isOpen: true, mode: 'CREATE', item: facility, outbreakId: selectedOutbreakId })}
+                    className="px-4 py-2 text-[9px] font-black uppercase text-indigo-600 hover:bg-white hover:shadow-md border border-transparent hover:border-slate-100 rounded-xl transition-all tracking-widest bg-slate-50 whitespace-nowrap"
+                  >
+                    Add Report
+                  </button>
+                ) : (
+                  <span className="text-[9px] font-black uppercase text-slate-300 tracking-widest">No Entry</span>
+                )
               )}
             </div>
           </td>
@@ -981,6 +1008,22 @@ export default function UnifiedReportingHub() {
       )
     })}
   </tbody>
+  {!loading && (viewMode === 'LOGS' || viewMode === 'STATUS') && dynamicFields.length === 0 && (
+    <tfoot className="bg-slate-50/80 border-t-2 border-slate-200 sticky bottom-0 z-10 backdrop-blur-sm">
+      <tr className="font-black text-slate-900">
+        <td className="px-10 py-6 text-right uppercase tracking-widest text-[10px] text-slate-400" colSpan={2}>
+          {viewMode === 'LOGS' ? 'Page Totals' : 'Consolidated Snapshot'}
+        </td>
+        <td className="px-6 py-6 text-center text-indigo-600 tabular-nums text-sm">{stats.periodSuspected}</td>
+        <td className="px-6 py-6 text-center text-emerald-600 tabular-nums text-sm">{stats.periodConfirmed}</td>
+        <td className="px-6 py-6 text-center text-rose-600 tabular-nums text-sm">{stats.periodSuspectedDeaths}</td>
+        <td className="px-6 py-6 text-center text-rose-800 tabular-nums text-sm">{stats.periodConfirmedDeaths}</td>
+        <td className="px-6 py-6 text-center text-indigo-400 tabular-nums text-sm">{stats.periodAdmitted}</td>
+        <td className="px-6 py-6 text-center text-slate-400 tabular-nums text-sm">{stats.periodDischarged}</td>
+        <td className="px-10 py-6"></td>
+      </tr>
+    </tfoot>
+  )}
 </table>
                  )}
               </div>

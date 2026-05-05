@@ -103,15 +103,19 @@
     "suspectedCases": "Suspected Cases",
     "last30Days": "Last 30 Days",
     "last60Days": "Last 60 Days",
-    "last90Days": "Last 90 Days"
+    "last90Days": "Last 90 Days",
+    "mortality": "Mortality",
+    "hospitalized": "Hospitalizations"
   },
   "map": {
     "title": "Outbreak Map — Affected Areas",
     "deaths": "Deaths",
     "confirmedCases": "Confirmed Cases",
+    "suspectedCases": "Suspected Cases",
     "hospitalizations": "Hospitalizations",
     "toggleDeaths": "Show Deaths",
     "toggleConfirmed": "Show Confirmed",
+    "toggleSuspected": "Show Suspected",
     "toggleHospitalized": "Show Hospitalized",
     "district": "District",
     "division": "Division"

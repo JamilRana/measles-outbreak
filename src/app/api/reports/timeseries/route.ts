@@ -4,6 +4,7 @@ import { Prisma } from "@prisma/client";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getBdTime, getBdDateString } from "@/lib/timezone";
+import { hasPermission } from "@/lib/rbac";
 
 /**
  * GET /api/reports/timeseries
@@ -19,7 +20,8 @@ export async function GET(req: Request) {
   const district = searchParams.get("district") || searchParams.get("districts");
   
   const session = await getServerSession(authOptions);
-  const isAdmin = session?.user?.role === 'ADMIN' || session?.user?.role === 'EDITOR';
+  const role = session?.user?.role || "";
+  const isAdmin = role === 'ADMIN' || role === 'EDITOR' || hasPermission(role, 'admin:view');
   const now = getBdTime();
   const today = getBdDateString(now);
 
@@ -52,7 +54,8 @@ export async function GET(req: Request) {
       FROM "Report" r
       JOIN "Facility" f ON f.id = r."facilityId"
       WHERE r."outbreakId" = ${outbreakId}
-        AND r.status = 'PUBLISHED'
+        AND (r.status = 'PUBLISHED' OR (${isAdmin} AND r.status = 'SUBMITTED'))
+        AND r."periodStart" >= '2026-04-10'::date
         AND r."periodStart" >= ${effectiveEnd === "NOW()" ? Prisma.raw("NOW()") : Prisma.raw("CURRENT_DATE")} - INTERVAL '1 day' * ${days}
         AND r."periodStart" <= ${Prisma.raw(effectiveEnd)}
         AND (${division ?? ''}::text = '' OR f.division = ${division ?? ''})

@@ -89,12 +89,15 @@ model Outbreak {
   backlogStartDate      DateTime?
   backlogEndDate        DateTime?
   reportingFrequency    ReportingFrequency @default(DAILY)
+  submissionOpenHour    Int                @default(0)
+  submissionOpenMinute  Int                @default(0)
   cutoffHour            Int                @default(14)
   cutoffMinute          Int                @default(0)
   editDeadlineHour      Int                @default(10)
   editDeadlineMinute    Int                @default(0)
   publishTimeHour       Int                @default(9)
   publishTimeMinute     Int                @default(0)
+  hasDashboard          Boolean            @default(true)
   targetDivisions       String[]           @default([])
   targetDistricts       String[]           @default([])
   targetFacilityTypeIds String[]           @default([])

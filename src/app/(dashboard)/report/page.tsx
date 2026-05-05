@@ -147,6 +147,8 @@ export default function AuthenticatedReportPage() {
             <div className="space-y-6">
               {settings && deadlineInfo && (
                 <DeadlineCard 
+                  submissionOpenHour={settings.submissionOpenHour}
+                  submissionOpenMinute={settings.submissionOpenMinute}
                   cutoffHour={settings.cutoffHour}
                   cutoffMinute={settings.cutoffMinute}
                   editDeadlineHour={settings.editDeadlineHour}

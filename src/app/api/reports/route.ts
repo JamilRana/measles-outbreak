@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { rebuildSnapshot } from "@/lib/snapshot";
 import { ReportStatus } from "@prisma/client";
 import { autoPublishReports } from "@/lib/publish-manager";
+import { hasPermission } from "@/lib/rbac";
 
 /**
  * GET /api/reports
@@ -59,7 +60,7 @@ export async function GET(req: Request) {
       if (outbreak) {
         const publishTime = new Date(bdNow);
         publishTime.setHours(outbreak.publishTimeHour || 0, outbreak.publishTimeMinute || 0, 0, 0);
-        const isAdmin = session?.user?.role === "ADMIN" || session?.user?.role === "EDITOR";
+        const isAdmin = session?.user?.role === "ADMIN" || session?.user?.role === "EDITOR" || hasPermission(session?.user?.role || "", 'admin:view');
         enforcePublishTime = (bdNow < publishTime) && !isAdmin;
         
         // Phase 4: If we are specifically looking for a facility/date (Submission), 
@@ -85,7 +86,7 @@ export async function GET(req: Request) {
       ];
     }
 
-    const isAdmin = session?.user?.role === "ADMIN" || session?.user?.role === "EDITOR";
+    const isAdmin = session?.user?.role === "ADMIN" || session?.user?.role === "EDITOR" || hasPermission(session?.user?.role || "", 'admin:view');
     const where: any = { outbreakId: effectiveOutbreakId };
     
     if (!isAdmin) {
