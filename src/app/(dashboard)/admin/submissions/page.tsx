@@ -43,6 +43,7 @@ import AdminOutbreakSelector from '@/components/AdminOutbreakSelector';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import ScrollToTop from '@/components/ScrollToTop';
 
 interface UserData {
   id: string;
@@ -177,6 +178,7 @@ export default function UnifiedReportingHub() {
   const [pagination, setPagination] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [dynamicFields, setDynamicFields] = useState<FormField[]>([]);
+  const [metricFilter, setMetricFilter] = useState<'all' | 'suspectedDeath' | 'confirmedDeath'>('all');
   const [selectedReportForView, setSelectedReportForView] = useState<Report | null>(null);
   const [entryModal, setEntryModal] = useState<{ isOpen: boolean; mode: 'CREATE' | 'EDIT'; item: any; outbreakId: string }>({
     isOpen: false,
@@ -185,6 +187,34 @@ export default function UnifiedReportingHub() {
     outbreakId: ''
   });
   const [exporting, setExporting] = useState(false);
+  const tableContainerRef = useRef<HTMLDivElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [startX, setStartX] = useState(0);
+  const [scrollLeft, setScrollLeft] = useState(0);
+
+  // Mouse drag scrolling logic
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (!tableContainerRef.current) return;
+    setIsDragging(true);
+    setStartX(e.pageX - tableContainerRef.current.offsetLeft);
+    setScrollLeft(tableContainerRef.current.scrollLeft);
+  };
+
+  const handleMouseLeave = () => {
+    setIsDragging(false);
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging || !tableContainerRef.current) return;
+    e.preventDefault();
+    const x = e.pageX - tableContainerRef.current.offsetLeft;
+    const walk = (x - startX) * 2; // Scroll speed
+    tableContainerRef.current.scrollLeft = scrollLeft - walk;
+  };
 
   // Filters
   const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
@@ -333,13 +363,26 @@ export default function UnifiedReportingHub() {
        list = list.filter(f => f.facilityName.toLowerCase().includes(q) || f.district.toLowerCase().includes(q));
      }
 
-     if (viewMode === 'STATUS') {
+      if (viewMode === 'STATUS') {
         if (statusFilter === 'submitted') list = list.filter(f => reportMap.has(f.id));
         if (statusFilter === 'missing') list = list.filter(f => !reportMap.has(f.id));
-     }
-     
-     return list;
-  }, [facilities, viewMode, selectedDivisions, selectedDistricts, searchQuery, statusFilter, reportMap]);
+        
+        if (metricFilter === 'suspectedDeath') {
+          list = list.filter(f => {
+            const r = reportMap.get(f.id);
+            return r && (Number(r.suspectedDeath24h || 0) > 0 || Number(r.dataSnapshot?.suspectedDeath24h || 0) > 0);
+          });
+        }
+        if (metricFilter === 'confirmedDeath') {
+          list = list.filter(f => {
+            const r = reportMap.get(f.id);
+            return r && (Number(r.confirmedDeath24h || 0) > 0 || Number(r.dataSnapshot?.confirmedDeath24h || 0) > 0);
+          });
+        }
+      }
+      
+      return list;
+   }, [facilities, viewMode, selectedDivisions, selectedDistricts, searchQuery, statusFilter, reportMap, metricFilter]);
 
   const stats = useMemo(() => {
     const total = facilities.length;
@@ -412,6 +455,7 @@ export default function UnifiedReportingHub() {
     setSelectedDistricts([]);
     setSearchQuery('');
     setStatusFilter('all');
+    setMetricFilter('all');
     // Keeping selectedOutbreakId to preserve dynamic columns
   };
   
@@ -652,22 +696,34 @@ export default function UnifiedReportingHub() {
            { label: viewMode === 'STATUS' ? 'Targeted Units' : 'Total Submissions', value: viewMode === 'STATUS' ? filteredFacilities.length : (pagination?.total || 0), icon: Building2, color: 'indigo' },
            { label: viewMode === 'STATUS' ? 'Compliance' : 'Suspected Cases', value: viewMode === 'STATUS' ? `${stats.rateToday}%` : stats.periodSuspected, icon: viewMode === 'STATUS' ? Check : Activity, color: 'emerald' },
            { label: viewMode === 'STATUS' ? 'Unreported' : 'Confirmed Cases', value: viewMode === 'STATUS' ? (filteredFacilities.length - (viewMode === 'STATUS' ? stats.submittedToday : 0)) : stats.periodConfirmed, icon: viewMode === 'STATUS' ? AlertCircle : TrendingUp, color: 'rose' },
-           { label: 'Suspected Deaths', value: stats.periodSuspectedDeaths, icon: ShieldAlert, color: 'rose' },
-           { label: 'Confirmed Deaths', value: stats.periodConfirmedDeaths, icon: ShieldAlert, color: 'rose' },
-           { label: 'Publication Scope', value: `${stats.verifiedCount} Verified`, icon: Globe, color: 'indigo' }
-         ].map((stat, i) => (
-            <div key={i} className="bg-white p-7 rounded-[2rem] border border-slate-200 shadow-sm hover:shadow-md transition-shadow relative group">
-              <div className="absolute top-0 right-0 p-6 opacity-[0.03] text-slate-900 group-hover:scale-110 transition-transform">
-                <stat.icon className="w-16 h-16" />
-              </div>
-              <div className="flex items-center gap-3 mb-4">
-                 <div className="p-2 bg-slate-50 rounded-xl"><stat.icon className="w-4 h-4 text-slate-500" /></div>
-                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">{stat.label}</span>
-              </div>
-              <div className="text-3xl font-black text-slate-900 tracking-tighter tabular-nums">{stat.value}</div>
-           </div>
-         ))}
-      </div>
+            { label: 'Suspected Deaths', value: stats.periodSuspectedDeaths, icon: ShieldAlert, color: 'rose', key: 'suspectedDeath' },
+            { label: 'Confirmed Deaths', value: stats.periodConfirmedDeaths, icon: ShieldAlert, color: 'rose', key: 'confirmedDeath' },
+            { label: 'Publication Scope', value: `${stats.verifiedCount} Verified`, icon: Globe, color: 'indigo' }
+          ].map((stat, i) => (
+             <div 
+               key={i} 
+               onClick={() => {
+                 if (stat.key) {
+                   setMetricFilter(prev => prev === stat.key ? 'all' : stat.key as any);
+                 }
+               }}
+               className={`bg-white p-7 rounded-[2rem] border transition-all relative group cursor-pointer ${
+                 stat.key && metricFilter === stat.key ? 'ring-4 ring-indigo-500/20 border-indigo-500 shadow-lg' : 'border-slate-200 shadow-sm hover:shadow-md'
+               }`}
+             >
+               <div className="absolute top-0 right-0 p-6 opacity-[0.03] text-slate-900 group-hover:scale-110 transition-transform">
+                 <stat.icon className="w-16 h-16" />
+               </div>
+               <div className="flex items-center gap-3 mb-4">
+                  <div className={`p-2 rounded-xl ${stat.key && metricFilter === stat.key ? 'bg-indigo-100' : 'bg-slate-50'}`}>
+                    <stat.icon className={`w-4 h-4 ${stat.key && metricFilter === stat.key ? 'text-indigo-600' : 'text-slate-500'}`} />
+                  </div>
+                  <span className={`text-[10px] font-black uppercase tracking-widest leading-none ${stat.key && metricFilter === stat.key ? 'text-indigo-600' : 'text-slate-400'}`}>{stat.label}</span>
+               </div>
+               <div className={`text-3xl font-black tracking-tighter tabular-nums ${stat.key && metricFilter === stat.key ? 'text-indigo-600' : 'text-slate-900'}`}>{stat.value}</div>
+            </div>
+          ))}
+       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-8 items-start">
         {/* Unified Sidebar Filters */}
@@ -767,6 +823,12 @@ export default function UnifiedReportingHub() {
                  </div>
                  
                   <div className="flex items-center gap-3">
+                    {metricFilter !== 'all' && (
+                      <div className="px-3 py-1 bg-indigo-50 text-indigo-600 rounded-full text-[9px] font-black uppercase tracking-widest border border-indigo-100 flex items-center gap-2">
+                        <span>Filtering: {metricFilter === 'suspectedDeath' ? 'Suspected Deaths' : 'Confirmed Deaths'}</span>
+                        <button onClick={() => setMetricFilter('all')}><X className="w-3 h-3" /></button>
+                      </div>
+                    )}
                     <button 
                       onClick={handleExportExcel}
                       disabled={exporting}
@@ -786,7 +848,14 @@ export default function UnifiedReportingHub() {
                  </div>
               </div>
 
-              <div className="flex-1 overflow-x-auto custom-scrollbar">
+               <div 
+                  ref={tableContainerRef}
+                  onMouseDown={handleMouseDown}
+                  onMouseLeave={handleMouseLeave}
+                  onMouseUp={handleMouseUp}
+                  onMouseMove={handleMouseMove}
+                  className={`flex-1 overflow-x-auto custom-scrollbar relative ${isDragging ? 'cursor-grabbing select-none' : 'cursor-grab'}`}
+               >
                  {viewMode === 'GAPS' ? (
                    <div className="p-10 grid grid-cols-1 md:grid-cols-2 gap-5">
                       {loading ? (
@@ -850,10 +919,10 @@ export default function UnifiedReportingHub() {
                    </div>
                  ) : (
  <table className={`w-full text-left border-collapse ${dynamicFields.length > 5 ? 'min-w-[1500px]' : 'min-w-[1100px]'}`}>
-  <thead>
+  <thead className="sticky top-0 z-40 bg-white shadow-sm">
     <tr className="bg-slate-50/50 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
-      <th className="px-10 py-6 border-b border-slate-100 text-center w-[280px]">Facility</th>
-      <th className="w-[60px] px-6 py-6 border-b border-slate-100 text-center">Date <br/> Status</th>
+      <th className="px-10 py-6 border-b border-slate-100 text-center w-[280px] sticky left-0 z-50 bg-slate-50/50 backdrop-blur-md">Facility</th>
+      <th className="w-[120px] px-6 py-6 border-b border-slate-100 text-center sticky left-[280px] z-50 bg-slate-50/50 backdrop-blur-md">Date <br/> Status</th>
       
       {/* Dynamic Headers */}
       {dynamicFields.length > 0 ? (
@@ -888,7 +957,7 @@ export default function UnifiedReportingHub() {
       
       return (
         <tr key={item.id} className="group hover:bg-slate-50/50 transition-colors">
-          <td className="px-10 py-6">
+          <td className="px-10 py-6 sticky left-0 z-30 bg-white group-hover:bg-slate-50 transition-colors">
             <div className="flex items-start gap-4">
 <div className="flex flex-col min-w-0">
   <span className="text-sm font-black text-slate-800 tracking-tight break-words leading-tight">
@@ -903,7 +972,7 @@ export default function UnifiedReportingHub() {
 </div>
             </div>
           </td>
-          <td className="px-6 py-6 text-center">
+          <td className="px-6 py-6 text-center sticky left-[280px] z-30 bg-white group-hover:bg-slate-50 transition-colors">
             <div className="flex flex-col items-center">
 
                           {report ? (
@@ -1172,9 +1241,61 @@ export default function UnifiedReportingHub() {
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }
       `}</style>
+      <ScrollToTop />
+      <StickyHorizontalScrollbar targetRef={tableContainerRef} />
     </div>
   );
 }
+
+const StickyHorizontalScrollbar = ({ targetRef }: { targetRef: React.RefObject<HTMLDivElement | null> }) => {
+  const [scrollWidth, setScrollWidth] = useState(0);
+  const [clientWidth, setClientWidth] = useState(0);
+  const scrollbarRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const target = targetRef.current;
+    if (!target) return;
+
+    const updateSize = () => {
+      setScrollWidth(target.scrollWidth);
+      setClientWidth(target.clientWidth);
+    };
+
+    updateSize();
+    const resizeObserver = new ResizeObserver(updateSize);
+    resizeObserver.observe(target);
+
+    const handleTargetScroll = () => {
+      if (scrollbarRef.current && !scrollbarRef.current.matches(':hover')) {
+        scrollbarRef.current.scrollLeft = target.scrollLeft;
+      }
+    };
+
+    target.addEventListener('scroll', handleTargetScroll);
+    return () => {
+      resizeObserver.disconnect();
+      target.removeEventListener('scroll', handleTargetScroll);
+    };
+  }, [targetRef]);
+
+  const handleScrollbarScroll = () => {
+    if (scrollbarRef.current && targetRef.current && scrollbarRef.current.matches(':hover')) {
+      targetRef.current.scrollLeft = scrollbarRef.current.scrollLeft;
+    }
+  };
+
+  if (scrollWidth <= clientWidth) return null;
+
+  return (
+    <div 
+      ref={scrollbarRef}
+      onScroll={handleScrollbarScroll}
+      className="fixed bottom-0 left-0 right-0 z-[60] overflow-x-auto overflow-y-hidden bg-white/40 backdrop-blur-md border-t border-slate-200 h-3 custom-scrollbar hover:h-4 transition-all"
+    >
+      <div style={{ width: scrollWidth, height: '1px' }} />
+    </div>
+  );
+};
 
 function ReportEntryModal({ mode, item, outbreakId, selectedDate, dynamicFields, onClose, onSuccess }: any) {
   const { i18n } = useTranslation();

@@ -71,6 +71,7 @@ import {
 } from "@/components/skeletons";
 import { getBdDateString, getBdTime } from "@/lib/timezone";
 import Image from "next/image";
+import ScrollToTop from "@/components/ScrollToTop";
 
 // Dynamic imports with ssr: false for components that use browser APIs
 const OutbreakMap = dynamic(() => import("@/components/OutbreakMap"), { 
@@ -802,6 +803,7 @@ export default function DashboardPage() {
       </section>
       </>
       )}
+      <ScrollToTop />
     </div>
   );
 }

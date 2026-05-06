@@ -36,34 +36,25 @@ export default function Navbar() {
             <NavLink href="/bulletin" icon={<FileBarChart className="w-4 h-4" />} label="Bulletin" />
             {session ? (
               <>
-                  {canSubmit && (
-                    <NavLink href="/report" icon={<Zap className="w-4 h-4" />} label={t('nav.report')} />
-                  )}
-                  {canViewReports && (
-                    <NavLink href="/my-reports" icon={<FileText className="w-4 h-4" />} label={t('nav.myReports')} />
-                  )}
-                  {canViewAdmin && (
-                    <NavLink href="/admin" icon={<Settings className="w-4 h-4" />} label={t('nav.admin')} />
-                  )}
+                {canSubmit && (
+                  <NavLink href="/report" icon={<Zap className="w-4 h-4" />} label={t('nav.report')} />
+                )}
+                {canViewReports && (
+                  <NavLink href="/my-reports" icon={<FileText className="w-4 h-4" />} label={t('nav.myReports')} />
+                )}
+                {canViewAdmin && (
+                  <NavLink href="/admin" icon={<Settings className="w-4 h-4" />} label={t('nav.admin')} />
+                )}
                 <div className="h-6 w-[1px] bg-indigo-500/50 mx-1" />
-                
+
                 <div className="hidden sm:flex flex-col items-end">
                   <span className="text-[10px] text-indigo-200 uppercase font-bold tracking-tighter">{t('nav.facility')}</span>
                   <span className="text-sm font-semibold truncate max-w-[150px]">{session.user.facilityName}</span>
                 </div>
 
-                <button 
+                <button
                   onClick={() => {
-                    const host = window.location.host;
-                    const parts = host.split('.');
-                    // Check if we are on a subdomain (e.g., dhaka.localhost:3000 or dhaka.example.com)
-                    if (parts.length > (host.includes('localhost') ? 1 : 2)) {
-                      // Get the base domain (localhost:3000 or example.com)
-                      const mainHost = parts.slice(host.includes('localhost') ? -1 : -2).join('.');
-                      signOut({ callbackUrl: `${window.location.protocol}//${mainHost}/login` });
-                    } else {
-                      signOut({ callbackUrl: "/login" });
-                    }
+                    signOut({ callbackUrl: "/login" });
                   }}
                   className="p-2 hover:bg-white/10 rounded-full transition-colors group"
                   title={t('nav.signOut')}
@@ -76,7 +67,7 @@ export default function Navbar() {
                 {t('nav.signIn')}
               </Link>
             )}
-                        <button
+            <button
               onClick={toggleLanguage}
               className="flex hidden items-center px-1.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-indigo-100 hover:text-white transition-all text-sm font-semibold"
               title="Switch language"
@@ -93,8 +84,8 @@ export default function Navbar() {
 
 function NavLink({ href, icon, label }: { href: string; icon: React.ReactNode; label: string }) {
   return (
-    <Link 
-      href={href} 
+    <Link
+      href={href}
       className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-white/10 text-indigo-100 hover:text-white transition-all text-sm font-medium"
     >
       {icon}
