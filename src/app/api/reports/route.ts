@@ -101,6 +101,23 @@ export async function GET(req: Request) {
     }
     
     if (facilityId) where.facilityId = facilityId;
+
+    const metric = searchParams.get("metric");
+    if (metric === 'suspectedDeath') {
+      where.fieldValues = {
+        some: {
+          formField: { fieldKey: 'suspectedDeath24h' },
+          value: { not: '0', notIn: ['', 'null'] }
+        }
+      };
+    } else if (metric === 'confirmedDeath') {
+      where.fieldValues = {
+        some: {
+          formField: { fieldKey: 'confirmedDeath24h' },
+          value: { not: '0', notIn: ['', 'null'] }
+        }
+      };
+    }
     if (Object.keys(geoFilter).length > 0) where.facility = geoFilter;
     
     const adjustedTo = enforcePublishTime && to === todayStr ? getBdDateString(new Date(bdNow.getTime() - 86400000)) : to;

@@ -56,31 +56,31 @@ import * as XLSX from "xlsx";
 import { DIVISIONS, DISTRICTS } from "@/lib/constants";
 import { SearchableSelect } from "@/components/SearchableSelect";
 import dynamic from "next/dynamic";
-import { 
-  useDashboardSummary, 
-  useCumulativeSummary, 
-  useDashboardConfig, 
-  useDashboardSettings, 
-  useDashboardIndicators 
+import {
+  useDashboardSummary,
+  useCumulativeSummary,
+  useDashboardConfig,
+  useDashboardSettings,
+  useDashboardIndicators
 } from "@/hooks/useDashboard";
-import { 
-  KPICardSkeleton, 
-  TableSkeleton, 
-  MapSkeleton, 
-  ChartSkeleton 
+import {
+  KPICardSkeleton,
+  TableSkeleton,
+  MapSkeleton,
+  ChartSkeleton
 } from "@/components/skeletons";
 import { getBdDateString, getBdTime } from "@/lib/timezone";
 import Image from "next/image";
 import ScrollToTop from "@/components/ScrollToTop";
 
 // Dynamic imports with ssr: false for components that use browser APIs
-const OutbreakMap = dynamic(() => import("@/components/OutbreakMap"), { 
+const OutbreakMap = dynamic(() => import("@/components/OutbreakMap"), {
   ssr: false,
   loading: () => <MapSkeleton />
 });
 
-const EpiInsights = dynamic(() => import("@/components/EpiInsights"), { 
-  ssr: false, 
+const EpiInsights = dynamic(() => import("@/components/EpiInsights"), {
+  ssr: false,
   loading: () => <ChartSkeleton />
 });
 
@@ -140,34 +140,33 @@ const Sparkline = ({
 function KPICard({ title, value, subValue, icon, color }: any) {
   return (
     <motion.div
-      whileHover={{ y: -8, transition: { duration: 0.2 } }}
-      className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm relative overflow-hidden group"
+      whileHover={{ y: -4, transition: { duration: 0.15 } }}
+      className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm relative overflow-hidden group hover:border-slate-300 transition-colors"
     >
-      <div className="absolute top-0 right-0 p-8 opacity-[0.03] group-hover:scale-125 transition-transform duration-500">
-        {React.cloneElement(icon, { className: "w-24 h-24" })}
-      </div>
-      <div className="flex items-start justify-between mb-8 relative z-10">
+      <div className="flex items-center gap-4">
         <div
-          className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg border transition-all"
+          className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
           style={{
-            backgroundColor: `${color}10`,
-            borderColor: `${color}20`,
+            backgroundColor: `${color}15`,
             color: color,
           }}
         >
-          {React.cloneElement(icon, { className: "w-7 h-7" })}
+          {React.cloneElement(icon, { className: "w-5 h-5" })}
         </div>
-      </div>
-      <div className="relative z-10">
-        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">
-          {title}
-        </p>
-        <h4 className="text-4xl font-black text-slate-900 tracking-tighter leading-none mb-2">
-          {value}
-        </h4>
-        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">
-          {subValue || "National Aggregate"}
-        </p>
+        
+        <div className="min-w-0 flex-1">
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider leading-none">
+            {title}
+          </p>
+          <h4 className="text-2xl font-black text-slate-900 tracking-tight leading-tight mt-1">
+            {value}
+          </h4>
+          {subValue && (
+            <p className="text-[10px] font-medium text-slate-400 mt-0.5 truncate">
+              {subValue}
+            </p>
+          )}
+        </div>
       </div>
     </motion.div>
   );
@@ -176,7 +175,7 @@ function KPICard({ title, value, subValue, icon, color }: any) {
 export default function DashboardPage() {
   const { data: session } = useSession();
   const { t, i18n } = useTranslation();
-  
+
   // -- Filter State --
   const [viewMode, setViewMode] = useState<"all" | "today">("today");
   const [filterDate, setFilterDate] = useState(getBdDateString());
@@ -184,6 +183,8 @@ export default function DashboardPage() {
   const [selectedOutbreakId, setSelectedOutbreakId] = useState<string | null>(null);
   const [selectedDivision, setSelectedDivision] = useState<string | null>(null);
   const [selectedDistrict, setSelectedDistrict] = useState<string | null>(null);
+  const [selectedFacilityId, setSelectedFacilityId] = useState<string | null>(null);
+  const [facilities, setFacilities] = useState<{ value: string; label: string }[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [exporting, setExporting] = useState(false);
@@ -206,8 +207,9 @@ export default function DashboardPage() {
     }
     if (selectedDivision) p.set("division", selectedDivision);
     if (selectedDistrict) p.set("district", selectedDistrict);
+    if (selectedFacilityId) p.set("facilityId", selectedFacilityId);
     return p;
-  }, [selectedOutbreakId, viewMode, filterDate, dateRange, selectedDivision, selectedDistrict]);
+  }, [selectedOutbreakId, viewMode, filterDate, dateRange, selectedDivision, selectedDistrict, selectedFacilityId]);
 
   const { data: summary, isLoading: summaryLoading, mutate: mutateSummary } = useDashboardSummary(summaryParams);
 
@@ -216,7 +218,7 @@ export default function DashboardPage() {
     if (!selectedOutbreakId) return null;
     const p = new URLSearchParams();
     p.set("outbreakId", selectedOutbreakId);
-    
+
     // Fix: Cumulative should reflect totals up to the selected date
     if (viewMode === "today") {
       p.set("to", filterDate);
@@ -226,8 +228,9 @@ export default function DashboardPage() {
 
     if (selectedDivision) p.set("division", selectedDivision);
     if (selectedDistrict) p.set("district", selectedDistrict);
+    if (selectedFacilityId) p.set("facilityId", selectedFacilityId);
     return p;
-  }, [selectedOutbreakId, viewMode, filterDate, dateRange.to, selectedDivision, selectedDistrict]);
+  }, [selectedOutbreakId, viewMode, filterDate, dateRange.to, selectedDivision, selectedDistrict, selectedFacilityId]);
 
   const { data: cumulative, isLoading: cumulativeLoading } = useCumulativeSummary(cumulativeParams);
   // -- Countdown Timer --
@@ -242,8 +245,8 @@ export default function DashboardPage() {
 
       const diff = target.getTime() - now.getTime();
       if (diff <= 0) {
-         setCountdown("WINDOW CLOSED");
-         clearInterval(timer);
+        setCountdown("WINDOW CLOSED");
+        clearInterval(timer);
       } else {
         const hours = Math.floor(diff / (1000 * 60 * 60));
         const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
@@ -253,6 +256,23 @@ export default function DashboardPage() {
     }, 1000);
     return () => clearInterval(timer);
   }, [settings]);
+
+  // Fetch facilities for the selected district
+  useEffect(() => {
+    if (selectedDistrict) {
+      fetch(`/api/facilities?district=${selectedDistrict}`)
+        .then(res => res.json())
+        .then(data => {
+          if (Array.isArray(data)) {
+            setFacilities([{ value: "", label: "All Facilities" }, ...data.map((f: any) => ({ value: f.id, label: f.facilityName }))]);
+          }
+        })
+        .catch(err => console.error("Failed to fetch facilities", err));
+    } else {
+      setFacilities([]);
+      setSelectedFacilityId(null);
+    }
+  }, [selectedDistrict]);
 
   // Sync default outbreak from settings if not selected
   useEffect(() => {
@@ -265,7 +285,7 @@ export default function DashboardPage() {
   const stats = useMemo(() => {
     const todayRaw = summary?.totals || {};
     const cumulativeRaw = cumulative?.totals || {};
-    
+
     const mapKeys = (d: any) => ({
       ...d,
       suspected: d.suspected24h || 0,
@@ -287,8 +307,14 @@ export default function DashboardPage() {
     const cumBreakdown = cumulative?.breakdown || {};
     let items = selectedDivision ? (DISTRICTS[selectedDivision] || []) : DIVISIONS;
 
-    if (selectedDistrict) {
-      items = items.filter(i => i === selectedDistrict);
+    if (selectedFacilityId) {
+      const fac = facilities.find(f => f.value === selectedFacilityId);
+      items = fac ? [fac.label] : [];
+    } else if (selectedDistrict) {
+      // Show all facilities in the district from our pre-fetched list
+      items = facilities
+        .filter(f => f.value !== "") // Remove the "All Facilities" placeholder
+        .map(f => f.label);
     }
 
     return items.map((item) => {
@@ -314,7 +340,7 @@ export default function DashboardPage() {
         },
       };
     });
-  }, [summary, cumulative, selectedDivision, selectedDistrict]);
+  }, [summary, cumulative, selectedDivision, selectedDistrict, selectedFacilityId, facilities]);
 
   // Derived Indicators from SWR data
   const calculatedIndicators = useMemo(() => {
@@ -332,14 +358,14 @@ export default function DashboardPage() {
     if (!config?.outbreak) return "VERIFIED";
     const now = getBdTime();
     const today = getBdDateString(now);
-    
+
     // If viewing today, check against current time vs publish time
     if (viewMode === "today" && filterDate === today) {
       const publishTime = new Date(now);
       publishTime.setHours(config.outbreak.publishTimeHour || 0, config.outbreak.publishTimeMinute || 0, 0, 0);
       return now < publishTime ? "PENDING" : "VERIFIED";
     }
-    
+
     // Historical data or Cumulative view is always considered verified
     return "VERIFIED";
   }, [config, filterDate, viewMode]);
@@ -352,8 +378,8 @@ export default function DashboardPage() {
       const res = await fetch("/api/export/pdf", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          outbreakId: selectedOutbreakId, 
+        body: JSON.stringify({
+          outbreakId: selectedOutbreakId,
           date: filterDate,
           from: dateRange.from,
           to: dateRange.to,
@@ -436,21 +462,19 @@ export default function DashboardPage() {
         )}
       </AnimatePresence>
       <div
-        className={`flex flex-col md:flex-row md:items-center justify-between gap-6 p-6 md:p-8 rounded-[2rem] border-2 transition-all duration-700 shadow-2xl relative overflow-hidden ${
-          (publicationStatus as string) === "PENDING"
+        className={`flex flex-col md:flex-row md:items-center justify-between gap-6 p-6 md:p-8 rounded-[2rem] border-2 transition-all duration-700 shadow-2xl relative overflow-hidden ${(publicationStatus as string) === "PENDING"
             ? "bg-gradient-to-br from-amber-600 to-amber-900 border-amber-500/50"
             : "bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border-slate-700 shadow-indigo-500/10"
-        }`}
+          }`}
       >
         <div className="absolute inset-0 bg-grid-white/[0.05] pointer-events-none" />
 
         <div className="flex items-center gap-6 relative z-10">
           <div
-            className={`w-14 h-14 md:w-20 md:h-20 rounded-2xl flex items-center justify-center backdrop-blur-md shadow-xl border ${
-              (publicationStatus as string) === "PENDING"
+            className={`w-14 h-14 md:w-20 md:h-20 rounded-2xl flex items-center justify-center backdrop-blur-md shadow-xl border ${(publicationStatus as string) === "PENDING"
                 ? "bg-white/10 border-white/20"
                 : "bg-slate-800/50 border-slate-700"
-            }`}
+              }`}
           >
             <Image
               src="/logo_mohfw.png"
@@ -462,11 +486,10 @@ export default function DashboardPage() {
           </div>
           <div>
             <p
-              className={`text-[10px] md:text-xs font-black uppercase tracking-[0.3em] mb-1 ${
-                (publicationStatus as string) === "PENDING"
+              className={`text-[10px] md:text-xs font-black uppercase tracking-[0.3em] mb-1 ${(publicationStatus as string) === "PENDING"
                   ? "text-amber-200/60"
                   : "text-indigo-400"
-              }`}
+                }`}
             >
               DGHS National Surveillance Hub
             </p>
@@ -478,11 +501,10 @@ export default function DashboardPage() {
 
         <div className="relative z-10 hidden lg:block">
           <div
-            className={`flex items-center gap-4 px-8 py-4 rounded-3xl border-2 backdrop-blur-xl transition-all duration-500 ${
-              (publicationStatus as string) === "VERIFIED"
-                ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.1)]"
-                : "bg-amber-500/10 border-amber-500/30 text-amber-400 shadow-[0_0_20px_rgba(245,158,11,0.1)]"
-            }`}
+            className={`flex items-center gap-4 px-8 py-4 rounded-3xl border-2 transition-all duration-500 scroll-gpu ${(publicationStatus as string) === "VERIFIED"
+                ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.1)]"
+                : "bg-amber-500/20 border-amber-500/40 text-amber-400 shadow-[0_0_20px_rgba(245,158,11,0.1)]"
+              }`}
           >
             <div className="relative">
               {publicationStatus === "VERIFIED" ? (
@@ -507,11 +529,10 @@ export default function DashboardPage() {
 
         <div className="flex flex-col md:flex-row items-stretch md:items-center gap-4 md:gap-6 relative z-10">
           <div
-            className={`flex items-center gap-4 px-6 py-4 rounded-2xl border-2 transition-all ${
-              publicationStatus === "PENDING"
+            className={`flex items-center gap-4 px-6 py-4 rounded-2xl border-2 transition-all ${publicationStatus === "PENDING"
                 ? "bg-amber-950/40 border-amber-500/30"
                 : "bg-slate-950/40 border-slate-700"
-            }`}
+              }`}
           >
             <div className="w-10 h-10 rounded-xl bg-rose-500/10 flex items-center justify-center">
               <Clock className="w-5 h-5 text-rose-400 animate-spin-slow" />
@@ -527,281 +548,297 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
-      
+
       {(publicationStatus as string) === "PENDING" && filterDate === getBdDateString() && (
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           className="bg-amber-600/10 border border-amber-600/20 p-4 rounded-2xl flex items-center justify-center gap-3 no-print"
         >
           <AlertCircle className="w-5 h-5 text-amber-600" />
           <p className="text-xs font-bold text-amber-700 uppercase tracking-widest">
-             Today's report is pending publication. Official statistics will be available after the release time.
+            Today's report is pending publication. Official statistics will be available after the release time.
           </p>
         </motion.div>
       )}
 
       {config?.outbreak?.hasDashboard === false ? (
         <div className="bg-white border-2 border-slate-100 rounded-[3rem] p-20 text-center shadow-xl">
-           <div className="w-24 h-24 bg-slate-50 text-slate-300 rounded-[2rem] flex items-center justify-center mx-auto mb-8">
-              <ActivitySquare className="w-12 h-12" />
-           </div>
-           <h2 className="text-3xl font-black text-slate-900 tracking-tight mb-4 uppercase">Analytics Unavailable</h2>
-           <p className="text-slate-500 font-medium max-w-lg mx-auto leading-relaxed mb-10">
-              The reporting dashboard has been disabled for this specific outbreak by the administration. 
-              Contact the MIS Department or Control Room for official SitReps.
-           </p>
-           <div className="flex items-center justify-center gap-4">
-              <div className="px-6 py-3 bg-slate-100 rounded-2xl text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">
-                 Status: Restricted
-              </div>
-           </div>
+          <div className="w-24 h-24 bg-slate-50 text-slate-300 rounded-[2rem] flex items-center justify-center mx-auto mb-8">
+            <ActivitySquare className="w-12 h-12" />
+          </div>
+          <h2 className="text-3xl font-black text-slate-900 tracking-tight mb-4 uppercase">Analytics Unavailable</h2>
+          <p className="text-slate-500 font-medium max-w-lg mx-auto leading-relaxed mb-10">
+            The reporting dashboard has been disabled for this specific outbreak by the administration.
+            Contact the MIS Department or Control Room for official SitReps.
+          </p>
+          <div className="flex items-center justify-center gap-4">
+            <div className="px-6 py-3 bg-slate-100 rounded-2xl text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">
+              Status: Restricted
+            </div>
+          </div>
         </div>
       ) : (
         <>
-      <div className="flex flex-col sm:flex-row flex-wrap items-center gap-4 p-4 bg-white rounded-3xl border border-slate-200 shadow-sm">
-        <div className="flex bg-slate-100 p-1.5 rounded-2xl border border-slate-200">
-          {(["today", "all"] as const).map((mode) => (
+          <div className="flex flex-col sm:flex-row flex-wrap items-center gap-4 p-4 bg-white rounded-3xl border border-slate-200 shadow-sm">
+            <div className="flex bg-slate-100 p-1.5 rounded-2xl border border-slate-200">
+              {(["today", "all"] as const).map((mode) => (
+                <button
+                  key={mode}
+                  onClick={() => setViewMode(mode)}
+                  className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === mode ? "bg-white text-indigo-600 shadow-lg" : "text-slate-500 hover:text-slate-700"}`}
+                >
+                  {mode === "today" ? "Live Today" : "Cumulative"}
+                </button>
+              ))}
+            </div>
+
+            {viewMode === "today" && (
+              <div className="flex items-center gap-2 px-4 py-2 bg-slate-50 rounded-xl border border-slate-100">
+                <Calendar className="w-4 h-4 text-indigo-500" />
+                <input
+                  type="date"
+                  value={filterDate}
+                  onChange={(e) => setFilterDate(e.target.value)}
+                  min="2026-04-10"
+                  max={getBdDateString()}
+                  className="bg-transparent border-none focus:ring-0 text-slate-700 text-xs font-bold cursor-pointer"
+                />
+              </div>
+            )}
+
+            {viewMode === "all" && (
+              <div className="flex items-center gap-2 px-4 py-2 bg-slate-50 rounded-xl border border-slate-100">
+                <Calendar className="w-4 h-4 text-indigo-500" />
+                <div className="flex items-center gap-2">
+                  <input
+                    type="date"
+                    value={dateRange.from || ""}
+                    onChange={(e) => setDateRange({ ...dateRange, from: e.target.value })}
+                    min="2026-04-10"
+                    className="bg-transparent border-none focus:ring-0 text-slate-700 text-xs font-bold cursor-pointer"
+                  />
+                  <span className="text-slate-400 text-[10px] font-bold uppercase">to</span>
+                  <input
+                    type="date"
+                    value={dateRange.to || ""}
+                    onChange={(e) => setDateRange({ ...dateRange, to: e.target.value })}
+                    min="2026-04-10"
+                    className="bg-transparent border-none focus:ring-0 text-slate-700 text-xs font-bold cursor-pointer"
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="flex items-center gap-2 px-4 py-2 bg-slate-50 rounded-xl border border-slate-100 min-w-[200px]">
+              <Filter className="w-12 h-4 text-indigo-500" />
+              <SearchableSelect
+                label=""
+                placeholder="All Divisions"
+                options={[{ value: "", label: "All Divisions" }, ...DIVISIONS.map(d => ({ value: d, label: d }))]}
+                value={selectedDivision || ""}
+                onChange={value => {
+                  setSelectedDivision(value || null);
+                  setSelectedDistrict(null);
+                }}
+              />
+            </div>
+
+            {selectedDivision && DISTRICTS[selectedDivision] && (
+              <div className="flex items-center gap-2 px-4 py-2 bg-slate-50 rounded-xl border border-slate-100 min-w-[200px]">
+                <SearchableSelect
+                  label=""
+                  placeholder="All Districts"
+                  options={[{ value: "", label: "All Districts" }, ...(DISTRICTS[selectedDivision] || []).map(d => ({ value: d, label: d }))]}
+                  value={selectedDistrict || ""}
+                  onChange={value => {
+                    setSelectedDistrict(value || null);
+                    setSelectedFacilityId(null);
+                  }}
+                />
+              </div>
+            )}
+
+            {selectedDistrict && facilities.length > 0 && (
+              <div className="flex items-center gap-2 px-4 py-2 bg-slate-50 rounded-xl border border-slate-100 min-w-[200px]">
+                <SearchableSelect
+                  label=""
+                  placeholder="All Facilities"
+                  options={facilities}
+                  value={selectedFacilityId || ""}
+                  onChange={value => setSelectedFacilityId(value || null)}
+                />
+              </div>
+            )}
+
+            <div className="flex items-center hidden gap-2 px-4 py-2 bg-slate-50 rounded-2xl border border-slate-100 min-w-[200px]">
+              <Activity className="w-4 h-4 text-indigo-500" />
+              <div className="flex-1">
+                <OutbreakSelector
+                  onSelect={(id) => setSelectedOutbreakId(id)}
+                  defaultValue={selectedOutbreakId || undefined}
+                />
+              </div>
+            </div>
+
             <button
-              key={mode}
-              onClick={() => setViewMode(mode)}
-              className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === mode ? "bg-white text-indigo-600 shadow-lg" : "text-slate-500 hover:text-slate-700"}`}
+              onClick={() => mutateSummary()}
+              disabled={loading}
+              className="ml-auto bg-slate-900 hover:bg-black text-white px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl transition-all active:scale-95 flex items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {mode === "today" ? "Live Today" : "Cumulative"}
+              {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+              {loading ? "Syncing..." : "Sync Insights"}
             </button>
-          ))}
-        </div>
-
-        {viewMode === "today" && (
-          <div className="flex items-center gap-2 px-4 py-2 bg-slate-50 rounded-xl border border-slate-100">
-            <Calendar className="w-4 h-4 text-indigo-500" />
-            <input
-              type="date"
-              value={filterDate}
-              onChange={(e) => setFilterDate(e.target.value)}
-              min="2026-04-10"
-              max={getBdDateString()}
-              className="bg-transparent border-none focus:ring-0 text-slate-700 text-xs font-bold cursor-pointer"
-            />
           </div>
-        )}
 
-        {viewMode === "all" && (
-          <div className="flex items-center gap-2 px-4 py-2 bg-slate-50 rounded-xl border border-slate-100">
-            <Calendar className="w-4 h-4 text-indigo-500" />
-            <div className="flex items-center gap-2">
-              <input
-                type="date"
-                value={dateRange.from || ""}
-                onChange={(e) => setDateRange({ ...dateRange, from: e.target.value })}
-                min="2026-04-10"
-                className="bg-transparent border-none focus:ring-0 text-slate-700 text-xs font-bold cursor-pointer"
-              />
-              <span className="text-slate-400 text-[10px] font-bold uppercase">to</span>
-              <input
-                type="date"
-                value={dateRange.to || ""}
-                onChange={(e) => setDateRange({ ...dateRange, to: e.target.value })}
-                min="2026-04-10"
-                className="bg-transparent border-none focus:ring-0 text-slate-700 text-xs font-bold cursor-pointer"
-              />
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+            {coreFields.length > 0 ? (
+              coreFields.map((field: any) => {
+                const iconMap: any = {
+                  cases: <Users />,
+                  mortality: <Skull />,
+                  hospitalization: <PlusSquare />,
+                  lab: <ActivitySquare />,
+                };
+                const colorMap: any = {
+                  cases: "#F59E0B",
+                  mortality: "#0F172A",
+                  hospitalization: "#3B82F6",
+                  lab: "#8B5CF6",
+                };
+                const label = i18n.language === "bn" ? field.labelBn || field.label : field.label;
+                return (
+                  <KPICard
+                    key={field.id}
+                    title={label}
+                    value={toBnNumSafe(kpiData[field.fieldKey], i18n)}
+                    subValue={viewMode === "all" ? "Cumulative Volume" : "Last 24 Hours"}
+                    icon={iconMap[field.section] || <Activity />}
+                    color={colorMap[field.section] || "#6366f1"}
+                  />
+                );
+              })
+            ) : (
+              <>
+                <KPICard title="Suspected" value={toBnNumSafe(kpiData["suspected24h"], i18n)} subValue={viewMode === "all" ? "Cumulative Volume" : "Last 24 Hours"} icon={<Users />} color="#F59E0B" />
+                <KPICard title="Confirmed" value={toBnNumSafe(kpiData["confirmed24h"], i18n)} subValue={viewMode === "all" ? "Cumulative Volume" : "Last 24 Hours"} icon={<Edit />} color="#EF4444" />
+                <KPICard title="Admitted" value={toBnNumSafe(kpiData["admitted24h"], i18n)} subValue={viewMode === "all" ? "Cumulative Volume" : "Last 24 Hours"} icon={<PlusSquare />} color="#3B82F6" />
+                <KPICard title="Mortality" value={toBnNumSafe((kpiData["suspectedDeath24h"] || 0) + (kpiData["confirmedDeath24h"] || 0), i18n)} subValue={viewMode === "all" ? "Total Volume" : "Last 24 Hours"} icon={<Skull />} color="#0F172A" />
+                <KPICard title="Reporting Rate" value={`${userStats.submissionRate}%`} icon={<TrendingUp />} color="#8B5CF6" subValue={`${userStats.activeToday} facility reports`} />
+              </>
+            )}
+          </div>
+          <div className="no-print px-4">
+            <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-2xl shadow-slate-200/40 p-8 relative overflow-hidden">
+              {/* Header */}
+              <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest mb-6 flex items-center gap-3">
+                <Skull className="w-5 h-5 text-rose-500 animate-pulse" />
+                High Mortality Zones
+              </h3>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                {tableData
+                  .sort((a, b) => (b.cumulative.confirmedDeath + b.cumulative.suspectedDeath) - (a.cumulative.confirmedDeath + a.cumulative.suspectedDeath))
+                  .slice(0, 5)
+                  .map((d: any) => (
+                    <div
+                      key={d.name}
+                      className="flex flex-col justify-center p-4 bg-slate-50 rounded-2xl hover:bg-rose-50 transition-all cursor-default group border border-transparent hover:border-rose-100"
+                    >
+                      <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1 group-hover:text-rose-600 transition-colors">
+                        {d.name}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg font-black text-slate-900 group-hover:text-rose-700 transition-colors font-mono">
+                          {toBnNumSafe(d.cumulative.confirmedDeath + d.cumulative.suspectedDeath, i18n)}
+                        </span>
+                        <div className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                      </div>
+                    </div>
+                  ))}
+              </div>
             </div>
           </div>
-        )}
+          <OutbreakMap apiEndpoint={`/api/reports/geo?${dynamicFilterParams}`} />
+          <EpiInsights apiEndpoint={`/api/reports/timeseries?${dynamicFilterParams}`} />
 
-        <div className="flex items-center gap-2 px-4 py-2 bg-slate-50 rounded-xl border border-slate-100 min-w-[200px]">
-          <Filter className="w-12 h-4 text-indigo-500" />
-          <SearchableSelect 
-            label=""
-            placeholder="All Divisions"
-            options={[{ value: "", label: "All Divisions" }, ...DIVISIONS.map(d => ({ value: d, label: d }))]}
-            value={selectedDivision || ""}
-            onChange={value => {
-              setSelectedDivision(value || null);
-              setSelectedDistrict(null);
-            }}
-          />
-        </div>
-
-        {selectedDivision && DISTRICTS[selectedDivision] && (
-          <div className="flex items-center gap-2 px-4 py-2 bg-slate-50 rounded-xl border border-slate-100 min-w-[200px]">
-            <SearchableSelect 
-              label=""
-              placeholder="All Districts"
-              options={[{ value: "", label: "All Districts" }, ...(DISTRICTS[selectedDivision] || []).map(d => ({ value: d, label: d }))]}
-              value={selectedDistrict || ""}
-              onChange={value => setSelectedDistrict(value || null)}
-            />
-          </div>
-        )}
-
-        <div className="flex items-center hidden gap-2 px-4 py-2 bg-slate-50 rounded-2xl border border-slate-100 min-w-[200px]">
-          <Activity className="w-4 h-4 text-indigo-500" />
-          <div className="flex-1">
-            <OutbreakSelector
-              onSelect={(id) => setSelectedOutbreakId(id)}
-              defaultValue={selectedOutbreakId || undefined}
-            />
-          </div>
-        </div>
-
-        <button
-          onClick={() => mutateSummary()}
-          disabled={loading}
-          className="ml-auto bg-slate-900 hover:bg-black text-white px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl transition-all active:scale-95 flex items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
-          {loading ? "Syncing..." : "Sync Insights"}
-        </button>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
-        {coreFields.length > 0 ? (
-          coreFields.map((field: any) => {
-            const iconMap: any = {
-              cases: <Users />,
-              mortality: <Skull />,
-              hospitalization: <PlusSquare />,
-              lab: <ActivitySquare />,
-            };
-            const colorMap: any = {
-              cases: "#F59E0B",
-              mortality: "#0F172A",
-              hospitalization: "#3B82F6",
-              lab: "#8B5CF6",
-            };
-            const label = i18n.language === "bn" ? field.labelBn || field.label : field.label;
-            return (
-              <KPICard
-                key={field.id}
-                title={label}
-                value={toBnNumSafe(kpiData[field.fieldKey], i18n)}
-                subValue={viewMode === "all" ? "Cumulative Volume" : "Last 24 Hours"}
-                icon={iconMap[field.section] || <Activity />}
-                color={colorMap[field.section] || "#6366f1"}
-              />
-            );
-          })
-        ) : (
-          <>
-            <KPICard title="Suspected" value={toBnNumSafe(kpiData["suspected24h"], i18n)} subValue={viewMode === "all" ? "Cumulative Volume" : "Last 24 Hours"} icon={<Users />} color="#F59E0B" />
-            <KPICard title="Confirmed" value={toBnNumSafe(kpiData["confirmed24h"], i18n)} subValue={viewMode === "all" ? "Cumulative Volume" : "Last 24 Hours"} icon={<Edit />} color="#EF4444" />
-            <KPICard title="Admitted" value={toBnNumSafe(kpiData["admitted24h"], i18n)} subValue={viewMode === "all" ? "Cumulative Volume" : "Last 24 Hours"} icon={<PlusSquare />} color="#3B82F6" />
-            <KPICard title="Mortality" value={toBnNumSafe((kpiData["suspectedDeath24h"] || 0) + (kpiData["confirmedDeath24h"] || 0), i18n)} subValue={viewMode === "all" ? "Total Volume" : "Last 24 Hours"} icon={<Skull />} color="#0F172A" />
-            <KPICard title="Reporting Rate" value={`${userStats.submissionRate}%`} icon={<TrendingUp />} color="#8B5CF6" subValue={`${userStats.activeToday} facility reports`} />
-          </>
-        )}
-      </div>
-<div className="no-print px-4">
-  <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-2xl shadow-slate-200/40 p-8 relative overflow-hidden">
-    {/* Header */}
-    <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest mb-6 flex items-center gap-3">
-      <Skull className="w-5 h-5 text-rose-500 animate-pulse" /> 
-      High Mortality Zones
-    </h3>
-
-    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-      {tableData
-        .sort((a, b) => (b.cumulative.confirmedDeath + b.cumulative.suspectedDeath) - (a.cumulative.confirmedDeath + a.cumulative.suspectedDeath))
-        .slice(0, 5)
-        .map((d: any) => (
-          <div 
-            key={d.name} 
-            className="flex flex-col justify-center p-4 bg-slate-50/50 rounded-2xl hover:bg-rose-50 transition-all cursor-default group border border-transparent hover:border-rose-100"
-          >
-            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1 group-hover:text-rose-600 transition-colors">
-              {d.name}
-            </span>
-            <div className="flex items-center gap-2">
-              <span className="text-lg font-black text-slate-900 group-hover:text-rose-700 transition-colors font-mono">
-                {toBnNumSafe(d.cumulative.confirmedDeath + d.cumulative.suspectedDeath, i18n)}
-              </span>
-              <div className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+          <section className="space-y-6">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-6 no-print px-4">
+              <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tighter">
+                {selectedFacilityId ? 'FACILITY' : selectedDistrict ? 'DISTRICT' : selectedDivision ? `${selectedDivision}-WISE` : 'DIVISION-WISE'} DETAILED ANALYSIS
+              </h2>
+              <div className="flex gap-4">
+                <button onClick={handleExportExcel} className="flex items-center gap-3 px-8 py-4 bg-emerald-700 text-white rounded-2xl text-xs font-black uppercase shadow-2xl"><Download className="w-5 h-5" /> EXCEL</button>
+              </div>
             </div>
-          </div>
-        ))}
-    </div>
-  </div>
-</div>
-      <OutbreakMap apiEndpoint={`/api/reports/geo?${dynamicFilterParams}`} />
-      <EpiInsights apiEndpoint={`/api/reports/timeseries?${dynamicFilterParams}`} />
-
-      <section className="space-y-6">
-         <div className="flex flex-col sm:flex-row items-center justify-between gap-6 no-print px-4">
-            <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tighter">{selectedDivision ? `${selectedDivision}-WISE` : 'DIVISION-WISE'} DETAILED ANALYSIS</h2>
-            <div className="flex gap-4">
-               <button onClick={handleExportExcel} className="flex items-center gap-3 px-8 py-4 bg-emerald-700 text-white rounded-2xl text-xs font-black uppercase shadow-2xl"><Download className="w-5 h-5" /> EXCEL</button>
-            </div>
-         </div>
-
-         <div className="bg-white rounded-[3.5rem] border border-slate-200 overflow-hidden shadow-2xl">
-            <div className="overflow-x-auto">
-               <table className="w-full border-collapse xl:table">
+            <div className="bg-white rounded-[3.5rem] border border-slate-200 overflow-hidden shadow-2xl">
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse xl:table">
                   <thead className="bg-[#1e293b] text-white text-[9px] font-black uppercase tracking-[0.15em] text-center">
-                     <tr>
-                        <th rowSpan={2} className="px-8 py-8 text-left border-r border-slate-700 bg-[#0f172a] sticky left-0 z-20">{selectedDivision ? 'DISTRICT' : 'DIVISION'}</th>
-                        <th colSpan={6} className="px-6 py-4 bg-[#1e293b] border-b border-white/5 tracking-widest text-[#94a3b8]">Last 24 Hour Surveillance</th>
-                        <th colSpan={6} className="px-6 py-4 bg-[#0f172a] border-b border-white/5 tracking-widest text-[#6366f1]">Total Outbreak Volume (Cumulative)</th>
-                     </tr>
-                     <tr className="bg-[#1e293b] border-t border-white/5 text-[8px]">
-                        <th colSpan={2} className="px-4 py-3 border-r border-white/5 bg-slate-800/50">Suspected</th>
-                        <th colSpan={2} className="px-4 py-3 border-r border-white/5 bg-slate-800/50">Confirmed</th>
-                        <th className="px-4 py-3 border-r border-white/5 bg-slate-800/50">ADM.</th>
-                        <th className="px-4 py-3 border-r border-white/5 bg-slate-800/50">DIS.</th>
-                        <th colSpan={2} className="px-4 py-3 border-r border-white/5 bg-[#0f172a]/50">Suspected</th>
-                        <th colSpan={2} className="px-4 py-3 border-r border-white/5 bg-[#0f172a]/50">Confirmed</th>
-                        <th className="px-4 py-3 border-r border-white/5 bg-[#0f172a]/50">ADM.</th>
-                        <th className="px-4 py-3 bg-[#0f172a]/50">DIS.</th>
-                     </tr>
-                     <tr className="bg-[#0f172a] text-[#64748b] border-t border-slate-700 text-[8px]">
-                        <th className="sticky left-0 bg-[#0f172a] border-r border-slate-700"></th>
-                        <th className="px-3 py-3 border-r border-slate-700">Cases</th><th className="px-3 py-3 border-r border-slate-700">Deaths</th>
-                        <th className="px-3 py-3 border-r border-slate-700">Cases</th><th className="px-3 py-3 border-r border-slate-700">Deaths</th>
-                        <th className="px-3 py-3 border-r border-slate-700 uppercase">Vol.</th><th className="px-3 py-3 border-r border-slate-700 uppercase">Vol.</th>
-                        <th className="px-3 py-3 border-r border-slate-700 uppercase text-white">Total</th><th className="px-3 py-3 border-r border-slate-700 uppercase text-rose-400">Total</th>
-                        <th className="px-3 py-3 border-r border-slate-700 uppercase text-white">Total</th><th className="px-3 py-3 border-r border-slate-700 uppercase text-rose-400">Total</th>
-                        <th className="px-3 py-3 border-r border-slate-700 uppercase text-white">Total</th><th className="px-3 py-3 uppercase text-white">Total</th>
-                     </tr>
+                    <tr>
+                      <th rowSpan={2} className="px-8 py-8 text-left border-r border-slate-700 bg-[#0f172a] sticky left-0 z-20 scroll-gpu">{selectedDivision ? 'DISTRICT' : 'DIVISION'}</th>
+                      <th colSpan={6} className="px-6 py-4 bg-[#1e293b] border-b border-white/5 tracking-widest text-[#94a3b8]">Last 24 Hour Surveillance</th>
+                      <th colSpan={6} className="px-6 py-4 bg-[#0f172a] border-b border-white/5 tracking-widest text-[#6366f1]">Total Outbreak Volume (Cumulative)</th>
+                    </tr>
+                    <tr className="bg-[#1e293b] border-t border-white/5 text-[8px]">
+                      <th colSpan={2} className="px-4 py-3 border-r border-white/5 bg-slate-800/50">Suspected</th>
+                      <th colSpan={2} className="px-4 py-3 border-r border-white/5 bg-slate-800/50">Confirmed</th>
+                      <th className="px-4 py-3 border-r border-white/5 bg-slate-800/50">ADM.</th>
+                      <th className="px-4 py-3 border-r border-white/5 bg-slate-800/50">DIS.</th>
+                      <th colSpan={2} className="px-4 py-3 border-r border-white/5 bg-[#0f172a]/50">Suspected</th>
+                      <th colSpan={2} className="px-4 py-3 border-r border-white/5 bg-[#1e293b]">Confirmed</th>
+                      <th className="px-4 py-3 border-r border-white/5 bg-[#1e293b]">ADM.</th>
+                      <th className="px-4 py-3 border-r border-white/5 bg-[#1e293b]">DIS.</th>
+                    </tr>
+                    <tr className="bg-[#0f172a] text-[#64748b] border-t border-slate-700 text-[8px]">
+                      <th className="sticky left-0 bg-[#0f172a] border-r border-slate-700 scroll-gpu"></th>
+                      <th className="px-3 py-3 border-r border-slate-700 bg-[#1e293b] text-white">Cases</th><th className="px-3 py-3 border-r border-slate-700 bg-[#1e293b] text-rose-400">Deaths</th>
+                      <th className="px-3 py-3 border-r border-slate-700 bg-[#1e293b] text-white">Cases</th><th className="px-3 py-3 border-r border-slate-700 bg-[#1e293b] text-rose-400">Deaths</th>
+                      <th className="px-3 py-3 border-r border-slate-700 bg-[#1e293b] uppercase text-white">Total</th><th className="px-3 py-3 border-r border-slate-700 bg-[#1e293b] uppercase text-white">Total</th>
+                      <th className="px-3 py-3 border-r border-slate-700 bg-[#0f172a] uppercase text-white">Cases</th><th className="px-3 py-3 border-r border-slate-700 bg-[#0f172a] uppercase text-rose-400">Deaths</th>
+                      <th className="px-3 py-3 border-r border-slate-700 bg-[#0f172a] uppercase text-white">Cases</th><th className="px-3 py-3 border-r border-slate-700 bg-[#0f172a] uppercase text-rose-400">Deaths</th>
+                      <th className="px-3 py-3 border-r border-slate-700 bg-[#0f172a] uppercase text-white">Total</th><th className="px-3 py-3 uppercase text-white bg-[#0f172a]">Total</th>
+                    </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                     {tableData.map((d: any) => (
-                        <tr key={d.name} className="group hover:bg-slate-50 transition-all duration-200">
-                           <td className="px-8 py-4 sticky left-0 bg-white group-hover:bg-slate-50 z-10 border-r border-slate-50 font-black text-slate-800 text-sm uppercase tracking-tighter">{d.name}</td>
-                           <td className="px-4 py-4 text-center text-slate-400 font-bold text-sm bg-slate-50/30">{toBnNumSafe(d.today.suspected, i18n)}</td>
-                           <td className="px-4 py-4 text-center text-slate-300 font-bold text-sm bg-slate-50/30">{toBnNumSafe(d.today.suspectedDeath, i18n)}</td>
-                           <td className="px-4 py-4 text-center text-slate-400 font-bold text-sm bg-slate-50/30">{toBnNumSafe(d.today.confirmed, i18n)}</td>
-                           <td className="px-4 py-4 text-center text-rose-400 font-bold text-sm bg-slate-50/30">{toBnNumSafe(d.today.confirmedDeath, i18n)}</td>
-                           <td className="px-4 py-4 text-center text-slate-400 font-bold text-sm bg-slate-50/30">{toBnNumSafe(d.today.admitted, i18n)}</td>
-                           <td className="px-4 py-4 text-center text-slate-400 font-bold text-sm bg-slate-50/30">{toBnNumSafe(d.today.recovered, i18n)}</td>
-                           <td className="px-4 py-4 text-center text-slate-900 font-black text-sm">{toBnNumSafe(d.cumulative.suspected, i18n)}</td>
-                           <td className="px-4 py-4 text-center text-slate-400 font-bold text-sm">{toBnNumSafe(d.cumulative.suspectedDeath, i18n)}</td>
-                           <td className="px-4 py-4 text-center text-slate-900 font-black text-sm">{toBnNumSafe(d.cumulative.confirmed, i18n)}</td>
-                           <td className="px-4 py-4 text-center text-rose-600 font-black text-sm">{toBnNumSafe(d.cumulative.confirmedDeath, i18n)}</td>
-                           <td className="px-4 py-4 text-center text-slate-500 font-bold text-sm">{toBnNumSafe(d.cumulative.admitted, i18n)}</td>
-                           <td className="px-4 py-4 text-center text-slate-500 font-bold text-sm">{toBnNumSafe(d.cumulative.recovered, i18n)}</td>
-                        </tr>
-                     ))}
-                     <tr className="bg-slate-900 text-white font-black text-sm text-center">
-                        <td className="py-8 px-8 text-left sticky left-0 bg-slate-900 z-10 uppercase tracking-widest">{selectedDistrict ? 'District Total' : selectedDivision ? 'Division Aggregate' : 'National Aggregate'}</td>
-                        <td className="py-8 bg-slate-800/40">{toBnNumSafe(stats.today.suspected, i18n)}</td>
-                        <td className="py-8 bg-slate-800/40">{toBnNumSafe(stats.today.suspectedDeath, i18n)}</td>
-                        <td className="py-8 bg-slate-800/40">{toBnNumSafe(stats.today.confirmed, i18n)}</td>
-                        <td className="py-8 bg-slate-800/40 text-rose-400">{toBnNumSafe(stats.today.confirmedDeath, i18n)}</td>
-                        <td className="py-8 bg-slate-800/40">{toBnNumSafe(stats.today.admitted, i18n)}</td>
-                        <td className="py-8 bg-slate-800/40">{toBnNumSafe(stats.today.recovered, i18n)}</td>
-                        <td className="py-8 bg-indigo-900/40">{toBnNumSafe(stats.cumulative.suspected, i18n)}</td>
-                        <td className="py-8 bg-indigo-900/40">{toBnNumSafe(stats.cumulative.suspectedDeath, i18n)}</td>
-                        <td className="py-8 bg-indigo-900/40 text-emerald-400">{toBnNumSafe(stats.cumulative.confirmed, i18n)}</td>
-                        <td className="py-8 bg-indigo-900/40 text-rose-400">{toBnNumSafe(stats.cumulative.confirmedDeath, i18n)}</td>
-                        <td className="py-8 bg-indigo-900/40">{toBnNumSafe(stats.cumulative.admitted, i18n)}</td>
-                        <td className="py-8 bg-indigo-900/40">{toBnNumSafe(stats.cumulative.recovered, i18n)}</td>
-                     </tr>
+                    {tableData.map((d: any) => (
+                      <tr key={d.name} className="group hover:bg-slate-50 transition-all duration-200 scroll-gpu">
+                        <td className="px-8 py-4 sticky left-0 bg-white group-hover:bg-slate-50 z-10 border-r border-slate-50 font-black text-slate-800 text-sm uppercase tracking-tighter scroll-gpu">{d.name}</td>
+                        <td className="px-4 py-4 text-center text-slate-600 font-bold text-sm bg-slate-50">{toBnNumSafe(d.today.suspected, i18n)}</td>
+                        <td className="px-4 py-4 text-center text-slate-500 font-bold text-sm bg-slate-50">{toBnNumSafe(d.today.suspectedDeath, i18n)}</td>
+                        <td className="px-4 py-4 text-center text-slate-600 font-bold text-sm bg-slate-50">{toBnNumSafe(d.today.confirmed, i18n)}</td>
+                        <td className="px-4 py-4 text-center text-rose-500 font-bold text-sm bg-slate-50">{toBnNumSafe(d.today.confirmedDeath, i18n)}</td>
+                        <td className="px-4 py-4 text-center text-slate-600 font-bold text-sm bg-slate-50">{toBnNumSafe(d.today.admitted, i18n)}</td>
+                        <td className="px-4 py-4 text-center text-slate-600 font-bold text-sm bg-slate-50">{toBnNumSafe(d.today.recovered, i18n)}</td>
+                        <td className="px-4 py-4 text-center text-slate-900 font-black text-sm">{toBnNumSafe(d.cumulative.suspected, i18n)}</td>
+                        <td className="px-4 py-4 text-center text-slate-500 font-bold text-sm">{toBnNumSafe(d.cumulative.suspectedDeath, i18n)}</td>
+                        <td className="px-4 py-4 text-center text-slate-900 font-black text-sm">{toBnNumSafe(d.cumulative.confirmed, i18n)}</td>
+                        <td className="px-4 py-4 text-center text-rose-600 font-black text-sm">{toBnNumSafe(d.cumulative.confirmedDeath, i18n)}</td>
+                        <td className="px-4 py-4 text-center text-slate-500 font-bold text-sm">{toBnNumSafe(d.cumulative.admitted, i18n)}</td>
+                        <td className="px-4 py-4 text-center text-slate-500 font-bold text-sm">{toBnNumSafe(d.cumulative.recovered, i18n)}</td>
+                      </tr>
+                    ))}
+                    <tr className="bg-slate-900 text-white font-black text-sm text-center">
+                      <td className="py-8 px-8 text-left sticky left-0 bg-slate-900 z-10 uppercase tracking-widest scroll-gpu">{selectedDistrict ? 'District Total' : selectedDivision ? 'Division Aggregate' : 'National Aggregate'}</td>
+                      <td className="py-8 bg-slate-800/40">{toBnNumSafe(stats.today.suspected, i18n)}</td>
+                      <td className="py-8 bg-slate-800/40">{toBnNumSafe(stats.today.suspectedDeath, i18n)}</td>
+                      <td className="py-8 bg-slate-800/40">{toBnNumSafe(stats.today.confirmed, i18n)}</td>
+                      <td className="py-8 bg-slate-800/40 text-rose-400">{toBnNumSafe(stats.today.confirmedDeath, i18n)}</td>
+                      <td className="py-8 bg-slate-800/40">{toBnNumSafe(stats.today.admitted, i18n)}</td>
+                      <td className="py-8 bg-slate-800/40">{toBnNumSafe(stats.today.recovered, i18n)}</td>
+                      <td className="py-8 bg-indigo-900/40">{toBnNumSafe(stats.cumulative.suspected, i18n)}</td>
+                      <td className="py-8 bg-indigo-900/40">{toBnNumSafe(stats.cumulative.suspectedDeath, i18n)}</td>
+                      <td className="py-8 bg-indigo-900/40 text-emerald-400">{toBnNumSafe(stats.cumulative.confirmed, i18n)}</td>
+                      <td className="py-8 bg-indigo-900/40 text-rose-400">{toBnNumSafe(stats.cumulative.confirmedDeath, i18n)}</td>
+                      <td className="py-8 bg-indigo-900/40">{toBnNumSafe(stats.cumulative.admitted, i18n)}</td>
+                      <td className="py-8 bg-indigo-900/40">{toBnNumSafe(stats.cumulative.recovered, i18n)}</td>
+                    </tr>
                   </tbody>
-               </table>
+                </table>
+              </div>
             </div>
-         </div>
-      </section>
-      </>
+          </section>
+        </>
       )}
       <ScrollToTop />
     </div>

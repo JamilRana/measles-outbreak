@@ -43,7 +43,7 @@ export const SearchableSelect = ({ label, options, value, onChange, placeholder,
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full bg-white border border-slate-300 rounded-xl py-3 px-4 text-sm font-bold text-slate-900 flex items-center justify-between shadow-sm hover:border-indigo-300 transition-all"
+        className="w-full bg-white border border-slate-300 rounded-2xl py-3 px-4 text-sm font-bold text-slate-900 flex items-center justify-between shadow-sm hover:border-indigo-300 transition-all"
       >
         <span className="flex items-center gap-2 truncate">
           {Icon && <Icon className="w-4 h-4 text-indigo-500" />}

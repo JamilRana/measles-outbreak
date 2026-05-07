@@ -35,12 +35,12 @@ interface StatSet {
 const ReportHeader = ({ displayDate, filterDate, setSelectedDate, onPrint, toBnNum }: any) => {
   const dateObj = new Date(displayDate);
   const months = ['জানুয়ারি', 'ফেব্রুয়ারি', 'মার্চ', 'এপ্রিল', 'মে', 'জুন', 'জুলাই', 'আগস্ট', 'সেপ্টেম্বর', 'অক্টোবর', 'নভেম্বর', 'ডিসেম্বর'];
-  const formattedDate = `${toBnNum(dateObj.getDate())} ${months[dateObj.getMonth()]} ${toBnNum(dateObj.getFullYear())}`;
+  const formattedDate = `${toBnNum(dateObj.getDate(), true)} ${months[dateObj.getMonth()]} ${toBnNum(dateObj.getFullYear(), true)}`;
   
   // Previous day for the range
   const prevDate = new Date(dateObj);
   prevDate.setDate(prevDate.getDate() - 1);
-  const formattedPrevDate = `${toBnNum(prevDate.getDate())} ${months[prevDate.getMonth()]}`;
+  const formattedPrevDate = `${toBnNum(prevDate.getDate(), true)} ${months[prevDate.getMonth()]}`;
 
   return (
     <header className="flex flex-col items-center pt-8 pb-4 text-center bg-white border-b border-slate-100 relative">
@@ -77,7 +77,7 @@ const ReportHeader = ({ displayDate, filterDate, setSelectedDate, onPrint, toBnN
       <div className="max-w-[800px] mx-auto text-[11px] font-bold space-y-2 mt-4">
         <p className="underline underline-offset-4">হাম বিষয়ক অন্যান্য তথ্যাদি নিম্নরূপঃ</p>
         <p className="bg-slate-50 py-1.5 px-4 rounded-full border border-slate-200">
-           {formattedPrevDate} সকাল ৮:০০ টা থেকে {toBnNum(dateObj.getDate())} {months[dateObj.getMonth()]} সকাল ৮:০০ টা পর্যন্ত (তথ্য সূত্রঃ হেলথ ইমার্জেন্সি অপারেশন সেন্টার ও কন্ট্রোল রুম, স্বাস্থ্য অধিদপ্তর।)
+           {formattedPrevDate} সকাল ৮:০০ টা থেকে {toBnNum(dateObj.getDate(), true)} {months[dateObj.getMonth()]} সকাল ৮:০০ টা পর্যন্ত (তথ্য সূত্রঃ হেলথ ইমার্জেন্সি অপারেশন সেন্টার ও কন্ট্রোল রুম, স্বাস্থ্য অধিদপ্তর।)
         </p>
       </div>
 
@@ -94,16 +94,6 @@ const ReportHeader = ({ displayDate, filterDate, setSelectedDate, onPrint, toBnN
   );
 };
 
-const VerificationLine = ({ selectedDate, cleaningStatus }: any) => (
-  <div className="flex justify-end mb-4 pr-2">
-     <div className="text-[9px] font-bold text-slate-400 uppercase border-r border-slate-200 pr-3 mr-3">
-        Surveillance Cycle: <span className="text-slate-900">{selectedDate}</span>
-     </div>
-     <div className="text-[9px] font-bold text-slate-400 uppercase">
-        Status: <span className={cleaningStatus === 'done' ? 'text-emerald-600' : 'text-amber-600'}>{cleaningStatus === 'done' ? 'VERIFIED' : 'PENDING'}</span>
-     </div>
-  </div>
-);
 
 const GovernmentSummary = ({ stats, toBnNum, divisionStats, leaders }: any) => {
   const tdClass = "border border-slate-900 py-2 px-2 text-xs font-bold";
@@ -131,12 +121,12 @@ const GovernmentSummary = ({ stats, toBnNum, divisionStats, leaders }: any) => {
         </thead>
         <tbody>
           <tr>
-            <td className={tdClass}>{toBnNum(stats.today.suspected)}</td>
-            <td className={tdClass}>{toBnNum(stats.cumulative.suspected)}</td>
-            <td className={tdClass}>{toBnNum(stats.today.confirmed)}</td>
-            <td className={tdClass}>{toBnNum(stats.cumulative.confirmed)}</td>
-            <td className={tdClass}>{toBnNum(stats.cumulative.admitted)}</td>
-            <td className={tdClass}>{toBnNum(stats.cumulative.recovered)}</td>
+            <td className={tdClass}>{stats.today.suspected.toLocaleString()}</td>
+            <td className={tdClass}>{stats.cumulative.suspected.toLocaleString()}</td>
+            <td className={tdClass}>{stats.today.confirmed.toLocaleString()}</td>
+            <td className={tdClass}>{stats.cumulative.confirmed.toLocaleString()}</td>
+            <td className={tdClass}>{stats.cumulative.admitted.toLocaleString()}</td>
+            <td className={tdClass}>{stats.cumulative.recovered.toLocaleString()}</td>
           </tr>
         </tbody>
       </table>
@@ -161,12 +151,12 @@ const GovernmentSummary = ({ stats, toBnNum, divisionStats, leaders }: any) => {
         </thead>
         <tbody>
           <tr>
-            <td className={tdClass}>{toBnNum(leaders.divisionDeaths)}</td>
-            <td className={tdClass}>{toBnNum(leaders.districtDeaths)}</td>
-            <td className={tdClass}>{toBnNum(stats.today.confirmedDeath)}</td>
-            <td className={tdClass}>{toBnNum(stats.cumulative.confirmedDeath)}</td>
-            <td className={tdClass}>{toBnNum(stats.today.suspectedDeath)}</td>
-            <td className={tdClass}>{toBnNum(stats.cumulative.suspectedDeath)}</td>
+            <td className={tdClass}>{leaders.divisionDeaths.toLocaleString()}</td>
+            <td className={tdClass}>{leaders.districtDeaths.toLocaleString()}</td>
+            <td className={tdClass}>{stats.today.confirmedDeath.toLocaleString()}</td>
+            <td className={tdClass}>{stats.cumulative.confirmedDeath.toLocaleString()}</td>
+            <td className={tdClass}>{stats.today.suspectedDeath.toLocaleString()}</td>
+            <td className={tdClass}>{stats.cumulative.suspectedDeath.toLocaleString()}</td>
           </tr>
         </tbody>
       </table>
@@ -183,7 +173,7 @@ const DailyLogTable = ({ paginatedLog, toBnNum, logPage, totalLogPages, setLogPa
     const date = new Date(dateStr);
     if (i18n.language !== 'bn') return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
     const months = ['জানু', 'ফেব্রু', 'মার্চ', 'এপ্রিল', 'মে', 'জুন', 'জুলাই', 'আগস্ট', 'সেপ্টে', 'অক্টো', 'নভে', 'ডিসে'];
-    return `${toBnNum(date.getDate())} ${months[date.getMonth()]}`;
+    return `${toBnNum(date.getDate(), true)} ${months[date.getMonth()]}`;
   };
 
   return (
@@ -221,10 +211,10 @@ const DailyLogTable = ({ paginatedLog, toBnNum, logPage, totalLogPages, setLogPa
                {paginatedLog.map((log: any, idx: number) => (
                   <tr key={log.date} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/20'}>
                     <td className="py-3 border-r border-slate-50 font-black text-slate-900 bg-slate-50/30">{formatDateBn(log.date)}</td>
-                    <td className="py-3">{toBnNum(log.suspected24h)}</td><td className="py-3 text-slate-400 bg-slate-50/30">{toBnNum(log.suspectedCum)}</td>
-                    <td className="py-3 text-indigo-600">{toBnNum(log.confirmed24h)}</td><td className="py-3 text-indigo-900 bg-slate-50/30">{toBnNum(log.confirmedCum)}</td>
-                    <td className="py-3 text-rose-600">{toBnNum((log.confirmedDeath24h || 0) + (log.suspectedDeath24h || 0))}</td><td className="py-3 text-rose-900 bg-slate-50/30">{toBnNum((log.confirmedDeathCum || 0) + (log.suspectedDeathCum || 0))}</td>
-                    <td className="py-3">{toBnNum(log.admittedCum)}</td><td className="py-3 bg-slate-50/30">{toBnNum(log.recoveredCum)}</td>
+                    <td className="py-3">{log.suspected24h.toLocaleString()}</td><td className="py-3 text-slate-400 bg-slate-50/30">{log.suspectedCum.toLocaleString()}</td>
+                    <td className="py-3 text-indigo-600">{log.confirmed24h.toLocaleString()}</td><td className="py-3 text-indigo-900 bg-slate-50/30">{log.confirmedCum.toLocaleString()}</td>
+                    <td className="py-3 text-rose-600">{((log.confirmedDeath24h || 0) + (log.suspectedDeath24h || 0)).toLocaleString()}</td><td className="py-3 text-rose-900 bg-slate-50/30">{((log.confirmedDeathCum || 0) + (log.suspectedDeathCum || 0)).toLocaleString()}</td>
+                    <td className="py-3">{log.admittedCum.toLocaleString()}</td><td className="py-3 bg-slate-50/30">{log.recoveredCum.toLocaleString()}</td>
                  </tr>
                ))}
             </tbody>
@@ -280,35 +270,35 @@ const GovernmentBreakdownTable = ({ divisionStats, toBnNum, stats }: any) => {
             {divisionStats.map((div: any) => (
               <tr key={div.name} className="border-b border-slate-900">
                 <td className="py-2 border-r border-slate-900 bg-slate-50">{div.name}</td>
-                <td className="py-2 border-r border-slate-900">{toBnNum(div.today.suspected)}</td>
-                <td className="py-2 border-r border-slate-900">{toBnNum(div.today.admitted)}</td>
-                <td className="py-2 border-r border-slate-900">{toBnNum(div.today.recovered)}</td>
-                <td className="py-2 border-r border-slate-900">{toBnNum(div.today.confirmedDeath)}</td>
-                <td className="py-2 border-r border-slate-900">{toBnNum(div.today.confirmed)}</td>
-                <td className="py-2 border-r border-slate-900">{toBnNum(div.today.suspectedDeath)}</td>
-                <td className="py-2 border-r border-slate-900 bg-slate-50/50">{toBnNum(div.cumulative.suspected)}</td>
-                <td className="py-2 border-r border-slate-900 bg-slate-50/50">{toBnNum(div.cumulative.admitted)}</td>
-                <td className="py-2 border-r border-slate-900 bg-slate-50/50">{toBnNum(div.cumulative.recovered)}</td>
-                <td className="py-2 border-r border-slate-900 bg-slate-50/50">{toBnNum(div.cumulative.confirmed)}</td>
-                <td className="py-2 border-r border-slate-900 bg-slate-50/50">{toBnNum(div.cumulative.confirmedDeath)}</td>
-                <td className="py-2 bg-slate-50/50">{toBnNum(div.cumulative.suspectedDeath)}</td>
+                <td className="py-2 border-r border-slate-900">{div.today.suspected.toLocaleString()}</td>
+                <td className="py-2 border-r border-slate-900">{div.today.admitted.toLocaleString()}</td>
+                <td className="py-2 border-r border-slate-900">{div.today.recovered.toLocaleString()}</td>
+                <td className="py-2 border-r border-slate-900">{div.today.confirmedDeath.toLocaleString()}</td>
+                <td className="py-2 border-r border-slate-900">{div.today.confirmed.toLocaleString()}</td>
+                <td className="py-2 border-r border-slate-900">{div.today.suspectedDeath.toLocaleString()}</td>
+                <td className="py-2 border-r border-slate-900 bg-slate-50/50">{div.cumulative.suspected.toLocaleString()}</td>
+                <td className="py-2 border-r border-slate-900 bg-slate-50/50">{div.cumulative.admitted.toLocaleString()}</td>
+                <td className="py-2 border-r border-slate-900 bg-slate-50/50">{div.cumulative.recovered.toLocaleString()}</td>
+                <td className="py-2 border-r border-slate-900 bg-slate-50/50">{div.cumulative.confirmed.toLocaleString()}</td>
+                <td className="py-2 border-r border-slate-900 bg-slate-50/50">{div.cumulative.confirmedDeath.toLocaleString()}</td>
+                <td className="py-2 bg-slate-50/50">{div.cumulative.suspectedDeath.toLocaleString()}</td>
               </tr>
             ))}
             <tr className="bg-slate-100 text-[10px] font-black border-b border-slate-900">
               <td className="py-3 border-r border-slate-900">মোট</td>
-              <td className="py-3 border-r border-slate-900">{toBnNum(stats.today.suspected)}</td>
-              <td className="py-3 border-r border-slate-900">{toBnNum(stats.today.admitted)}</td>
-              <td className="py-3 border-r border-slate-900">{toBnNum(stats.today.recovered)}</td>
-              <td className="py-3 border-r border-slate-900 font-bold text-red-700">{toBnNum(stats.today.confirmedDeath)}</td>
-              <td className="py-3 border-r border-slate-900">{toBnNum(stats.today.confirmed)}</td>
-              <td className="py-3 border-r border-slate-900">{toBnNum(stats.today.suspectedDeath)}</td>
+              <td className="py-3 border-r border-slate-900">{stats.today.suspected.toLocaleString()}</td>
+              <td className="py-3 border-r border-slate-900">{stats.today.admitted.toLocaleString()}</td>
+              <td className="py-3 border-r border-slate-900">{stats.today.recovered.toLocaleString()}</td>
+              <td className="py-3 border-r border-slate-900 font-bold text-red-700">{stats.today.confirmedDeath.toLocaleString()}</td>
+              <td className="py-3 border-r border-slate-900">{stats.today.confirmed.toLocaleString()}</td>
+              <td className="py-3 border-r border-slate-900">{stats.today.suspectedDeath.toLocaleString()}</td>
               
-              <td className="py-3 border-r border-slate-900 bg-slate-200">{toBnNum(stats.cumulative.suspected)}</td>
-              <td className="py-3 border-r border-slate-900 bg-slate-200">{toBnNum(stats.cumulative.admitted)}</td>
-              <td className="py-3 border-r border-slate-900 bg-slate-200">{toBnNum(stats.cumulative.recovered)}</td>
-              <td className="py-3 border-r border-slate-900 bg-slate-200">{toBnNum(stats.cumulative.confirmed)}</td>
-              <td className="py-3 border-r border-slate-900 bg-slate-200 font-black text-red-900">{toBnNum(stats.cumulative.confirmedDeath)}</td>
-              <td className="py-3 bg-slate-200">{toBnNum(stats.cumulative.suspectedDeath)}</td>
+              <td className="py-3 border-r border-slate-900 bg-slate-200">{stats.cumulative.suspected.toLocaleString()}</td>
+              <td className="py-3 border-r border-slate-900 bg-slate-200">{stats.cumulative.admitted.toLocaleString()}</td>
+              <td className="py-3 border-r border-slate-900 bg-slate-200">{stats.cumulative.recovered.toLocaleString()}</td>
+              <td className="py-3 border-r border-slate-900 bg-slate-200">{stats.cumulative.confirmed.toLocaleString()}</td>
+              <td className="py-3 border-r border-slate-900 bg-slate-200 font-black text-red-900">{stats.cumulative.confirmedDeath.toLocaleString()}</td>
+              <td className="py-3 bg-slate-200">{stats.cumulative.suspectedDeath.toLocaleString()}</td>
             </tr>
           </tbody>
         </table>
@@ -317,7 +307,7 @@ const GovernmentBreakdownTable = ({ divisionStats, toBnNum, stats }: any) => {
   );
 };
 
-const PrintFooter = ({ selectedDate }: any) => (
+const PrintFooter = ({ selectedDate, toBnNum }: any) => (
   <footer className="hidden print:block mt-16 pt-10 border-t-[1.5pt] border-slate-900">
     {/* Institutional Branding Row */}
     <div className="flex justify-center items-center gap-20 mb-16 opacity-80">
@@ -352,8 +342,8 @@ const PrintFooter = ({ selectedDate }: any) => (
     {/* Final Metadata */}
     <div className="flex justify-between items-center text-[8pt] font-medium text-slate-400 uppercase tracking-widest pt-5 border-t border-slate-100">
        <span>Confidential Public Health Surveillance Data</span>
-       <span>Generated: {selectedDate} 5:32 PM</span>
-       <span>Page 1 of 1</span>
+       <span>Generated: {toBnNum(selectedDate, true)} {toBnNum('5:32', true)} PM</span>
+       <span>Page {toBnNum(1, true)} of {toBnNum(1, true)}</span>
     </div>
   </footer>
 );
@@ -416,10 +406,14 @@ export default function BulletinPage() {
     }
   };
 
-  const toBnNum = (n: number | string) => {
-    if (i18n.language !== 'bn') return n.toLocaleString();
+  const toBnNum = (n: number | string, forceBn = false) => {
+    const isBn = forceBn || i18n.language.startsWith('bn');
+    if (!isBn) return n.toLocaleString();
     const bnNums = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
-    return n.toString().split('').map(d => isNaN(parseInt(d)) ? d : bnNums[parseInt(d)]).join('');
+    return n.toString().replace(/,/g, '').split('').map(d => {
+      const p = parseInt(d);
+      return isNaN(p) ? d : bnNums[p];
+    }).join('');
   };
 
   const stats = useMemo(() => {
@@ -546,7 +540,7 @@ export default function BulletinPage() {
     <div className="min-h-screen bg-[#F1F3F6] p-4 md:p-8 font-sans print:bg-white print:p-0">
       <style jsx global>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
-        body { font-family: 'Inter', sans-serif; }
+        body { font-family: 'Nikosh', 'Inter', sans-serif; }
         @media print {
           @page { size: auto; margin: 10mm 15mm !important; }
           body { font-size: 10pt; line-height: 1.25; font-family: 'Times New Roman', Times, serif !important; background-color: white !important; }
@@ -577,7 +571,7 @@ export default function BulletinPage() {
           {temporal?.isHistorical && selectedDate === getBdDateString() && (
             <div className="bg-amber-50 border-y border-amber-200 py-3 px-8 text-center no-print">
                <p className="text-xs font-bold text-amber-800">
-                  আজকের প্রতিবেদন এখনো প্রকাশিত হয়নি। সর্বশেষ তথ্যসূত্রঃ <span className="underline">{temporal.dataDate}</span>
+                  আজকের প্রতিবেদন এখনো প্রকাশিত হয়নি। সর্বশেষ তথ্যসূত্রঃ <span className="underline">{toBnNum(temporal.dataDate)}</span>
                </p>
             </div>
           )}
@@ -604,7 +598,7 @@ export default function BulletinPage() {
             stats={stats}
           />
 
-          <PrintFooter selectedDate={selectedDate} />
+          <PrintFooter selectedDate={selectedDate} toBnNum={toBnNum} />
         </main>
       </div>
     </div>

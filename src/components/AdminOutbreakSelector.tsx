@@ -78,7 +78,6 @@ export default function AdminOutbreakSelector({ onSelect, defaultValue }: AdminO
           ))}
         </select> */}
         <SearchableSelect 
-                label="Outbreak (প্রাদুর্ভাব)"
                 placeholder="Select Outbreak Context"
                 options={outbreaks.map(o => ({ value: o.id, label: o.name }))}
                 value={selectedId}

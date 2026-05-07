@@ -29,7 +29,10 @@ import {
   ChevronLeft,
   ChevronRight,
   ShieldAlert,
-  Circle
+  Circle,
+  ShieldCheck,
+  Skull,
+  ChevronUp
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { DIVISIONS, DISTRICTS_BY_DIVISION } from '@/lib/constants';
@@ -187,10 +190,13 @@ export default function UnifiedReportingHub() {
     outbreakId: ''
   });
   const [exporting, setExporting] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const tableContainerRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [startX, setStartX] = useState(0);
   const [scrollLeft, setScrollLeft] = useState(0);
+  const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(false);
+  const [summaryData, setSummaryData] = useState<any>(null);
 
   // Mouse drag scrolling logic
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -250,7 +256,7 @@ export default function UnifiedReportingHub() {
 
   useEffect(() => {
     fetchReports();
-  }, [selectedDate, dateRange, selectedOutbreakId, viewMode, page, selectedDivisions, selectedDistricts, debouncedSearch]);
+  }, [selectedDate, dateRange, selectedOutbreakId, viewMode, page, selectedDivisions, selectedDistricts, debouncedSearch, metricFilter]);
 
   useEffect(() => {
     let isCancelled = false;
@@ -298,8 +304,9 @@ export default function UnifiedReportingHub() {
     try {
       const isStatusMode = viewMode === 'STATUS';
       const queryParams = new URLSearchParams({
-        page: isStatusMode ? '1' : page.toString(),
-        limit: isStatusMode ? '2000' : limit.toString(), // High limit for status map
+        page: (isStatusMode || viewMode === 'GAPS') ? '1' : page.toString(),
+        limit: (isStatusMode || viewMode === 'GAPS') ? '2000' : limit.toString(),
+        ...(viewMode === 'LOGS' && metricFilter !== 'all' && { metric: metricFilter })
       });
 
       if (viewMode === 'STATUS') {
@@ -320,6 +327,21 @@ export default function UnifiedReportingHub() {
       if (data.reports) {
         setReports(data.reports);
         setPagination(data.pagination);
+
+        // Fetch summary for accurate KPIs in LOGS mode
+        if (viewMode === 'LOGS') {
+          const summaryParams = new URLSearchParams({
+            outbreakId: selectedOutbreakId,
+            from: dateRange.from,
+            to: dateRange.to,
+            divisions: selectedDivisions.join(','),
+            districts: selectedDistricts.join(',')
+          });
+          fetch(`/api/reports/summary?${summaryParams.toString()}`)
+            .then(res => res.json())
+            .then(sData => setSummaryData(sData.totals))
+            .catch(err => console.error("Summary fetch error", err));
+        }
       }
     } catch (err) {
       console.error("Failed to fetch reports", err);
@@ -388,6 +410,22 @@ export default function UnifiedReportingHub() {
     const total = facilities.length;
     const submittedOnDate = facilities.filter(f => reportMap.has(f.id)).length;
     
+    if (viewMode === 'LOGS' && summaryData) {
+      return {
+        totalFacilities: total,
+        submittedToday: submittedOnDate,
+        missingToday: total - submittedOnDate,
+        rateToday: total > 0 ? Math.round((submittedOnDate / total) * 100) : 0,
+        periodSuspected: summaryData.suspected24h || 0,
+        periodConfirmed: summaryData.confirmed24h || 0,
+        periodSuspectedDeaths: summaryData.suspectedDeath24h || 0,
+        periodConfirmedDeaths: summaryData.confirmedDeath24h || 0,
+        periodAdmitted: summaryData.admitted24h || 0,
+        periodDischarged: summaryData.discharged24h || 0,
+        verifiedCount: summaryData.reportCount || 0
+      };
+    }
+
     let totalSuspected = 0, totalConfirmed = 0;
     let totalSuspectedDeaths = 0, totalConfirmedDeaths = 0;
     let totalAdmitted = 0, totalDischarged = 0;
@@ -416,7 +454,7 @@ export default function UnifiedReportingHub() {
       periodDischarged: totalDischarged,
       verifiedCount
     };
-  }, [facilities, reportMap, reports]);
+  }, [facilities, reportMap, reports, viewMode, summaryData]);
 
   const paginatedStatusData = useMemo(() => {
     const startIndex = (statusPage - 1) * limit;
@@ -598,6 +636,25 @@ export default function UnifiedReportingHub() {
     }
   };
 
+  const handleSyncRedis = async () => {
+    if (!confirm("This will clear the global cache and force a re-fetch from the database for all users. Continue?")) return;
+    setSyncing(true);
+    try {
+      const res = await fetch('/api/admin/redis/sync', { method: 'POST' });
+      if (res.ok) {
+        alert("Redis cache synchronized successfully");
+        fetchReports();
+      } else {
+        const error = await res.json();
+        alert(error.error || "Sync failed");
+      }
+    } catch (e) {
+      alert("Network error during sync");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const currentDistricts = useMemo(() => {
     if (selectedDivisions.length === 0) return Object.values(DISTRICTS_BY_DIVISION).flat().sort();
     return selectedDivisions.flatMap(div => DISTRICTS_BY_DIVISION[div] || []).sort();
@@ -608,7 +665,7 @@ export default function UnifiedReportingHub() {
       <Breadcrumbs />
       
       {/* Dynamic Hero Header */}
-      <div className="relative group overflow-hidden bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-sm">
+      {/* <div className="relative group overflow-hidden bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-sm">
         <div className="absolute top-0 right-0 p-10 opacity-[0.03] scale-150 rotate-12 transition-transform group-hover:scale-110">
           <Layers className="w-64 h-64" />
         </div>
@@ -636,29 +693,11 @@ export default function UnifiedReportingHub() {
                     Gap Analysis
                   </button>
                </div>
-               <div className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full text-[9px] font-black uppercase tracking-widest border border-emerald-100 animate-pulse">
-                 Live Feed
-               </div>
-            </div>
-            
-            <h1 className="text-4xl font-black text-slate-900 tracking-tighter">
-              {viewMode === 'STATUS' ? 'Reporting Hub' : viewMode === 'LOGS' ? 'Archive' : 'Gap Analysis'}
-              <span className="text-slate-300 font-light ml-3 italic"></span>
-            </h1>
-            <p className="text-slate-500 font-medium max-w-xl text-sm leading-relaxed">
-              {viewMode === 'STATUS' ? 'Monitor immediate reporting compliance for today. Identify which units are reporting active cases and who is currently silent.' : 'Explore every data point submitted across the national network. Search, audit, and verify epidemiologic records.'}
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-4">
             <div className="w-72">
               <AdminOutbreakSelector onSelect={setSelectedOutbreakId} defaultValue={selectedOutbreakId} />
             </div>
             
             <div className="flex flex-col gap-1.5">
-               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1 ml-1 self-end">
-                  {viewMode === 'STATUS' ? 'Reference Date' : 'Analysis Window'}
-               </label>
                <div className="flex bg-slate-50 p-1 rounded-2xl border border-slate-200">
                  {viewMode === 'STATUS' ? (
                    <input 
@@ -685,12 +724,14 @@ export default function UnifiedReportingHub() {
                    </div>
                  )}
                </div>
+          </div>
             </div>
+
           </div>
         </div>
       </div>
 
-      {/* KPI Section */}
+       KPI Section 
       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
          {[
            { label: viewMode === 'STATUS' ? 'Targeted Units' : 'Total Submissions', value: viewMode === 'STATUS' ? filteredFacilities.length : (pagination?.total || 0), icon: Building2, color: 'indigo' },
@@ -723,7 +764,107 @@ export default function UnifiedReportingHub() {
                <div className={`text-3xl font-black tracking-tighter tabular-nums ${stat.key && metricFilter === stat.key ? 'text-indigo-600' : 'text-slate-900'}`}>{stat.value}</div>
             </div>
           ))}
-       </div>
+       </div> */}
+         <div className={`relative group overflow-hidden bg-white border-b border-slate-200 shadow-sm transition-all duration-500 ease-in-out ${isHeaderCollapsed ? 'p-4 rounded-b-3xl' : 'p-10 rounded-b-[2.5rem]'}`}>
+        <div className="absolute top-0 right-0 p-10 opacity-[0.03] scale-150 rotate-12 transition-transform group-hover:scale-110 pointer-events-none">
+          <Layers className="w-64 h-64" />
+        </div>
+        
+        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6 relative">
+          <div className="flex flex-col md:flex-row items-center gap-6">
+            <div className="flex bg-indigo-50 p-1 rounded-xl border border-indigo-100 shadow-inner">
+               {(['STATUS', 'LOGS', 'GAPS'] as const).map((mode) => (
+                 <button 
+                   key={mode}
+                   onClick={() => setViewMode(mode)}
+                   className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === mode ? 'bg-white text-indigo-600 shadow-sm ring-1 ring-indigo-200' : 'text-indigo-400 hover:text-indigo-600'}`}
+                 >
+                   {mode === 'STATUS' ? 'Reporting Hub' : mode === 'LOGS' ? 'Submission Logs' : 'Gap Analysis'}
+                 </button>
+               ))}
+            </div>
+            
+            <div className="w-72">
+              <AdminOutbreakSelector onSelect={setSelectedOutbreakId} defaultValue={selectedOutbreakId} />
+            </div>
+
+            <div className="flex bg-slate-50 p-1 rounded-xl border border-slate-200 shadow-inner">
+              {viewMode === 'STATUS' ? (
+                <input 
+                  type="date" 
+                  value={selectedDate} 
+                  onChange={(e) => setSelectedDate(e.target.value)} 
+                  className="bg-transparent border-none text-[11px] font-black text-slate-700 focus:ring-0 px-4 py-2 cursor-pointer"
+                />
+              ) : (
+                <div className="flex items-center gap-1">
+                  <input 
+                    type="date" 
+                    value={dateRange.from} 
+                    onChange={(e) => setDateRange(prev => ({ ...prev, from: e.target.value }))} 
+                    className="bg-transparent border-none text-[10px] font-black text-slate-600 focus:ring-0 px-3 py-2 cursor-pointer"
+                  />
+                  <span className="text-slate-300 text-xs">/</span>
+                  <input 
+                    type="date" 
+                    value={dateRange.to} 
+                    onChange={(e) => setDateRange(prev => ({ ...prev, to: e.target.value }))} 
+                    className="bg-transparent border-none text-[10px] font-black text-slate-600 focus:ring-0 px-3 py-2 cursor-pointer"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4">
+             <button 
+               onClick={() => setIsHeaderCollapsed(!isHeaderCollapsed)}
+               className="p-3 bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-500 transition-colors"
+               title={isHeaderCollapsed ? "Show Summary" : "Collapse Header"}
+             >
+               {isHeaderCollapsed ? <ChevronDown className="w-5 h-5" /> : <ChevronUp className="w-5 h-5" />}
+             </button>
+          </div>
+        </div>
+
+        <AnimatePresence>
+          {!isHeaderCollapsed && (
+            <motion.div 
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="mt-10 overflow-hidden"
+            >
+               <div className="flex flex-wrap items-center gap-4 p-2 bg-slate-50/50 rounded-3xl border border-slate-100">
+                  {[
+                    { label: viewMode === 'STATUS' ? 'Units' : 'Logs', value: viewMode === 'STATUS' ? filteredFacilities.length : (pagination?.total || 0), icon: Building2, color: 'text-slate-600', bg: 'bg-slate-100' },
+                    { label: 'Suspected', value: stats.periodSuspected, icon: Activity, color: 'text-amber-600', bg: 'bg-amber-50' },
+                    { label: 'Suspected Deaths', value: stats.periodSuspectedDeaths, icon: Skull, color: 'text-rose-600', bg: 'bg-rose-50', key: 'suspectedDeath' },
+                    { label: 'Confirmed Deaths', value: stats.periodConfirmedDeaths, icon: ShieldAlert, color: 'text-rose-700', bg: 'bg-rose-100', key: 'confirmedDeath' },
+                  ].map((stat, i) => (
+                    <div 
+                      key={i} 
+                      onClick={() => {
+                        if (stat.key) {
+                          setMetricFilter(prev => prev === stat.key ? 'all' : stat.key as any);
+                        }
+                      }}
+                      className={`flex items-center gap-3 px-6 py-3 bg-white rounded-2xl border transition-all cursor-pointer hover:shadow-md ${stat.key && metricFilter === stat.key ? 'ring-2 ring-indigo-500 border-indigo-500' : 'border-slate-100 shadow-sm'}`}
+                    >
+                      <div className={`p-2 rounded-lg ${stat.bg}`}>
+                        <stat.icon className={`w-4 h-4 ${stat.color}`} />
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-0.5">{stat.label}</span>
+                        <span className="text-sm font-black text-slate-900 tracking-tight tabular-nums">{stat.value}</span>
+                      </div>
+                    </div>
+                  ))}
+               </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-8 items-start">
         {/* Unified Sidebar Filters */}
@@ -823,6 +964,17 @@ export default function UnifiedReportingHub() {
                  </div>
                  
                   <div className="flex items-center gap-3">
+                    {(role === 'ADMIN' || role === 'EDITOR') && (
+                      <button 
+                        onClick={handleSyncRedis}
+                        disabled={syncing}
+                        className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-600 border border-indigo-100 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-100 transition-all disabled:opacity-50"
+                        title="Sync Database with Redis Cache"
+                      >
+                        <RefreshCcw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
+                        Sync Cache
+                      </button>
+                    )}
                     {metricFilter !== 'all' && (
                       <div className="px-3 py-1 bg-indigo-50 text-indigo-600 rounded-full text-[9px] font-black uppercase tracking-widest border border-indigo-100 flex items-center gap-2">
                         <span>Filtering: {metricFilter === 'suspectedDeath' ? 'Suspected Deaths' : 'Confirmed Deaths'}</span>
@@ -854,7 +1006,7 @@ export default function UnifiedReportingHub() {
                   onMouseLeave={handleMouseLeave}
                   onMouseUp={handleMouseUp}
                   onMouseMove={handleMouseMove}
-                  className={`flex-1 overflow-x-auto custom-scrollbar relative ${isDragging ? 'cursor-grabbing select-none' : 'cursor-grab'}`}
+                  className={`flex-1 overflow-x-auto overflow-y-auto custom-scrollbar relative max-h-[calc(100vh-280px)] ${isDragging ? 'cursor-grabbing select-none' : 'cursor-grab'}`}
                >
                  {viewMode === 'GAPS' ? (
                    <div className="p-10 grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -921,8 +1073,7 @@ export default function UnifiedReportingHub() {
  <table className={`w-full text-left border-collapse ${dynamicFields.length > 5 ? 'min-w-[1500px]' : 'min-w-[1100px]'}`}>
   <thead className="sticky top-0 z-40 bg-white shadow-sm">
     <tr className="bg-slate-50/50 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
-      <th className="px-10 py-6 border-b border-slate-100 text-center w-[280px] sticky left-0 z-50 bg-slate-50/50 backdrop-blur-md">Facility</th>
-      <th className="w-[120px] px-6 py-6 border-b border-slate-100 text-center sticky left-[280px] z-50 bg-slate-50/50 backdrop-blur-md">Date <br/> Status</th>
+      <th className="px-10 py-6 border-b border-slate-100 text-left w-[350px] sticky left-0 z-50 bg-slate-50 scroll-gpu">Health Facility</th>
       
       {/* Dynamic Headers */}
       {dynamicFields.length > 0 ? (
@@ -956,38 +1107,26 @@ export default function UnifiedReportingHub() {
       const displayDate = isReportMode ? item.reportingDate : selectedDate;
       
       return (
-        <tr key={item.id} className="group hover:bg-slate-50/50 transition-colors">
-          <td className="px-10 py-6 sticky left-0 z-30 bg-white group-hover:bg-slate-50 transition-colors">
-            <div className="flex items-start gap-4">
-<div className="flex flex-col min-w-0">
-  <span className="text-sm font-black text-slate-800 tracking-tight break-words leading-tight">
-    {facility?.facilityName || 'Global System'}
-  </span>
+        <tr key={item.id} className="group transition-colors bg-white hover:bg-slate-50 scroll-gpu">
+          <td className="px-10 py-6 sticky left-0 z-30 bg-white group-hover:bg-slate-50 transition-colors scroll-gpu border-r border-slate-50">
+            <div className="flex items-start gap-4 relative">
+              {/* Subtle Status Sidebar */}
+              <div className={`absolute -left-10 top-0 bottom-0 w-1.5 transition-all duration-300 ${report ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.4)]' : 'bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.4)]'}`} />
+              
+                <div className="flex flex-col min-w-0">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-2 h-2 rounded-full flex-shrink-0 ${report ? 'bg-emerald-500' : 'bg-rose-500 pulse-status'}`} />
+                    <span className="text-sm font-black text-slate-800 tracking-tight break-words leading-tight">
+                      {facility?.facilityName || 'Global System'}
+                    </span>
+                  </div>
 
-  <span className="flex items-center gap-1 text-[10px] font-bold text-slate-400 opacity-70 px-0.5 leading-relaxed">
-    <span className="break-words">{facility?.district || 'N/A'}</span>
-    <Circle className="w-2 h-2" />
-    <span className="break-words">{facility?.division || 'N/A'}</span>
-  </span>
-</div>
-            </div>
-          </td>
-          <td className="px-6 py-6 text-center sticky left-[280px] z-30 bg-white group-hover:bg-slate-50 transition-colors">
-            <div className="flex flex-col items-center">
-
-                          {report ? (
-              <div className="flex flex-col items-center gap-1">
-                <div className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full text-[9px] font-black uppercase tracking-widest border border-emerald-100 flex items-center gap-1 whitespace-nowrap">
-                  <Check className="w-3 h-3" />
-                  Submitted
+                  <span className="flex items-center gap-1 text-[10px] font-bold text-slate-400 opacity-70 px-4 leading-relaxed">
+                    <span className="break-words">{facility?.district || 'N/A'}</span>
+                    <Circle className="w-1.5 h-1.5" />
+                    <span className="break-words">{facility?.division || 'N/A'}</span>
+                  </span>
                 </div>
-                {report.published && (
-                  <span className="flex items-center gap-1 text-[8px] font-black text-indigo-400 uppercase tracking-tighter whitespace-nowrap"><Globe className="w-2.5 h-2.5" /> Published</span>
-                )}
-              </div>
-            ) : (
-              <span className="px-3 py-1 bg-red-100 text-red-500 rounded-full text-[9px] font-black uppercase tracking-widest opacity-100 whitespace-nowrap">Missing</span>
-            )}
             </div>
           </td>
 
@@ -1078,7 +1217,7 @@ export default function UnifiedReportingHub() {
     })}
   </tbody>
   {!loading && (viewMode === 'LOGS' || viewMode === 'STATUS') && dynamicFields.length === 0 && (
-    <tfoot className="bg-slate-50/80 border-t-2 border-slate-200 sticky bottom-0 z-10 backdrop-blur-sm">
+    <tfoot className="bg-slate-50 border-t-2 border-slate-200 sticky bottom-0 z-10 scroll-gpu">
       <tr className="font-black text-slate-900">
         <td className="px-10 py-6 text-right uppercase tracking-widest text-[10px] text-slate-400" colSpan={2}>
           {viewMode === 'LOGS' ? 'Page Totals' : 'Consolidated Snapshot'}
@@ -1240,6 +1379,15 @@ export default function UnifiedReportingHub() {
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }
+        
+        @keyframes pulse-status {
+          0% { transform: scale(1); opacity: 1; }
+          50% { transform: scale(1.5); opacity: 0.4; }
+          100% { transform: scale(1); opacity: 1; }
+        }
+        .pulse-status {
+          animation: pulse-status 2s infinite ease-in-out;
+        }
       `}</style>
       <ScrollToTop />
       <StickyHorizontalScrollbar targetRef={tableContainerRef} />
