@@ -138,7 +138,17 @@ export async function GET(req: Request) {
     const [reports, totalCount] = await Promise.all([
       prisma.report.findMany({
         where,
-        include: { facility: true, user: { select: { name: true } } },
+        include: {
+          facility: {
+            include: {
+              users: {
+                where: { role: "USER", isActive: true },
+                select: { email: true }
+              }
+            }
+          },
+          user: { select: { name: true, email: true, role: true } }
+        },
         orderBy: { periodStart: 'desc' },
         skip: (page - 1) * limit,
         take: limit
@@ -147,12 +157,29 @@ export async function GET(req: Request) {
     ]);
 
     // Format for frontend (preserving keys)
-    const formatted = reports.map(r => ({
-      ...r,
-      reportingDate: r.periodStart,
-      published: r.status === ReportStatus.PUBLISHED,
-      ...(r.dataSnapshot as any)
-    }));
+    const formatted = reports.map(r => {
+      const facilityUserEmail = r.facility.users?.[0]?.email || null;
+      const resolvedEmail = (r.user && r.user.role === 'USER')
+        ? r.user.email
+        : (facilityUserEmail || r.facility.email || 'N/A');
+
+      const { users, ...cleanFacility } = r.facility;
+
+      return {
+        ...r,
+        reportingDate: r.periodStart,
+        published: r.status === ReportStatus.PUBLISHED,
+        facility: {
+          ...cleanFacility,
+          email: r.facility.email || facilityUserEmail || 'N/A'
+        },
+        user: r.user ? {
+          ...r.user,
+          email: resolvedEmail
+        } : null,
+        ...(r.dataSnapshot as any)
+      };
+    });
 
     return NextResponse.json({
       reports: formatted,

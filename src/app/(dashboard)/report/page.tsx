@@ -32,7 +32,8 @@ export default function AuthenticatedReportPage() {
 
   if (status === 'loading' || status === 'unauthenticated') return null;
 
-  const canSubmit = hasPermission(session?.user?.role || "", 'report:create');
+  const isFacilityInactive = session?.user?.facilityId && session?.user?.facilityIsActive === false;
+  const canSubmit = hasPermission(session?.user?.role || "", 'report:create') && !isFacilityInactive;
 
   useEffect(() => { setMounted(true); }, []);
 
@@ -110,7 +111,11 @@ export default function AuthenticatedReportPage() {
            </div>
            <h1 className="text-3xl font-black text-slate-800 mb-3 tracking-tight">Access Restricted</h1>
            <p className="text-slate-500 font-medium mb-10 leading-relaxed">
-              Your account has <b>Viewer-only</b> privileges. You do not have permission to submit or modify surveillance records.
+              {isFacilityInactive ? (
+                <>Your facility (<b>{session.user.facilityName}</b>) does not currently have reporting access. Please contact the administrator.</>
+              ) : (
+                <>Your account has <b>Viewer-only</b> privileges. You do not have permission to submit or modify surveillance records.</>
+              )}
            </p>
            <button 
              onClick={() => window.location.href = '/dashboard'} 

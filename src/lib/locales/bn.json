@@ -94,6 +94,8 @@
     "diseaseTrends": "রোগের প্রবণতা",
     "growthRate": "বৃদ্ধির হার",
     "movingAverage": "গড় (৭ দিন)",
+    "movingAverage14": "গড় (১৪ দিন)",
+    "movingAverages": "চলতি গড়সমূহ",
     "reproductionNumber": "রিপ্রোডাকশন সংখ্যা (Rₜ)",
     "rtDeclining": "হ্রাসমান",
     "rtStable": "স্থিতিশীল",

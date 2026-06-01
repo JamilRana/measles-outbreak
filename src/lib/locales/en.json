@@ -94,6 +94,8 @@
     "diseaseTrends": "Disease Trends",
     "growthRate": "Growth Rate",
     "movingAverage": "Moving Average (7-day)",
+    "movingAverage14": "Moving Average (14-day)",
+    "movingAverages": "Moving Averages",
     "reproductionNumber": "Reproduction Number (Rₜ)",
     "rtDeclining": "Declining",
     "rtStable": "Stable",

@@ -15,6 +15,7 @@ declare module "next-auth" {
       managedDistricts: string[];
       upazila: string | null;
       isActive: boolean;
+      facilityIsActive: boolean | null;
     } & DefaultSession["user"];
   }
 
@@ -31,6 +32,7 @@ declare module "next-auth" {
     managedDistricts: string[];
     upazila?: string | null;
     isActive: boolean;
+    facilityIsActive: boolean | null;
   }
 }
 
@@ -48,5 +50,6 @@ declare module "next-auth/jwt" {
     managedDistricts: string[];
     upazila: string | null;
     isActive: boolean;
+    facilityIsActive: boolean | null;
   }
 }

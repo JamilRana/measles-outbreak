@@ -21,6 +21,7 @@ export async function GET(req: Request) {
     const district = searchParams.get("district") || searchParams.get("districts");
     const from = searchParams.get("from");
     const to = searchParams.get("to");
+    const facilityId = searchParams.get("facilityId") || searchParams.get("facility") || "";
 
     // Temporal Visibility Logic
     const session = await getServerSession(authOptions);
@@ -73,6 +74,7 @@ export async function GET(req: Request) {
         AND (${vTo}::text IS NULL OR r."periodStart"::date <= ${vTo}::date)
         AND (${division ?? ''}::text = '' OR f.division = ${division ?? ''})
         AND (${district ?? ''}::text = '' OR f.district = ${district ?? ''})
+        AND (${facilityId}::text = '' OR f.id = ${facilityId})
       GROUP BY f.division, f.district
     `;
 

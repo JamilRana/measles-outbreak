@@ -17,6 +17,7 @@ export async function GET(req: NextRequest) {
     const toQuery = searchParams.get('to') || '';
     const division = searchParams.get('division') || searchParams.get('divisions') || '';
     const district = searchParams.get('district') || searchParams.get('districts') || '';
+    const facilityId = searchParams.get('facilityId') || searchParams.get('facility') || '';
     const groupBy = searchParams.get('groupBy');
 
     // Temporal Visibility Logic
@@ -53,7 +54,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Build unique cache key using potentially shifted filters
-    const cacheKey = `summary:${outbreakId}:${effectiveDate || 'all'}:${fromQuery || 'all'}:${effectiveTo || 'all'}:${division || 'all'}:${district || 'all'}:${isAdmin ? 'admin' : 'public'}:${isPending ? 'pending' : 'active'}`;
+    const cacheKey = `summary:${outbreakId}:${effectiveDate || 'all'}:${fromQuery || 'all'}:${effectiveTo || 'all'}:${division || 'all'}:${district || 'all'}:${facilityId || 'all'}:${isAdmin ? 'admin' : 'public'}:${isPending ? 'pending' : 'active'}`;
 
     const data = await getCachedData(cacheKey, async () => {
       // If pending for today, return zeroed data immediately
@@ -111,6 +112,7 @@ export async function GET(req: NextRequest) {
           AND (${vTo}::text IS NULL OR r."periodStart"::date <= ${vTo}::date)
           AND (${division}::text = '' OR f.division = ${division})
           AND (${district}::text = '' OR f.district = ${district})
+          AND (${facilityId}::text = '' OR f.id = ${facilityId})
       `;
 
       // --- National Totals ---

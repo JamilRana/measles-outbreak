@@ -34,23 +34,6 @@ import {
   Circle,
   ShieldCheck,
 } from "lucide-react";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  Legend,
-  LineChart,
-  Line,
-  AreaChart,
-  Area,
-} from "recharts";
 import { motion, AnimatePresence } from "motion/react";
 import * as XLSX from "xlsx";
 import { DIVISIONS, DISTRICTS } from "@/lib/constants";
@@ -71,7 +54,6 @@ import {
 } from "@/components/skeletons";
 import { getBdDateString, getBdTime } from "@/lib/timezone";
 import Image from "next/image";
-import ScrollToTop from "@/components/ScrollToTop";
 
 // Dynamic imports with ssr: false for components that use browser APIs
 const OutbreakMap = dynamic(() => import("@/components/OutbreakMap"), {
@@ -153,7 +135,7 @@ function KPICard({ title, value, subValue, icon, color }: any) {
         >
           {React.cloneElement(icon, { className: "w-5 h-5" })}
         </div>
-        
+
         <div className="min-w-0 flex-1">
           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider leading-none">
             {title}
@@ -188,6 +170,17 @@ export default function DashboardPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [exporting, setExporting] = useState(false);
+
+  // -- Detailed Table Sort & Pagination State --
+  const [sortField, setSortField] = useState<string>("name");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 20;
+
+  // Reset pagination when filter selections change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedDivision, selectedDistrict, selectedFacilityId, viewMode, filterDate, dateRange]);
 
   // -- SWR Hooks (Parallel Data Fetching) --
   const { data: settings } = useDashboardSettings();
@@ -236,12 +229,13 @@ export default function DashboardPage() {
   // -- Countdown Timer --
   const [countdown, setCountdown] = useState("00:00:00");
   useEffect(() => {
-    if (!settings?.reportingDeadline) return;
+    if (!config?.outbreak) return;
     const timer = setInterval(() => {
       const now = getBdTime();
-      const [h, m, s] = settings.reportingDeadline.split(":").map(Number);
+      const h = config.outbreak.cutoffHour;
+      const m = config.outbreak.cutoffMinute;
       const target = new Date(now);
-      target.setHours(h || 23, m || 59, s || 59, 0);
+      target.setHours(h, m, 0, 0);
 
       const diff = target.getTime() - now.getTime();
       if (diff <= 0) {
@@ -255,7 +249,7 @@ export default function DashboardPage() {
       }
     }, 1000);
     return () => clearInterval(timer);
-  }, [settings]);
+  }, [config?.outbreak]);
 
   // Fetch facilities for the selected district
   useEffect(() => {
@@ -342,6 +336,64 @@ export default function DashboardPage() {
     });
   }, [summary, cumulative, selectedDivision, selectedDistrict, selectedFacilityId, facilities]);
 
+  // Sort detailed table data
+  const sortedTableData = useMemo(() => {
+    return [...tableData].sort((a: any, b: any) => {
+      if (sortField === "name") {
+        const aName = a.name || "";
+        const bName = b.name || "";
+        return sortDirection === "asc"
+          ? aName.localeCompare(bName, undefined, { numeric: true, sensitivity: "base" })
+          : bName.localeCompare(aName, undefined, { numeric: true, sensitivity: "base" });
+      }
+
+      // field format is e.g. "today.suspected"
+      const [timeframe, key] = sortField.split(".");
+      const aVal = a[timeframe]?.[key] || 0;
+      const bVal = b[timeframe]?.[key] || 0;
+
+      if (aVal < bVal) return sortDirection === "asc" ? -1 : 1;
+      if (aVal > bVal) return sortDirection === "asc" ? 1 : -1;
+      return 0;
+    });
+  }, [tableData, sortField, sortDirection]);
+
+  // Paginated detailed table data (20 items per page)
+  const paginatedTableData = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return sortedTableData.slice(startIndex, startIndex + itemsPerPage);
+  }, [sortedTableData, currentPage]);
+
+  const totalPages = Math.ceil(tableData.length / itemsPerPage);
+
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDirection(prev => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setSortField(field);
+      setSortDirection(field === "name" ? "asc" : "desc");
+    }
+  };
+
+  const renderSortableHeader = (field: string, label: string, extraClass: string) => {
+    const isActive = sortField === field;
+    return (
+      <th
+        onClick={() => handleSort(field)}
+        className={`px-3 py-3 border-r border-slate-700 cursor-pointer hover:bg-slate-800 transition-colors group select-none ${extraClass}`}
+      >
+        <div className="flex items-center justify-center gap-1">
+          <span>{label}</span>
+          {isActive ? (
+            sortDirection === "asc" ? <ChevronUp className="w-3 h-3 text-indigo-400 shrink-0" /> : <ChevronDown className="w-3 h-3 text-indigo-400 shrink-0" />
+          ) : (
+            <ChevronDown className="w-3 h-3 text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+          )}
+        </div>
+      </th>
+    );
+  };
+
   // Derived Indicators from SWR data
   const calculatedIndicators = useMemo(() => {
     const kpi: any = stats.today;
@@ -353,6 +405,7 @@ export default function DashboardPage() {
     });
     return values;
   }, [indicators, stats]);
+  console.log("calculatedIndicators", config?.outbreak);
 
   const publicationStatus = useMemo(() => {
     if (!config?.outbreak) return "VERIFIED";
@@ -369,6 +422,17 @@ export default function DashboardPage() {
     // Historical data or Cumulative view is always considered verified
     return "VERIFIED";
   }, [config, filterDate, viewMode]);
+
+  const formattedPublishTime = useMemo(() => {
+    if (!config?.outbreak) return "";
+    const hour = config.outbreak.publishTimeHour ?? 9;
+    const minute = config.outbreak.publishTimeMinute ?? 0;
+    const ampm = hour >= 12 ? "PM" : "AM";
+    const displayHour = hour % 12 || 12;
+    const displayMinute = minute.toString().padStart(2, "0");
+    return `${displayHour.toString().padStart(2, "0")}:${displayMinute} ${ampm}`;
+  }, [config?.outbreak]);
+
   const allReports = summary?.reports || []; // For title fallback
   const sevenDayTrend = [0, 0, 0, 0, 0, 0, 0]; // Placeholder for trend
 
@@ -431,13 +495,14 @@ export default function DashboardPage() {
     p.set("outbreakId", selectedOutbreakId);
     if (selectedDivision) p.set("division", selectedDivision);
     if (selectedDistrict) p.set("district", selectedDistrict);
+    if (selectedFacilityId) p.set("facilityId", selectedFacilityId);
     if (viewMode === "today") p.set("date", filterDate);
     else {
       if (dateRange.from) p.set("from", dateRange.from);
       if (dateRange.to) p.set("to", dateRange.to);
     }
     return p.toString();
-  }, [selectedOutbreakId, selectedDivision, selectedDistrict, viewMode, filterDate, dateRange]);
+  }, [selectedOutbreakId, selectedDivision, selectedDistrict, selectedFacilityId, viewMode, filterDate, dateRange]);
 
   const loading = summaryLoading || configLoading;
   const coreFields = config?.kpiFields || [];
@@ -463,8 +528,8 @@ export default function DashboardPage() {
       </AnimatePresence>
       <div
         className={`flex flex-col md:flex-row md:items-center justify-between gap-6 p-6 md:p-8 rounded-[2rem] border-2 transition-all duration-700 shadow-2xl relative overflow-hidden ${(publicationStatus as string) === "PENDING"
-            ? "bg-gradient-to-br from-amber-600 to-amber-900 border-amber-500/50"
-            : "bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border-slate-700 shadow-indigo-500/10"
+          ? "bg-gradient-to-br from-amber-600 to-amber-900 border-amber-500/50"
+          : "bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border-slate-700 shadow-indigo-500/10"
           }`}
       >
         <div className="absolute inset-0 bg-grid-white/[0.05] pointer-events-none" />
@@ -472,8 +537,8 @@ export default function DashboardPage() {
         <div className="flex items-center gap-6 relative z-10">
           <div
             className={`w-14 h-14 md:w-20 md:h-20 rounded-2xl flex items-center justify-center backdrop-blur-md shadow-xl border ${(publicationStatus as string) === "PENDING"
-                ? "bg-white/10 border-white/20"
-                : "bg-slate-800/50 border-slate-700"
+              ? "bg-white/10 border-white/20"
+              : "bg-slate-800/50 border-slate-700"
               }`}
           >
             <Image
@@ -487,8 +552,8 @@ export default function DashboardPage() {
           <div>
             <p
               className={`text-[10px] md:text-xs font-black uppercase tracking-[0.3em] mb-1 ${(publicationStatus as string) === "PENDING"
-                  ? "text-amber-200/60"
-                  : "text-indigo-400"
+                ? "text-amber-200/60"
+                : "text-indigo-400"
                 }`}
             >
               DGHS National Surveillance Hub
@@ -502,8 +567,8 @@ export default function DashboardPage() {
         <div className="relative z-10 hidden lg:block">
           <div
             className={`flex items-center gap-4 px-8 py-4 rounded-3xl border-2 transition-all duration-500 scroll-gpu ${(publicationStatus as string) === "VERIFIED"
-                ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.1)]"
-                : "bg-amber-500/20 border-amber-500/40 text-amber-400 shadow-[0_0_20px_rgba(245,158,11,0.1)]"
+              ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.1)]"
+              : "bg-amber-500/20 border-amber-500/40 text-amber-400 shadow-[0_0_20px_rgba(245,158,11,0.1)]"
               }`}
           >
             <div className="relative">
@@ -530,8 +595,8 @@ export default function DashboardPage() {
         <div className="flex flex-col md:flex-row items-stretch md:items-center gap-4 md:gap-6 relative z-10">
           <div
             className={`flex items-center gap-4 px-6 py-4 rounded-2xl border-2 transition-all ${publicationStatus === "PENDING"
-                ? "bg-amber-950/40 border-amber-500/30"
-                : "bg-slate-950/40 border-slate-700"
+              ? "bg-amber-950/40 border-amber-500/30"
+              : "bg-slate-950/40 border-slate-700"
               }`}
           >
             <div className="w-10 h-10 rounded-xl bg-rose-500/10 flex items-center justify-center">
@@ -546,6 +611,27 @@ export default function DashboardPage() {
               </p>
             </div>
           </div>
+
+          {config?.outbreak && (
+            <div
+              className={`flex items-center gap-4 px-6 py-4 rounded-2xl border-2 transition-all ${publicationStatus === "PENDING"
+                ? "bg-amber-950/40 border-amber-500/30"
+                : "bg-slate-950/40 border-slate-700"
+                }`}
+            >
+              <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center">
+                <Calendar className="w-5 h-5 text-indigo-400" />
+              </div>
+              <div className="text-right">
+                <p className="text-[9px] font-black uppercase tracking-[0.2em] text-indigo-400">
+                  Publish Time
+                </p>
+                <p className="text-lg font-black font-mono text-white tracking-widest uppercase">
+                  {formattedPublishTime}
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -557,7 +643,7 @@ export default function DashboardPage() {
         >
           <AlertCircle className="w-5 h-5 text-amber-600" />
           <p className="text-xs font-bold text-amber-700 uppercase tracking-widest">
-            Today's report is pending publication. Official statistics will be available after the release time.
+            Today's report is pending publication. Official statistics will be available after the release time {config?.outbreak?.releaseTime} time.
           </p>
         </motion.div>
       )}
@@ -776,7 +862,20 @@ export default function DashboardPage() {
                 <table className="w-full border-collapse xl:table">
                   <thead className="bg-[#1e293b] text-white text-[9px] font-black uppercase tracking-[0.15em] text-center">
                     <tr>
-                      <th rowSpan={2} className="px-8 py-8 text-left border-r border-slate-700 bg-[#0f172a] sticky left-0 z-20 scroll-gpu">{selectedDivision ? 'DISTRICT' : 'DIVISION'}</th>
+                      <th
+                        rowSpan={3}
+                        onClick={() => handleSort("name")}
+                        className="px-8 py-8 text-left border-r border-slate-700 bg-[#0f172a] sticky left-0 z-20 scroll-gpu cursor-pointer hover:bg-slate-800 transition-colors group select-none"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span>{selectedDivision ? 'DISTRICT' : 'DIVISION'}</span>
+                          {sortField === "name" ? (
+                            sortDirection === "asc" ? <ChevronUp className="w-3.5 h-3.5 text-indigo-400" /> : <ChevronDown className="w-3.5 h-3.5 text-indigo-400" />
+                          ) : (
+                            <ChevronDown className="w-3.5 h-3.5 text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                          )}
+                        </div>
+                      </th>
                       <th colSpan={6} className="px-6 py-4 bg-[#1e293b] border-b border-white/5 tracking-widest text-[#94a3b8]">Last 24 Hour Surveillance</th>
                       <th colSpan={6} className="px-6 py-4 bg-[#0f172a] border-b border-white/5 tracking-widest text-[#6366f1]">Total Outbreak Volume (Cumulative)</th>
                     </tr>
@@ -791,17 +890,22 @@ export default function DashboardPage() {
                       <th className="px-4 py-3 border-r border-white/5 bg-[#1e293b]">DIS.</th>
                     </tr>
                     <tr className="bg-[#0f172a] text-[#64748b] border-t border-slate-700 text-[8px]">
-                      <th className="sticky left-0 bg-[#0f172a] border-r border-slate-700 scroll-gpu"></th>
-                      <th className="px-3 py-3 border-r border-slate-700 bg-[#1e293b] text-white">Cases</th><th className="px-3 py-3 border-r border-slate-700 bg-[#1e293b] text-rose-400">Deaths</th>
-                      <th className="px-3 py-3 border-r border-slate-700 bg-[#1e293b] text-white">Cases</th><th className="px-3 py-3 border-r border-slate-700 bg-[#1e293b] text-rose-400">Deaths</th>
-                      <th className="px-3 py-3 border-r border-slate-700 bg-[#1e293b] uppercase text-white">Total</th><th className="px-3 py-3 border-r border-slate-700 bg-[#1e293b] uppercase text-white">Total</th>
-                      <th className="px-3 py-3 border-r border-slate-700 bg-[#0f172a] uppercase text-white">Cases</th><th className="px-3 py-3 border-r border-slate-700 bg-[#0f172a] uppercase text-rose-400">Deaths</th>
-                      <th className="px-3 py-3 border-r border-slate-700 bg-[#0f172a] uppercase text-white">Cases</th><th className="px-3 py-3 border-r border-slate-700 bg-[#0f172a] uppercase text-rose-400">Deaths</th>
-                      <th className="px-3 py-3 border-r border-slate-700 bg-[#0f172a] uppercase text-white">Total</th><th className="px-3 py-3 uppercase text-white bg-[#0f172a]">Total</th>
+                      {renderSortableHeader("today.suspected", "Cases", "bg-[#1e293b] text-white")}
+                      {renderSortableHeader("today.suspectedDeath", "Deaths", "bg-[#1e293b] text-rose-400")}
+                      {renderSortableHeader("today.confirmed", "Cases", "bg-[#1e293b] text-white")}
+                      {renderSortableHeader("today.confirmedDeath", "Deaths", "bg-[#1e293b] text-rose-400")}
+                      {renderSortableHeader("today.admitted", "Total", "bg-[#1e293b] text-white")}
+                      {renderSortableHeader("today.recovered", "Total", "bg-[#1e293b] text-white")}
+                      {renderSortableHeader("cumulative.suspected", "Cases", "bg-[#0f172a] text-white")}
+                      {renderSortableHeader("cumulative.suspectedDeath", "Deaths", "bg-[#0f172a] text-rose-400")}
+                      {renderSortableHeader("cumulative.confirmed", "Cases", "bg-[#0f172a] text-white")}
+                      {renderSortableHeader("cumulative.confirmedDeath", "Deaths", "bg-[#0f172a] text-rose-400")}
+                      {renderSortableHeader("cumulative.admitted", "Total", "bg-[#0f172a] text-white")}
+                      {renderSortableHeader("cumulative.recovered", "Total", "bg-[#0f172a] text-white")}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {tableData.map((d: any) => (
+                    {paginatedTableData.map((d: any) => (
                       <tr key={d.name} className="group hover:bg-slate-50 transition-all duration-200 scroll-gpu">
                         <td className="px-8 py-4 sticky left-0 bg-white group-hover:bg-slate-50 z-10 border-r border-slate-50 font-black text-slate-800 text-sm uppercase tracking-tighter scroll-gpu">{d.name}</td>
                         <td className="px-4 py-4 text-center text-slate-600 font-bold text-sm bg-slate-50">{toBnNumSafe(d.today.suspected, i18n)}</td>
@@ -836,11 +940,46 @@ export default function DashboardPage() {
                   </tbody>
                 </table>
               </div>
+
+              {/* Navigation Console */}
+              {tableData.length > itemsPerPage && (
+                <div className="px-8 py-6 bg-slate-50/50 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 select-none">
+                  <div className="flex flex-col items-center sm:items-start">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Navigation Console</p>
+                    <p className="text-sm font-black text-slate-700 tracking-tight mt-0.5 font-sans">
+                      Showing <b>{tableData.length === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, tableData.length)}</b> of <b>{tableData.length}</b> rows
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                      className="w-11 h-11 flex items-center justify-center bg-white border border-slate-200 rounded-2xl text-slate-400 hover:text-indigo-600 disabled:opacity-40 transition-all shadow-sm active:scale-95 disabled:cursor-not-allowed"
+                    >
+                      <ChevronLeft className="w-5 h-5" />
+                    </button>
+
+                    <div className="flex items-center gap-1.5 px-3">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest font-sans">
+                        Page {currentPage} / {totalPages || 1}
+                      </span>
+                    </div>
+
+                    <button
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      disabled={currentPage >= totalPages}
+                      className="w-11 h-11 flex items-center justify-center bg-white border border-slate-200 rounded-2xl text-slate-400 hover:text-indigo-600 disabled:opacity-40 transition-all shadow-sm active:scale-95 disabled:cursor-not-allowed"
+                    >
+                      <ChevronRight className="w-5 h-5" />
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </section>
         </>
       )}
-      <ScrollToTop />
     </div>
   );
 }

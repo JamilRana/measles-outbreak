@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter, Geist } from "next/font/google";
 import "./globals.css";
 import "leaflet/dist/leaflet.css";
+import { nikosh } from "./fonts";
 
 import { authOptions } from "@/lib/auth";
 import { getServerSession } from "next-auth";
@@ -31,7 +32,7 @@ export default async function RootLayout({
   const session = await getServerSession(authOptions);
 
   return (
-    <html lang="bn" className={cn("font-sans", geist.variable)}>
+    <html lang="bn" className={cn("font-sans", geist.variable, nikosh.variable)}>
       <body className={`${inter.className} bg-slate-50 text-slate-900`}>
         <AuthProvider session={session}>
           <I18nProvider>

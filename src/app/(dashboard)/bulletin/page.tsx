@@ -43,7 +43,7 @@ const ReportHeader = ({ displayDate, filterDate, setSelectedDate, onPrint, toBnN
   const formattedPrevDate = `${toBnNum(prevDate.getDate(), true)} ${months[prevDate.getMonth()]}`;
 
   return (
-    <header className="flex flex-col items-center pt-8 pb-4 text-center bg-white border-b border-slate-100 relative">
+    <header className="flex flex-col items-center pt-8 pb-4 print:pt-1 print:pb-0 text-center bg-white border-b border-slate-100 relative">
       <div className="absolute top-8 left-8 no-print flex items-center gap-2 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg">
         <Calendar className="w-3.5 h-3.5 text-slate-400" />
         <input 
@@ -56,25 +56,25 @@ const ReportHeader = ({ displayDate, filterDate, setSelectedDate, onPrint, toBnN
         />
       </div>
 
-      <div className="mb-4">
-        <Image src="/logo_mohfw.png" alt="Bangladesh Govt Logo" width={60} height={60} className="mx-auto" />
+      <div className="mb-4 print:mb-1">
+        <Image src="/logo_mohfw.png" alt="Bangladesh Govt Logo" width={60} height={60} className="mx-auto print:w-8 print:h-8" />
       </div>
-      <div className="space-y-0.5 mb-6">
-        <h2 className="text-sm font-bold">গণপ্রজাতন্ত্রী বাংলাদেশ সরকার</h2>
-        <h2 className="text-sm font-bold">স্বাস্থ্য ও পরিবার কল্যাণ মন্ত্রণালয়</h2>
-        <h3 className="text-xs font-semibold text-slate-700">স্বাস্থ্য সেবা বিভাগ</h3>
-        <h3 className="text-xs font-semibold text-slate-700">সমন্বিত নিয়ন্ত্রণ কেন্দ্র</h3>
+      <div className="space-y-0.5 mb-6 print:mb-1">
+        <h2 className="text-sm print:text-[10px] font-bold">গণপ্রজাতন্ত্রী বাংলাদেশ সরকার</h2>
+        <h2 className="text-sm print:text-[10px] font-bold">স্বাস্থ্য ও পরিবার কল্যাণ মন্ত্রণালয়</h2>
+        <h3 className="text-xs print:text-[9px] font-semibold text-slate-700">স্বাস্থ্য সেবা বিভাগ</h3>
+        <h3 className="text-xs print:text-[9px] font-semibold text-slate-700">সমন্বিত নিয়ন্ত্রণ কেন্দ্র</h3>
         <p className="text-[10px] text-slate-600">স্বাস্থ্য অধিদপ্তর, মহাখালী, ঢাকা-১২১২।</p>
         <p className="text-[10px] text-slate-600">ইমেইলঃ <span className="text-blue-600 underline">bdcoronasaver@gmail.com</span></p>
       </div>
 
-      <div className="mb-6 space-y-1">
-        <h1 className="text-lg font-bold">হাম সংক্রান্ত পরিস্থিতি</h1>
+      <div className="mb-6 print:mb-1 space-y-1">
+        <h1 className="text-lg print:text-base font-bold">হাম সংক্রান্ত পরিস্থিতি</h1>
         <p className="text-sm font-bold">{formattedDate} </p>
-        <h2 className="text-sm font-bold border-b-2 border-slate-900 inline-block px-4 pb-1">স্বাস্থ্য অধিদপ্তরের আজকের স্বাস্থ্য সংবাদ বিজ্ঞপ্তি</h2>
+        <h2 className="text-sm print:text-xs font-bold border-b-2 border-slate-900 inline-block px-4 pb-1 print:pb-0">স্বাস্থ্য অধিদপ্তরের আজকের স্বাস্থ্য সংবাদ বিজ্ঞপ্তি</h2>
       </div>
 
-      <div className="max-w-[800px] mx-auto text-[11px] font-bold space-y-2 mt-4">
+      <div className="max-w-[800px] mx-auto text-[11px] print:text-[10px] font-bold space-y-2 print:space-y-0 mt-4 print:mt-0">
         <p className="underline underline-offset-4">হাম বিষয়ক অন্যান্য তথ্যাদি নিম্নরূপঃ</p>
         <p className="bg-slate-50 py-1.5 px-4 rounded-full border border-slate-200">
            {formattedPrevDate} সকাল ৮:০০ টা থেকে {toBnNum(dateObj.getDate(), true)} {months[dateObj.getMonth()]} সকাল ৮:০০ টা পর্যন্ত (তথ্য সূত্রঃ হেলথ ইমার্জেন্সি অপারেশন সেন্টার ও কন্ট্রোল রুম, স্বাস্থ্য অধিদপ্তর।)
@@ -96,11 +96,11 @@ const ReportHeader = ({ displayDate, filterDate, setSelectedDate, onPrint, toBnN
 
 
 const GovernmentSummary = ({ stats, toBnNum, divisionStats, leaders }: any) => {
-  const tdClass = "border border-slate-900 py-2 px-2 text-xs font-bold";
-  const headerClass = "border border-slate-900 py-1 bg-slate-50 text-[11px] font-bold";
+  const tdClass = "border border-slate-900 py-2 print:py-1 px-2 text-xs print:text-[10px] font-bold";
+  const headerClass = "border border-slate-900 py-1 bg-slate-50 text-[11px] print:text-[9px] font-bold";
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 print:space-y-1">
       {/* Table 1: Suspicious, Confirmed, Admissions, Recovered */}
       <table className="w-full border-collapse border border-slate-900 text-center">
         <thead>
@@ -110,13 +110,13 @@ const GovernmentSummary = ({ stats, toBnNum, divisionStats, leaders }: any) => {
             <th className="border-r border-slate-900">ভর্তির সংখ্যা</th>
             <th>সুস্থ</th>
           </tr>
-          <tr className="text-[9px] font-bold bg-white">
-            <th className="border border-slate-900 py-2 w-[16%]">গত ২৪ ঘণ্টায় সন্দেহজনক হাম রোগীর সংখ্যা</th>
-            <th className="border border-slate-900 py-2 w-[16%]">১০-০৪-২০২৬ থেকে অদ্যাবধি মোট সন্দেহজনক হাম রোগীর সংখ্যা</th>
-            <th className="border border-slate-900 py-2 w-[16%]">গত ২৪ ঘণ্টায় নিশ্চিত হাম রোগীর সংখ্যা</th>
-            <th className="border border-slate-900 py-2 w-[16%]">১০-০৪-২০২৬ থেকে অদ্যাবধি মোট নিশ্চিত হাম রোগীর সংখ্যা</th>
-            <th className="border border-slate-900 py-2 w-[18%]">১০-০৪-২০২৬ থেকে অদ্যাবধি মোট সন্দেহজনক হাম রোগীর ভর্তির সংখ্যা</th>
-            <th className="border border-slate-900 py-2 w-[18%]">১০-০৪-২০২৬ থেকে অদ্যাবধি হাসপাতাল হতে মোট ছাড় পাওয়া রোগীর সংখ্যা</th>
+          <tr className="text-[9px] print:text-[8px] font-bold bg-white">
+            <th className="border border-slate-900 py-2 print:py-1 w-[16%]">গত ২৪ ঘণ্টায় সন্দেহজনক হাম রোগীর সংখ্যা</th>
+            <th className="border border-slate-900 py-2 print:py-1 w-[16%]">১০-০৪-২০২৬ থেকে অদ্যাবধি মোট সন্দেহজনক হাম রোগীর সংখ্যা</th>
+            <th className="border border-slate-900 py-2 print:py-1 w-[16%]">গত ২৪ ঘণ্টায় নিশ্চিত হাম রোগীর সংখ্যা</th>
+            <th className="border border-slate-900 py-2 print:py-1 w-[16%]">১০-০৪-২০২৬ থেকে অদ্যাবধি মোট নিশ্চিত হাম রোগীর সংখ্যা</th>
+            <th className="border border-slate-900 py-2 print:py-1 w-[18%]">১০-০৪-২০২৬ থেকে অদ্যাবধি মোট সন্দেহজনক হাম রোগীর ভর্তির সংখ্যা</th>
+            <th className="border border-slate-900 py-2 print:py-1 w-[18%]">১০-০৪-২০২৬ থেকে অদ্যাবধি হাসপাতাল হতে মোট ছাড় পাওয়া রোগীর সংখ্যা</th>
           </tr>
         </thead>
         <tbody>
@@ -140,13 +140,13 @@ const GovernmentSummary = ({ stats, toBnNum, divisionStats, leaders }: any) => {
             <th colSpan={2} className="border-r border-slate-900">নিশ্চিত মৃত্যু</th>
             <th colSpan={2}>সন্দেহজনক মৃত্যু</th>
           </tr>
-          <tr className="text-[9px] font-bold bg-white">
-            <th className="border border-slate-900 py-2 w-[16%]">সন্দেহজনক হাম রোগে মৃত্যু <br/><b>{leaders.division}</b></th>
-            <th className="border border-slate-900 py-2 w-[16%]">সন্দেহজনক হাম রোগে মৃত্যু <br/><b>{leaders.district}</b></th>
-            <th className="border border-slate-900 py-2 w-[16%]">গত ২৪ ঘণ্টায় নিশ্চিত হাম রোগে মৃত্যুর সংখ্যা</th>
-            <th className="border border-slate-900 py-2 w-[16%]">১০-০৪-২০২৬ থেকে অদ্যাবধি মোট নিশ্চিত হাম রোগে মৃত্যুর সংখ্যা</th>
-            <th className="border border-slate-900 py-2 w-[16%]">গত ২৪ ঘণ্টায় সন্দেহজনক হাম রোগে মৃত্যুর সংখ্যা</th>
-            <th className="border border-slate-900 py-2 w-[16%]">১০-০৪-২০২৬ থেকে অদ্যাবধি মোট সন্দেহজনক হাম রোগে মৃত্যুর সংখ্যা</th>
+          <tr className="text-[9px] print:text-[8px] font-bold bg-white">
+            <th className="border border-slate-900 py-2 print:py-1 w-[16%]">সন্দেহজনক হাম রোগে মৃত্যু <br/><b>{leaders.division}</b></th>
+            <th className="border border-slate-900 py-2 print:py-1 w-[16%]">সন্দেহজনক হাম রোগে মৃত্যু <br/><b>{leaders.district}</b></th>
+            <th className="border border-slate-900 py-2 print:py-1 w-[16%]">গত ২৪ ঘণ্টায় নিশ্চিত হাম রোগে মৃত্যুর সংখ্যা</th>
+            <th className="border border-slate-900 py-2 print:py-1 w-[16%]">১০-০৪-২০২৬ থেকে অদ্যাবধি মোট নিশ্চিত হাম রোগে মৃত্যুর সংখ্যা</th>
+            <th className="border border-slate-900 py-2 print:py-1 w-[16%]">গত ২৪ ঘণ্টায় সন্দেহজনক হাম রোগে মৃত্যুর সংখ্যা</th>
+            <th className="border border-slate-900 py-2 print:py-1 w-[16%]">১০-০৪-২০২৬ থেকে অদ্যাবধি মোট সন্দেহজনক হাম রোগে মৃত্যুর সংখ্যা</th>
           </tr>
         </thead>
         <tbody>
@@ -161,8 +161,8 @@ const GovernmentSummary = ({ stats, toBnNum, divisionStats, leaders }: any) => {
         </tbody>
       </table>
       
-      <div className="flex justify-end pr-2">
-         <p className="text-[10px] font-bold">*** তথ্য হালনাগাদের ভিত্তিতে ***</p>
+      <div className="flex justify-end pr-2 print:pr-0 mt-2 print:mt-0">
+         <p className="text-[10px] print:text-[8px] font-bold">*** তথ্য হালনাগাদের ভিত্তিতে ***</p>
       </div>
     </div>
   );
@@ -235,12 +235,12 @@ const GovernmentBreakdownTable = ({ divisionStats, toBnNum, stats }: any) => {
   };
 
   return (
-    <section className="space-y-4 pt-10">
-      <div className="text-center mb-6">
-        <h3 className="text-sm font-bold underline underline-offset-4">
+    <section className="space-y-4 print:space-y-1 pt-10 print:pt-1">
+      <div className="text-center mb-6 print:mb-1">
+        <h3 className="text-sm print:text-xs font-bold underline underline-offset-4">
           বিভাগভিত্তিক হাম রোগী শনাক্তের সংখ্যা, মোট সন্দেহজনক রোগীর সংখ্যা ও নতুন ভর্তি, মোট ছাড়প্রাপ্ত রোগীর তথ্যাদি।
         </h3>
-        <p className="text-[10px] mt-1">(তথ্য সূত্রঃ হেলথ ইমার্জেন্সি অপারেশন সেন্টার ও কন্ট্রোল রুম, স্বাস্থ্য অধিদপ্তর।)</p>
+        <p className="text-[10px] print:text-[8px] mt-1 print:mt-0">(তথ্য সূত্রঃ হেলথ ইমার্জেন্সি অপারেশন সেন্টার ও কন্ট্রোল রুম, স্বাস্থ্য অধিদপ্তর।)</p>
       </div>
 
       <div className="overflow-x-auto print:overflow-visible border-x border-t border-slate-900">
@@ -248,40 +248,40 @@ const GovernmentBreakdownTable = ({ divisionStats, toBnNum, stats }: any) => {
           <thead>
             {/* Main Header Rows */}
             <tr className="bg-slate-50 font-bold border-b border-slate-900">
-              <th className="border-r border-slate-900 py-4 w-[60px]" rowSpan={2}>বিভাগ</th>
-              <th className={`${headerStyles.suspected} py-1`} rowSpan={2}>গত ২৪ ঘণ্টায় সন্দেহজনক হাম রোগীর সংখ্যা</th>
-              <th className={`${headerStyles.admitted} py-1`} rowSpan={2}>গত ২৪ ঘণ্টায় হাম রোগী ভর্তির সংখ্যা</th>
-              <th className={`${headerStyles.discharged} py-1`} rowSpan={2}>গত ২৪ ঘণ্টায় হাসপাতাল হতে মোট ছাড় পাওয়া রোগীর সংখ্যা</th>
-              <th className={`${headerStyles.death} py-1`} rowSpan={2}>গত ২৪ ঘণ্টায় নিশ্চিত হাম রোগে মৃত্যুর সংখ্যা</th>
-              <th className={`${headerStyles.confirmed} py-1`} rowSpan={2}>গত ২৪ ঘণ্টায় নিশ্চিত হাম রোগীর সংখ্যা</th>
-              <th className={`${headerStyles.deathSus} py-1`} rowSpan={2}>গত ২৪ ঘণ্টায় সন্দেহজনক হাম রোগে মৃত্যুর সংখ্যা</th>
-              <th className="bg-slate-200 border-x border-slate-900 py-1" colSpan={6}>অদ্যাবধি (১০-০৪-২০২৬ থেকে)</th>
+              <th className="border-r border-slate-900 py-4 print:py-1 w-[60px]" rowSpan={2}>বিভাগ</th>
+              <th className={`${headerStyles.suspected} py-1 print:py-0.5`} rowSpan={2}>গত ২৪ ঘণ্টায় সন্দেহজনক হাম রোগীর সংখ্যা</th>
+              <th className={`${headerStyles.admitted} py-1 print:py-0.5`} rowSpan={2}>গত ২৪ ঘণ্টায় হাম রোগী ভর্তির সংখ্যা</th>
+              <th className={`${headerStyles.discharged} py-1 print:py-0.5`} rowSpan={2}>গত ২৪ ঘণ্টায় হাসপাতাল হতে মোট ছাড় পাওয়া রোগীর সংখ্যা</th>
+              <th className={`${headerStyles.death} py-1 print:py-0.5`} rowSpan={2}>গত ২৪ ঘণ্টায় নিশ্চিত হাম রোগে মৃত্যুর সংখ্যা</th>
+              <th className={`${headerStyles.confirmed} py-1 print:py-0.5`} rowSpan={2}>গত ২৪ ঘণ্টায় নিশ্চিত হাম রোগীর সংখ্যা</th>
+              <th className={`${headerStyles.deathSus} py-1 print:py-0.5`} rowSpan={2}>গত ২৪ ঘণ্টায় সন্দেহজনক হাম রোগে মৃত্যুর সংখ্যা</th>
+              <th className="bg-slate-200 border-x border-slate-900 py-1 print:py-0.5" colSpan={6}>অদ্যাবধি (১০-০৪-২০২৬ থেকে)</th>
             </tr>
             <tr className="bg-slate-100 font-bold border-b border-slate-900">
-              <th className={`${headerStyles.suspected} py-2`}>মোট সন্দেহজনক হাম রোগীর সংখ্যা</th>
-              <th className={`${headerStyles.admitted} py-2`}>মোট সন্দেহজনক হাম রোগী ভর্তির সংখ্যা</th>
-              <th className={`${headerStyles.discharged} py-2`}>হাসপাতাল হতে মোট ছাড় পাওয়া রোগীর সংখ্যা</th>
-              <th className={`${headerStyles.confirmed} py-2`}>মোট নিশ্চিত হাম রোগীর সংখ্যা</th>
-              <th className={`${headerStyles.death} py-2`}>মোট নিশ্চিত হাম রোগে মৃত্যুর সংখ্যা</th>
-              <th className={`${headerStyles.deathSus} py-2 border-r-0`}>মোট সন্দেহজনক হাম রোগে মৃত্যুর সংখ্যা</th>
+              <th className={`${headerStyles.suspected} py-2 print:py-0.5`}>মোট সন্দেহজনক হাম রোগীর সংখ্যা</th>
+              <th className={`${headerStyles.admitted} py-2 print:py-0.5`}>মোট সন্দেহজনক হাম রোগী ভর্তির সংখ্যা</th>
+              <th className={`${headerStyles.discharged} py-2 print:py-0.5`}>হাসপাতাল হতে মোট ছাড় পাওয়া রোগীর সংখ্যা</th>
+              <th className={`${headerStyles.confirmed} py-2 print:py-0.5`}>মোট নিশ্চিত হাম রোগীর সংখ্যা</th>
+              <th className={`${headerStyles.death} py-2 print:py-0.5`}>মোট নিশ্চিত হাম রোগে মৃত্যুর সংখ্যা</th>
+              <th className={`${headerStyles.deathSus} py-2 print:py-0.5 border-r-0`}>মোট সন্দেহজনক হাম রোগে মৃত্যুর সংখ্যা</th>
             </tr>
           </thead>
           <tbody className="font-bold text-slate-900">
             {divisionStats.map((div: any) => (
               <tr key={div.name} className="border-b border-slate-900">
-                <td className="py-2 border-r border-slate-900 bg-slate-50">{div.name}</td>
-                <td className="py-2 border-r border-slate-900">{div.today.suspected.toLocaleString()}</td>
-                <td className="py-2 border-r border-slate-900">{div.today.admitted.toLocaleString()}</td>
-                <td className="py-2 border-r border-slate-900">{div.today.recovered.toLocaleString()}</td>
-                <td className="py-2 border-r border-slate-900">{div.today.confirmedDeath.toLocaleString()}</td>
-                <td className="py-2 border-r border-slate-900">{div.today.confirmed.toLocaleString()}</td>
-                <td className="py-2 border-r border-slate-900">{div.today.suspectedDeath.toLocaleString()}</td>
-                <td className="py-2 border-r border-slate-900 bg-slate-50/50">{div.cumulative.suspected.toLocaleString()}</td>
-                <td className="py-2 border-r border-slate-900 bg-slate-50/50">{div.cumulative.admitted.toLocaleString()}</td>
-                <td className="py-2 border-r border-slate-900 bg-slate-50/50">{div.cumulative.recovered.toLocaleString()}</td>
-                <td className="py-2 border-r border-slate-900 bg-slate-50/50">{div.cumulative.confirmed.toLocaleString()}</td>
-                <td className="py-2 border-r border-slate-900 bg-slate-50/50">{div.cumulative.confirmedDeath.toLocaleString()}</td>
-                <td className="py-2 bg-slate-50/50">{div.cumulative.suspectedDeath.toLocaleString()}</td>
+                <td className="py-2 print:py-1 border-r border-slate-900 bg-slate-50">{div.name}</td>
+                <td className="py-2 print:py-1 border-r border-slate-900">{div.today.suspected.toLocaleString()}</td>
+                <td className="py-2 print:py-1 border-r border-slate-900">{div.today.admitted.toLocaleString()}</td>
+                <td className="py-2 print:py-1 border-r border-slate-900">{div.today.recovered.toLocaleString()}</td>
+                <td className="py-2 print:py-1 border-r border-slate-900">{div.today.confirmedDeath.toLocaleString()}</td>
+                <td className="py-2 print:py-1 border-r border-slate-900">{div.today.confirmed.toLocaleString()}</td>
+                <td className="py-2 print:py-1 border-r border-slate-900">{div.today.suspectedDeath.toLocaleString()}</td>
+                <td className="py-2 print:py-1 border-r border-slate-900 bg-slate-50/50">{div.cumulative.suspected.toLocaleString()}</td>
+                <td className="py-2 print:py-1 border-r border-slate-900 bg-slate-50/50">{div.cumulative.admitted.toLocaleString()}</td>
+                <td className="py-2 print:py-1 border-r border-slate-900 bg-slate-50/50">{div.cumulative.recovered.toLocaleString()}</td>
+                <td className="py-2 print:py-1 border-r border-slate-900 bg-slate-50/50">{div.cumulative.confirmed.toLocaleString()}</td>
+                <td className="py-2 print:py-1 border-r border-slate-900 bg-slate-50/50">{div.cumulative.confirmedDeath.toLocaleString()}</td>
+                <td className="py-2 print:py-1 bg-slate-50/50">{div.cumulative.suspectedDeath.toLocaleString()}</td>
               </tr>
             ))}
             <tr className="bg-slate-100 text-[10px] font-black border-b border-slate-900">
@@ -308,9 +308,9 @@ const GovernmentBreakdownTable = ({ divisionStats, toBnNum, stats }: any) => {
 };
 
 const PrintFooter = ({ selectedDate, toBnNum }: any) => (
-  <footer className="hidden print:block mt-16 pt-10 border-t-[1.5pt] border-slate-900">
+  <footer className="hidden print:block mt-16 print:mt-2 pt-10 print:pt-1 border-t-[1.5pt] border-slate-900">
     {/* Institutional Branding Row */}
-    <div className="flex justify-center items-center gap-20 mb-16 opacity-80">
+    <div className="flex justify-center items-center gap-20 mb-16 print:mb-2 opacity-80">
        <div className="flex flex-col items-center gap-2">
           <Image src="/mis_logo.png" alt="MIS Logo" width={50} height={50} className="grayscale" />
           <p className="text-[8px] font-black uppercase text-slate-400">MIS • DGHS</p>
@@ -326,22 +326,21 @@ const PrintFooter = ({ selectedDate, toBnNum }: any) => (
     </div>
 
     {/* Signatory Blocks */}
-    <div className="flex justify-between items-end px-4 mb-20 pt-10">
+    <div className="flex justify-between items-end px-4 mb-20 print:mb-4 pt-10 print:pt-2">
        <div className="w-64">
-          <div className="border-b-[0.5pt] border-dotted border-slate-900 h-10 mb-2"></div>
+          <div className="border-b-[0.5pt] border-dotted border-slate-900 h-10 print:h-6 mb-2"></div>
           <p className="text-[10px] font-black text-slate-900 mb-0.5 uppercase tracking-tighter">System Operator</p>
           <p className="text-[8px] font-bold text-slate-400 uppercase leading-none italic">Manual Verification Unit • Surveillance Intelligence</p>
        </div>
        <div className="w-64">
-          <div className="border-b-[0.5pt] border-dotted border-slate-900 h-10 mb-2"></div>
+          <div className="border-b-[0.5pt] border-dotted border-slate-900 h-10 print:h-6 mb-2"></div>
           <p className="text-[10px] font-black text-slate-900 mb-0.5 uppercase tracking-tighter">Authorized Officer (DGHS)</p>
           <p className="text-[8px] font-bold text-slate-400 uppercase leading-none italic">Director, MIS & Health Informatics Hub</p>
        </div>
     </div>
 
     {/* Final Metadata */}
-    <div className="flex justify-between items-center text-[8pt] font-medium text-slate-400 uppercase tracking-widest pt-5 border-t border-slate-100">
-       <span>Confidential Public Health Surveillance Data</span>
+    <div className="flex justify-between items-center text-[7pt] font-medium text-slate-400 uppercase tracking-widest pt-2 border-t border-slate-100">
        <span>Generated: {toBnNum(selectedDate, true)} {toBnNum('5:32', true)} PM</span>
        <span>Page {toBnNum(1, true)} of {toBnNum(1, true)}</span>
     </div>
@@ -540,10 +539,10 @@ export default function BulletinPage() {
     <div className="min-h-screen bg-[#F1F3F6] p-4 md:p-8 font-sans print:bg-white print:p-0">
       <style jsx global>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
-        body { font-family: 'Nikosh', 'Inter', sans-serif; }
+        body { font-family: var(--font-nikosh), 'Inter', sans-serif; }
         @media print {
-          @page { size: auto; margin: 10mm 15mm !important; }
-          body { font-size: 10pt; line-height: 1.25; font-family: 'Times New Roman', Times, serif !important; background-color: white !important; }
+          @page { size: auto; margin: 2mm 5mm !important; }
+          body { font-size: 10pt; line-height: 1.1; font-family: 'Times New Roman', Times, serif !important; background-color: white !important; }
           .no-print, nav, footer, button, .pagination-controls { display: none !important; }
           .max-w-[1240px] { max-width: 100% !important; width: 100% !important; margin: 0 !important; padding: 0 !important; border: none !important; box-shadow: none !important; }
           table { width: 100% !important; border-collapse: collapse !important; table-layout: fixed !important; word-break: break-word !important; }
@@ -567,7 +566,7 @@ export default function BulletinPage() {
           toBnNum={toBnNum} 
         />
         
-        <main className="p-8 space-y-10 print:p-0 print:space-y-6">
+        <main className="p-8 space-y-10 print:p-0 print:space-y-1">
           {temporal?.isHistorical && selectedDate === getBdDateString() && (
             <div className="bg-amber-50 border-y border-amber-200 py-3 px-8 text-center no-print">
                <p className="text-xs font-bold text-amber-800">

@@ -1,13 +1,13 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { 
-  BarChart3, 
-  Calendar, 
-  MapPin, 
-  Download, 
-  X, 
-  ChevronDown, 
+import {
+  BarChart3,
+  Calendar,
+  MapPin,
+  Download,
+  X,
+  ChevronDown,
   Filter,
   Search,
   Check,
@@ -86,13 +86,13 @@ interface FormField {
   isCoreField: boolean;
 }
 
-const CustomMultiSelect = ({ 
-  label, 
-  options, 
-  selected, 
-  onChange, 
+const CustomMultiSelect = ({
+  label,
+  options,
+  selected,
+  onChange,
   icon: Icon,
-  placeholder = "Select options..." 
+  placeholder = "Select options..."
 }: any) => {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -124,9 +124,8 @@ const CustomMultiSelect = ({
       <div className="relative">
         <button
           onClick={() => setIsOpen(!isOpen)}
-          className={`w-full flex items-center justify-between gap-2 px-4 py-3 bg-slate-50 border rounded-2xl text-xs transition-all ${
-            isOpen ? 'border-indigo-500 ring-4 ring-indigo-500/10' : 'border-slate-200 hover:border-slate-300'
-          }`}
+          className={`w-full flex items-center justify-between gap-2 px-4 py-3 bg-slate-50 border rounded-2xl text-xs transition-all ${isOpen ? 'border-indigo-500 ring-4 ring-indigo-500/10' : 'border-slate-200 hover:border-slate-300'
+            }`}
         >
           <span className={`block truncate ${selected.length ? 'text-slate-800 font-bold' : 'text-slate-400 font-medium'}`}>
             {selected.length === 0 ? placeholder : `${selected.length} Selected`}
@@ -147,11 +146,10 @@ const CustomMultiSelect = ({
                   <button
                     key={option}
                     onClick={() => toggleOption(option)}
-                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs transition-colors ${
-                      selected.includes(option) 
-                        ? 'bg-indigo-50 text-indigo-700 font-bold' 
-                        : 'text-slate-600 hover:bg-slate-50'
-                    }`}
+                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs transition-colors ${selected.includes(option)
+                      ? 'bg-indigo-50 text-indigo-700 font-bold'
+                      : 'text-slate-600 hover:bg-slate-50'
+                      }`}
                   >
                     {option}
                     {selected.includes(option) && <Check className="w-4 h-4 text-indigo-600" />}
@@ -172,7 +170,17 @@ export default function UnifiedReportingHub() {
   const role = session?.user?.role || "";
   const canManage = hasPermission(role, 'data:manage') || role === 'ADMIN' || role === 'EDITOR';
   const canView = hasPermission(role, 'admin:view');
-  
+
+  if (role && !canView) {
+    return (
+      <div className="p-8 text-center min-h-[400px] flex flex-col items-center justify-center">
+        <AlertCircle className="w-16 h-16 text-rose-500 mb-4" />
+        <h1 className="text-2xl font-black text-slate-800">Access Denied</h1>
+        <p className="text-slate-500 mt-2 font-medium">You need administrative privileges to access this page.</p>
+      </div>
+    );
+  }
+
   // App State
   const [viewMode, setViewMode] = useState<'STATUS' | 'LOGS' | 'GAPS'>('STATUS');
   const [selectedOutbreakId, setSelectedOutbreakId] = useState("");
@@ -238,7 +246,7 @@ export default function UnifiedReportingHub() {
     const handler = setTimeout(() => setDebouncedSearch(searchQuery), 400);
     return () => clearTimeout(handler);
   }, [searchQuery]);
-  
+
   // Separate Pagination for Status/Gaps vs Logs
   const [statusPage, setStatusPage] = useState(1);
   const [page, setPage] = useState(1);
@@ -280,7 +288,7 @@ export default function UnifiedReportingHub() {
 
   const fetchBaseData = async () => {
     try {
-      const res = await fetch('/api/facilities'); 
+      const res = await fetch('/api/facilities');
       const data = await res.json();
       if (Array.isArray(data)) {
         setFacilities(data.map((f: any) => ({
@@ -323,7 +331,7 @@ export default function UnifiedReportingHub() {
 
       const res = await fetch(`/api/reports?${queryParams.toString()}`);
       const data = await res.json();
-      
+
       if (data.reports) {
         setReports(data.reports);
         setPagination(data.pagination);
@@ -376,40 +384,40 @@ export default function UnifiedReportingHub() {
   }, [reports, viewMode]);
 
   const filteredFacilities = useMemo(() => {
-     let list = [...facilities];
-     
-     if (selectedDivisions.length > 0) list = list.filter(f => selectedDivisions.includes(f.division));
-     if (selectedDistricts.length > 0) list = list.filter(f => selectedDistricts.includes(f.district));
-     if (debouncedSearch) {
-       const q = debouncedSearch.toLowerCase();
-       list = list.filter(f => f.facilityName.toLowerCase().includes(q) || f.district.toLowerCase().includes(q));
-     }
+    let list = [...facilities];
 
-      if (viewMode === 'STATUS') {
-        if (statusFilter === 'submitted') list = list.filter(f => reportMap.has(f.id));
-        if (statusFilter === 'missing') list = list.filter(f => !reportMap.has(f.id));
-        
-        if (metricFilter === 'suspectedDeath') {
-          list = list.filter(f => {
-            const r = reportMap.get(f.id);
-            return r && (Number(r.suspectedDeath24h || 0) > 0 || Number(r.dataSnapshot?.suspectedDeath24h || 0) > 0);
-          });
-        }
-        if (metricFilter === 'confirmedDeath') {
-          list = list.filter(f => {
-            const r = reportMap.get(f.id);
-            return r && (Number(r.confirmedDeath24h || 0) > 0 || Number(r.dataSnapshot?.confirmedDeath24h || 0) > 0);
-          });
-        }
+    if (selectedDivisions.length > 0) list = list.filter(f => selectedDivisions.includes(f.division));
+    if (selectedDistricts.length > 0) list = list.filter(f => selectedDistricts.includes(f.district));
+    if (debouncedSearch) {
+      const q = debouncedSearch.toLowerCase();
+      list = list.filter(f => f.facilityName.toLowerCase().includes(q) || f.district.toLowerCase().includes(q));
+    }
+
+    if (viewMode === 'STATUS') {
+      if (statusFilter === 'submitted') list = list.filter(f => reportMap.has(f.id));
+      if (statusFilter === 'missing') list = list.filter(f => !reportMap.has(f.id));
+
+      if (metricFilter === 'suspectedDeath') {
+        list = list.filter(f => {
+          const r = reportMap.get(f.id);
+          return r && (Number(r.suspectedDeath24h || 0) > 0 || Number(r.dataSnapshot?.suspectedDeath24h || 0) > 0);
+        });
       }
-      
-      return list;
-   }, [facilities, viewMode, selectedDivisions, selectedDistricts, searchQuery, statusFilter, reportMap, metricFilter]);
+      if (metricFilter === 'confirmedDeath') {
+        list = list.filter(f => {
+          const r = reportMap.get(f.id);
+          return r && (Number(r.confirmedDeath24h || 0) > 0 || Number(r.dataSnapshot?.confirmedDeath24h || 0) > 0);
+        });
+      }
+    }
+
+    return list;
+  }, [facilities, viewMode, selectedDivisions, selectedDistricts, searchQuery, statusFilter, reportMap, metricFilter]);
 
   const stats = useMemo(() => {
     const total = facilities.length;
     const submittedOnDate = facilities.filter(f => reportMap.has(f.id)).length;
-    
+
     if (viewMode === 'LOGS' && summaryData) {
       return {
         totalFacilities: total,
@@ -429,7 +437,7 @@ export default function UnifiedReportingHub() {
     let totalSuspected = 0, totalConfirmed = 0;
     let totalSuspectedDeaths = 0, totalConfirmedDeaths = 0;
     let totalAdmitted = 0, totalDischarged = 0;
-    
+
     reports.forEach(r => {
       totalSuspected += Number(r.suspected24h || 0);
       totalConfirmed += Number(r.confirmed24h || 0);
@@ -463,19 +471,19 @@ export default function UnifiedReportingHub() {
 
   const gapAnalysis = useMemo(() => {
     if (viewMode !== 'GAPS' || !filteredFacilities.length) return [];
-    
+
     const start = new Date(dateRange.from);
     const end = new Date(dateRange.to);
     const intervals = eachDayOfInterval({ start, end });
     const totalDays = intervals.length;
-    
+
     return filteredFacilities.map(f => {
       const facilityReports = reports.filter(r => r.facilityId === f.id);
       const reportedDates = facilityReports.map(r => format(new Date(r.reportingDate), 'yyyy-MM-dd'));
       const missingDates = intervals
         .filter(day => !reportedDates.includes(format(day, 'yyyy-MM-dd')))
         .map(day => day);
-        
+
       const rate = Math.round((facilityReports.length / totalDays) * 100);
       return {
         ...f,
@@ -496,12 +504,12 @@ export default function UnifiedReportingHub() {
     setMetricFilter('all');
     // Keeping selectedOutbreakId to preserve dynamic columns
   };
-  
+
   const handleExportExcel = async () => {
     setExporting(true);
     try {
       let dataToExport = [];
-      
+
       if (viewMode === 'LOGS' || viewMode === 'GAPS') {
         // Fetch ALL data for logs/gaps
         const queryParams = new URLSearchParams({
@@ -527,20 +535,22 @@ export default function UnifiedReportingHub() {
         const facility = isReportMode ? item.facility : item;
         const report = isReportMode ? item : reportMap.get(item.id);
         const displayDate = isReportMode ? item.reportingDate : selectedDate;
-        
+
+        let resolvedEmail = report?.user?.email || facility?.email || '';
+        if (resolvedEmail === 'N/A') resolvedEmail = '';
+
         const row: any = {
-          'Facility Name': facility?.facilityName || 'N/A',
-          'Division': facility?.division || 'N/A',
-          'District': facility?.district || 'N/A',
-          'Reporting Date': displayDate ? format(new Date(displayDate), 'yyyy-MM-dd') : 'N/A',
-          'Status': report ? 'Received' : 'Missing',
-          'Verified': report?.published ? 'Yes' : 'No',
+          'Division': facility?.division || '',
+          'District': facility?.district || '',
+          'Facility Name': facility?.facilityName || '',
+          'Email': resolvedEmail,
+          'Reporting Date': displayDate ? format(new Date(displayDate), 'yyyy-MM-dd') : '',
         };
 
         // If no dynamic fields (e.g. no outbreak selected), use default columns
         if (dynamicFields.length === 0) {
-          row['Suspected'] = report?.suspected24h || 0;
-          row['Confirmed'] = report?.confirmed24h || 0;
+          row['Suspected Cases'] = report?.suspected24h || 0;
+          row['Confirmed Cases'] = report?.confirmed24h || 0;
           row['Suspected Deaths'] = report?.suspectedDeath24h || 0;
           row['Confirmed Deaths'] = report?.confirmedDeath24h || 0;
           row['Admissions'] = report?.admitted24h || 0;
@@ -585,7 +595,7 @@ export default function UnifiedReportingHub() {
       doc.text(`DGHS Reporting Hub - ${viewMode} Report`, 14, 22);
       doc.setFontSize(11);
       doc.text(`Generated on: ${format(new Date(), 'dd MMM yyyy HH:mm')}`, 14, 30);
-      
+
       const headers = ['Facility', 'Location', 'Date', 'Status'];
       if (dynamicFields.length > 0) {
         dynamicFields.forEach(f => headers.push(f.label));
@@ -598,7 +608,7 @@ export default function UnifiedReportingHub() {
         const facility = isReportMode ? item.facility : item;
         const report = isReportMode ? item : reportMap.get(item.id);
         const displayDate = isReportMode ? item.reportingDate : selectedDate;
-        
+
         const base = [
           facility?.facilityName || 'N/A',
           `${facility?.district || ''}, ${facility?.division || ''}`,
@@ -663,7 +673,7 @@ export default function UnifiedReportingHub() {
   return (
     <div className="p-4 md:p-8 max-w-[1600px] mx-auto space-y-8 pb-32 bg-slate-50/50 min-h-screen">
       <Breadcrumbs />
-      
+
       {/* Dynamic Hero Header */}
       {/* <div className="relative group overflow-hidden bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-sm">
         <div className="absolute top-0 right-0 p-10 opacity-[0.03] scale-150 rotate-12 transition-transform group-hover:scale-110">
@@ -765,50 +775,50 @@ export default function UnifiedReportingHub() {
             </div>
           ))}
        </div> */}
-         <div className={`relative group overflow-hidden bg-white border-b border-slate-200 shadow-sm transition-all duration-500 ease-in-out ${isHeaderCollapsed ? 'p-4 rounded-b-3xl' : 'p-10 rounded-b-[2.5rem]'}`}>
+      <div className={`relative group overflow-hidden bg-white border-b border-slate-200 shadow-sm transition-all duration-500 ease-in-out ${isHeaderCollapsed ? 'p-4 rounded-b-3xl' : 'p-10 rounded-b-[2.5rem]'}`}>
         <div className="absolute top-0 right-0 p-10 opacity-[0.03] scale-150 rotate-12 transition-transform group-hover:scale-110 pointer-events-none">
           <Layers className="w-64 h-64" />
         </div>
-        
+
         <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6 relative">
           <div className="flex flex-col md:flex-row items-center gap-6">
             <div className="flex bg-indigo-50 p-1 rounded-xl border border-indigo-100 shadow-inner">
-               {(['STATUS', 'LOGS', 'GAPS'] as const).map((mode) => (
-                 <button 
-                   key={mode}
-                   onClick={() => setViewMode(mode)}
-                   className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === mode ? 'bg-white text-indigo-600 shadow-sm ring-1 ring-indigo-200' : 'text-indigo-400 hover:text-indigo-600'}`}
-                 >
-                   {mode === 'STATUS' ? 'Reporting Hub' : mode === 'LOGS' ? 'Submission Logs' : 'Gap Analysis'}
-                 </button>
-               ))}
+              {(['STATUS', 'LOGS', 'GAPS'] as const).map((mode) => (
+                <button
+                  key={mode}
+                  onClick={() => setViewMode(mode)}
+                  className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === mode ? 'bg-white text-indigo-600 shadow-sm ring-1 ring-indigo-200' : 'text-indigo-400 hover:text-indigo-600'}`}
+                >
+                  {mode === 'STATUS' ? 'Reporting Hub' : mode === 'LOGS' ? 'Submission Logs' : 'Gap Analysis'}
+                </button>
+              ))}
             </div>
-            
+
             <div className="w-72">
               <AdminOutbreakSelector onSelect={setSelectedOutbreakId} defaultValue={selectedOutbreakId} />
             </div>
 
             <div className="flex bg-slate-50 p-1 rounded-xl border border-slate-200 shadow-inner">
               {viewMode === 'STATUS' ? (
-                <input 
-                  type="date" 
-                  value={selectedDate} 
-                  onChange={(e) => setSelectedDate(e.target.value)} 
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
                   className="bg-transparent border-none text-[11px] font-black text-slate-700 focus:ring-0 px-4 py-2 cursor-pointer"
                 />
               ) : (
                 <div className="flex items-center gap-1">
-                  <input 
-                    type="date" 
-                    value={dateRange.from} 
-                    onChange={(e) => setDateRange(prev => ({ ...prev, from: e.target.value }))} 
+                  <input
+                    type="date"
+                    value={dateRange.from}
+                    onChange={(e) => setDateRange(prev => ({ ...prev, from: e.target.value }))}
                     className="bg-transparent border-none text-[10px] font-black text-slate-600 focus:ring-0 px-3 py-2 cursor-pointer"
                   />
                   <span className="text-slate-300 text-xs">/</span>
-                  <input 
-                    type="date" 
-                    value={dateRange.to} 
-                    onChange={(e) => setDateRange(prev => ({ ...prev, to: e.target.value }))} 
+                  <input
+                    type="date"
+                    value={dateRange.to}
+                    onChange={(e) => setDateRange(prev => ({ ...prev, to: e.target.value }))}
                     className="bg-transparent border-none text-[10px] font-black text-slate-600 focus:ring-0 px-3 py-2 cursor-pointer"
                   />
                 </div>
@@ -817,50 +827,53 @@ export default function UnifiedReportingHub() {
           </div>
 
           <div className="flex items-center gap-4">
-             <button 
-               onClick={() => setIsHeaderCollapsed(!isHeaderCollapsed)}
-               className="p-3 bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-500 transition-colors"
-               title={isHeaderCollapsed ? "Show Summary" : "Collapse Header"}
-             >
-               {isHeaderCollapsed ? <ChevronDown className="w-5 h-5" /> : <ChevronUp className="w-5 h-5" />}
-             </button>
+            <button
+              onClick={() => setIsHeaderCollapsed(!isHeaderCollapsed)}
+              className="p-3 bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-500 transition-colors"
+              title={isHeaderCollapsed ? "Show Summary" : "Collapse Header"}
+            >
+              {isHeaderCollapsed ? <ChevronDown className="w-5 h-5" /> : <ChevronUp className="w-5 h-5" />}
+            </button>
           </div>
         </div>
 
         <AnimatePresence>
           {!isHeaderCollapsed && (
-            <motion.div 
+            <motion.div
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
               className="mt-10 overflow-hidden"
             >
-               <div className="flex flex-wrap items-center gap-4 p-2 bg-slate-50/50 rounded-3xl border border-slate-100">
-                  {[
-                    { label: viewMode === 'STATUS' ? 'Units' : 'Logs', value: viewMode === 'STATUS' ? filteredFacilities.length : (pagination?.total || 0), icon: Building2, color: 'text-slate-600', bg: 'bg-slate-100' },
-                    { label: 'Suspected', value: stats.periodSuspected, icon: Activity, color: 'text-amber-600', bg: 'bg-amber-50' },
-                    { label: 'Suspected Deaths', value: stats.periodSuspectedDeaths, icon: Skull, color: 'text-rose-600', bg: 'bg-rose-50', key: 'suspectedDeath' },
-                    { label: 'Confirmed Deaths', value: stats.periodConfirmedDeaths, icon: ShieldAlert, color: 'text-rose-700', bg: 'bg-rose-100', key: 'confirmedDeath' },
-                  ].map((stat, i) => (
-                    <div 
-                      key={i} 
-                      onClick={() => {
-                        if (stat.key) {
-                          setMetricFilter(prev => prev === stat.key ? 'all' : stat.key as any);
-                        }
-                      }}
-                      className={`flex items-center gap-3 px-6 py-3 bg-white rounded-2xl border transition-all cursor-pointer hover:shadow-md ${stat.key && metricFilter === stat.key ? 'ring-2 ring-indigo-500 border-indigo-500' : 'border-slate-100 shadow-sm'}`}
-                    >
-                      <div className={`p-2 rounded-lg ${stat.bg}`}>
-                        <stat.icon className={`w-4 h-4 ${stat.color}`} />
-                      </div>
-                      <div className="flex flex-col">
-                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-0.5">{stat.label}</span>
-                        <span className="text-sm font-black text-slate-900 tracking-tight tabular-nums">{stat.value}</span>
-                      </div>
+              <div className="flex flex-wrap items-center gap-4 p-2 bg-slate-50/50 rounded-3xl border border-slate-100">
+                {[
+                  { label: viewMode === 'STATUS' ? 'Units' : 'Logs', value: viewMode === 'STATUS' ? filteredFacilities.length : (pagination?.total || 0), icon: Building2, color: 'text-slate-600', bg: 'bg-slate-100' },
+                  { label: 'Suspected', value: stats.periodSuspected, icon: Activity, color: 'text-amber-600', bg: 'bg-amber-50' },
+                  { label: 'Confirmed', value: stats.periodConfirmed, icon: TrendingUp, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+                  { label: 'Admitted', value: stats.periodAdmitted, icon: Building2, color: 'text-indigo-600', bg: 'bg-indigo-50' },
+                  { label: 'Discharged', value: stats.periodDischarged, icon: CheckCircle2, color: 'text-teal-600', bg: 'bg-teal-50' },
+                  { label: 'Suspected Deaths', value: stats.periodSuspectedDeaths, icon: Skull, color: 'text-rose-600', bg: 'bg-rose-50', key: 'suspectedDeath' },
+                  { label: 'Confirmed Deaths', value: stats.periodConfirmedDeaths, icon: ShieldAlert, color: 'text-rose-700', bg: 'bg-rose-100', key: 'confirmedDeath' },
+                ].map((stat, i) => (
+                  <div
+                    key={i}
+                    onClick={() => {
+                      if (stat.key) {
+                        setMetricFilter(prev => prev === stat.key ? 'all' : stat.key as any);
+                      }
+                    }}
+                    className={`flex items-center gap-3 px-6 py-3 bg-white rounded-2xl border transition-all cursor-pointer hover:shadow-md ${stat.key && metricFilter === stat.key ? 'ring-2 ring-indigo-500 border-indigo-500' : 'border-slate-100 shadow-sm'}`}
+                  >
+                    <div className={`p-2 rounded-lg ${stat.bg}`}>
+                      <stat.icon className={`w-4 h-4 ${stat.color}`} />
                     </div>
-                  ))}
-               </div>
+                    <div className="flex flex-col">
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-0.5">{stat.label}</span>
+                      <span className="text-sm font-black text-slate-900 tracking-tight tabular-nums">{stat.value}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
@@ -869,418 +882,420 @@ export default function UnifiedReportingHub() {
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-8 items-start">
         {/* Unified Sidebar Filters */}
         <div className="xl:col-span-1 space-y-6">
-           <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm space-y-8 sticky top-8">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                   <div className="p-2.5 bg-indigo-50 rounded-xl"><Filter className="w-5 h-5 text-indigo-600" /></div>
-                   <h3 className="font-black text-slate-800 tracking-tight uppercase text-sm">Strategic Filters</h3>
+          <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm space-y-8 sticky top-8">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-indigo-50 rounded-xl"><Filter className="w-5 h-5 text-indigo-600" /></div>
+                <h3 className="font-black text-slate-800 tracking-tight uppercase text-sm">Filters</h3>
+              </div>
+              <button onClick={resetFilters} className="text-[10px] font-black text-indigo-500 hover:text-indigo-700 uppercase tracking-widest">Reset</button>
+            </div>
+
+            <div className="h-px bg-slate-100 mx-2" />
+
+            <div className="space-y-6">
+              <div className="space-y-3">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Facility Search</label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Name..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3 pl-4 pr-10 text-xs font-bold text-slate-800 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all"
+                  />
+                  <Search className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
                 </div>
-                <button onClick={resetFilters} className="text-[10px] font-black text-indigo-500 hover:text-indigo-700 uppercase tracking-widest">Reset</button>
               </div>
 
-              <div className="h-px bg-slate-100 mx-2" />
-
-              <div className="space-y-6">
+              {viewMode === 'STATUS' && (
                 <div className="space-y-3">
-                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Unit Search</label>
-                   <div className="relative">
-                     <input 
-                      type="text" 
-                      placeholder="Identifier or name..." 
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3 pl-4 pr-10 text-xs font-bold text-slate-800 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all" 
-                     />
-                     <Search className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
-                   </div>
-                </div>
-
-                {viewMode === 'STATUS' && (
-                  <div className="space-y-3">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Compliance Status</label>
-                    <div className="grid grid-cols-3 gap-2 p-1.5 bg-slate-100 rounded-2xl border border-slate-200">
-                       {['all', 'submitted', 'missing'].map(s => (
-                         <button 
-                           key={s}
-                           onClick={() => setStatusFilter(s as any)}
-                           className={`py-2 text-[10px] font-black uppercase rounded-xl transition-all ${statusFilter === s ? 'bg-white text-indigo-600 shadow-md' : 'text-slate-400 opacity-60'}`}
-                         >
-                           {s.substring(0,4)}
-                         </button>
-                       ))}
-                    </div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Submission Status</label>
+                  <div className="grid grid-cols-3 gap-2 p-1.5 bg-slate-100 rounded-2xl border border-slate-200">
+                    {['all', 'submitted', 'missing'].map(s => (
+                      <button
+                        key={s}
+                        onClick={() => setStatusFilter(s as any)}
+                        className={`py-2 text-[10px] font-black uppercase rounded-xl transition-all ${statusFilter === s ? 'bg-white text-indigo-600 shadow-md' : 'text-slate-400 opacity-60'}`}
+                      >
+                        {s.substring(0, 4)}
+                      </button>
+                    ))}
                   </div>
-                )}
+                </div>
+              )}
 
-                <CustomMultiSelect 
-                  label="Administrative Divisions" 
-                  options={DIVISIONS} 
-                  selected={selectedDivisions} 
-                  onChange={setSelectedDivisions} 
-                  icon={MapPin}
-                  placeholder="National View"
-                />
+              <CustomMultiSelect
+                label="Divisions"
+                options={DIVISIONS}
+                selected={selectedDivisions}
+                onChange={setSelectedDivisions}
+                icon={MapPin}
+                placeholder="All Divisions"
+              />
 
-                <CustomMultiSelect 
-                  label="Districts" 
-                  options={currentDistricts} 
-                  selected={selectedDistricts} 
-                  onChange={setSelectedDistricts} 
-                  icon={MapPin}
-                  placeholder={selectedDivisions.length ? "All Selectable Districts" : "Filter by Division"}
-                />
-              </div>
+              <CustomMultiSelect
+                label="Districts"
+                options={currentDistricts}
+                selected={selectedDistricts}
+                onChange={setSelectedDistricts}
+                icon={MapPin}
+                placeholder={selectedDivisions.length ? "All Selectable Districts" : "Filter by Division"}
+              />
+            </div>
 
-              <div className="pt-6 border-t border-slate-100">
-                <button 
-                  onClick={fetchReports}
-                  className="w-full py-4 bg-slate-900 border border-slate-800 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-slate-200 hover:bg-black transition-all flex items-center justify-center gap-3"
-                >
-                  <RefreshCcw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-                  Sync Console
-                </button>
-              </div>
-           </div>
+            <div className="pt-6 border-t border-slate-100">
+              <button
+                onClick={fetchReports}
+                className="w-full py-4 bg-slate-900 border border-slate-800 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-slate-200 hover:bg-black transition-all flex items-center justify-center gap-3"
+              >
+                <RefreshCcw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                Sync Console
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Results Console */}
         <div className="xl:col-span-3">
-           <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm min-h-[700px] flex flex-col overflow-hidden">
-              <div className="px-10 py-8 border-b border-slate-100 bg-white sticky top-0 z-20 flex items-center justify-between">
-                 <div className="flex items-center gap-5">
-                    <div className="w-12 h-12 bg-slate-900 rounded-[1.25rem] flex items-center justify-center text-white shadow-xl ring-4 ring-slate-100">
-                       {viewMode === 'STATUS' ? <Building2 className="w-6 h-6" /> : viewMode === 'LOGS' ? <History className="w-6 h-6" /> : <AlertCircle className="w-6 h-6" />}
-                    </div>
-                    <div>
-                       <h3 className="text-2xl font-black text-slate-800 tracking-tight leading-tight">
-                          {viewMode === 'STATUS' ? 'Submission Status' : viewMode === 'LOGS' ? 'Submission Archive' : 'Reporting Gap Matrix'}
-                       </h3>
-                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                          {viewMode === 'STATUS' ? filteredFacilities.length : (pagination?.total || 0)} units quantified
-                          <span className="w-1 h-1 bg-slate-200 rounded-full" />
-                          {selectedOutbreakId ? 'Outbreak Filter Active' : 'Universal Surveillance Context'}
-                       </p>
-                    </div>
-                 </div>
-                 
-                  <div className="flex items-center gap-3">
-                    {(role === 'ADMIN' || role === 'EDITOR') && (
-                      <button 
-                        onClick={handleSyncRedis}
-                        disabled={syncing}
-                        className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-600 border border-indigo-100 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-100 transition-all disabled:opacity-50"
-                        title="Sync Database with Redis Cache"
-                      >
-                        <RefreshCcw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
-                        Sync Cache
-                      </button>
-                    )}
-                    {metricFilter !== 'all' && (
-                      <div className="px-3 py-1 bg-indigo-50 text-indigo-600 rounded-full text-[9px] font-black uppercase tracking-widest border border-indigo-100 flex items-center gap-2">
-                        <span>Filtering: {metricFilter === 'suspectedDeath' ? 'Suspected Deaths' : 'Confirmed Deaths'}</span>
-                        <button onClick={() => setMetricFilter('all')}><X className="w-3 h-3" /></button>
-                      </div>
-                    )}
-                    <button 
-                      onClick={handleExportExcel}
-                      disabled={exporting}
-                      className="p-3 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 border border-transparent hover:border-indigo-100 rounded-2xl transition-all disabled:opacity-50"
-                      title="Export to Excel"
-                    >
-                       {exporting ? <RefreshCcw className="w-5 h-5 animate-spin" /> : <FileSpreadsheet className="w-5 h-5" />}
-                    </button>
-                    <button 
-                      onClick={handleExportPDF}
-                      disabled={exporting}
-                      className="p-3 text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-100 rounded-2xl transition-all disabled:opacity-50"
-                      title="Export to PDF"
-                    >
-                       {exporting ? <RefreshCcw className="w-5 h-5 animate-spin" /> : <FileText className="w-5 h-5" />}
-                    </button>
-                 </div>
+          <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm min-h-[700px] flex flex-col overflow-hidden">
+            <div className="px-10 py-8 border-b border-slate-100 bg-white sticky top-0 z-20 flex items-center justify-between">
+              <div className="flex items-center gap-5">
+                <div className="w-12 h-12 bg-slate-900 rounded-[1.25rem] flex items-center justify-center text-white shadow-xl ring-4 ring-slate-100">
+                  {viewMode === 'STATUS' ? <Building2 className="w-6 h-6" /> : viewMode === 'LOGS' ? <History className="w-6 h-6" /> : <AlertCircle className="w-6 h-6" />}
+                </div>
+                <div>
+                  <h3 className="text-2xl font-black text-slate-800 tracking-tight leading-tight">
+                    {viewMode === 'STATUS' ? 'Submission Status' : viewMode === 'LOGS' ? 'Submission Archive' : 'Reporting Gap Matrix'}
+                  </h3>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                    {viewMode === 'STATUS' ? filteredFacilities.length : (pagination?.total || 0)} Facilities
+                    <span className="w-1 h-1 bg-slate-200 rounded-full" />
+                    {selectedOutbreakId ? 'Outbreak Filter Active' : 'National Surveillance'}
+                  </p>
+                </div>
               </div>
 
-               <div 
-                  ref={tableContainerRef}
-                  onMouseDown={handleMouseDown}
-                  onMouseLeave={handleMouseLeave}
-                  onMouseUp={handleMouseUp}
-                  onMouseMove={handleMouseMove}
-                  className={`flex-1 overflow-x-auto overflow-y-auto custom-scrollbar relative max-h-[calc(100vh-280px)] ${isDragging ? 'cursor-grabbing select-none' : 'cursor-grab'}`}
-               >
-                 {viewMode === 'GAPS' ? (
-                   <div className="p-10 grid grid-cols-1 md:grid-cols-2 gap-5">
-                      {loading ? (
-                         <div className="col-span-full py-40 flex justify-center"><RefreshCcw className="w-10 h-10 text-indigo-400 animate-spin" /></div>
-                      ) : gapAnalysis.length === 0 ? (
-                        <div className="col-span-full py-40 text-center space-y-5">
-                           <CheckCircle2 className="w-20 h-20 text-emerald-400 mx-auto" />
-                           <h4 className="text-xl font-black text-slate-800">No Reporting Faults Detected</h4>
-                           <p className="text-slate-400 max-w-sm mx-auto font-medium">All monitored facilities have maintained perfect reporting synchronization in this period.</p>
-                        </div>
-                      ) : gapAnalysis.map((f: any) => (
-                        <div key={f.id} className="bg-white border border-slate-100 rounded-[2rem] p-8 shadow-sm hover:border-indigo-300 transition-all group flex flex-col">
-                           <div className="flex items-start justify-between mb-6">
-                              <div className="flex items-center gap-4">
-                                 <div className="w-14 h-14 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center ring-4 ring-indigo-50/50">
-                                    <Building2 className="w-7 h-7" />
-                                 </div>
-                                 <div className="flex flex-col">
-                                    <h4 className="font-black text-slate-800 text-lg leading-tight group-hover:text-indigo-600 transition-colors uppercase tracking-tight">{f.facilityName}</h4>
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] mt-1">{f.district}, {f.division}</p>
-                                 </div>
-                              </div>
-                              <div className={`px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest ${f.missingCount > 3 ? 'bg-rose-50 text-rose-600 border border-rose-100' : 'bg-amber-50 text-amber-600 border border-amber-100'}`}>
-                                 {f.missingCount} Missing
-                              </div>
-                           </div>
-                           
-                           <div className="space-y-4 pt-6 border-t border-slate-50 flex-1">
-                               <div className="flex items-center justify-between text-[11px] font-black text-slate-500 uppercase">
-                                  <span>Sync Score</span>
-                                  <span className="text-indigo-600">{f.rate}%</span>
-                               </div>
-                               <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                                  <motion.div 
-                                    initial={{ width: 0 }}
-                                    animate={{ width: `${f.rate}%` }}
-                                    className="h-full bg-indigo-600 shadow-sm"
-                                  />
-                               </div>
-                               
-                               <div className="flex flex-wrap gap-1.5 pt-2">
-                                  {f.missingDates.slice(0, 10).map((day: any) => (
-                                    <span key={day.toString()} className="px-2 py-1 bg-slate-50 text-slate-500 rounded-lg text-[9px] font-black uppercase tracking-tight border border-slate-100">
-                                       {format(day, 'MMM dd')}
-                                    </span>
-                                  ))}
-                                  {f.missingDates.length > 10 && (
-                                    <span className="px-2 py-1 bg-indigo-50 text-indigo-600 rounded-lg text-[9px] font-black">
-                                       +{f.missingDates.length - 10} More
-                                    </span>
-                                  )}
-                               </div>
-                           </div>
-                           
-                           <div className="pt-6 mt-auto flex justify-between items-center">
-                              <p className="text-[10px] font-bold text-slate-400 uppercase">{f.reportsCount} reported / {f.reportsCount + f.missingCount} total</p>
-                              <button className="text-[10px] font-black text-indigo-500 hover:text-indigo-800 uppercase tracking-widest px-3 py-1.5 hover:bg-indigo-50 rounded-xl transition-all">Send Notice</button>
-                           </div>
-                        </div>
-                      ))}
-                   </div>
-                 ) : (
- <table className={`w-full text-left border-collapse ${dynamicFields.length > 5 ? 'min-w-[1500px]' : 'min-w-[1100px]'}`}>
-  <thead className="sticky top-0 z-40 bg-white shadow-sm">
-    <tr className="bg-slate-50/50 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
-      <th className="px-10 py-6 border-b border-slate-100 text-left w-[350px] sticky left-0 z-50 bg-slate-50 scroll-gpu">Health Facility</th>
-      
-      {/* Dynamic Headers */}
-      {dynamicFields.length > 0 ? (
-        dynamicFields.map(field => (
-          <th key={field.id} className="w-[120px] px-6 py-6 border-b border-slate-100 text-center" title={field.label}>
-            {i18n.language === 'bn' ? field.labelBn || field.label : field.label}
-          </th>
-        ))
-      ) : (
-        <>
-          <th className="w-[100px] px-6 py-6 border-b border-slate-100 text-center">Susp. Cases</th>
-          <th className="w-[100px] px-6 py-6 border-b border-slate-100 text-center">Conf. Cases</th>
-          <th className="w-[100px] px-6 py-6 border-b border-slate-100 text-center">Susp. Deaths</th>
-          <th className="w-[100px] px-6 py-6 border-b border-slate-100 text-center">Conf. Deaths</th>
-          <th className="w-[100px] px-6 py-6 border-b border-slate-100 text-center">Admitted</th>
-          <th className="w-[100px] px-6 py-6 border-b border-slate-100 text-center">Discharged</th>
-        </>
-      )}
-      
-      <th className="w-[160px] px-10 py-6 border-b border-slate-100 text-right">Actions</th>
-    </tr>
-  </thead>
-  <tbody className="divide-y divide-slate-100">
-    {loading ? (
-      <tr><td colSpan={4 + (dynamicFields.length > 0 ? dynamicFields.length : (viewMode === 'LOGS' ? 3 : 2)) + 1} className="p-32 text-center text-slate-400 font-bold uppercase tracking-widest text-xs">Synchronizing Console Data...</td></tr>
-    ) : (viewMode === 'LOGS' ? reports : paginatedStatusData).map((item: any) => {
-      // item could be a facility (STATUS) or a report (LOGS)
-      const isReportMode = viewMode === 'LOGS';
-      const facility = isReportMode ? item.facility : item;
-      const report = isReportMode ? item : reportMap.get(item.id);
-      const displayDate = isReportMode ? item.reportingDate : selectedDate;
-      
-      return (
-        <tr key={item.id} className="group transition-colors bg-white hover:bg-slate-50 scroll-gpu">
-          <td className="px-10 py-6 sticky left-0 z-30 bg-white group-hover:bg-slate-50 transition-colors scroll-gpu border-r border-slate-50">
-            <div className="flex items-start gap-4 relative">
-              {/* Subtle Status Sidebar */}
-              <div className={`absolute -left-10 top-0 bottom-0 w-1.5 transition-all duration-300 ${report ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.4)]' : 'bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.4)]'}`} />
-              
-                <div className="flex flex-col min-w-0">
-                  <div className="flex items-center gap-2">
-                    <div className={`w-2 h-2 rounded-full flex-shrink-0 ${report ? 'bg-emerald-500' : 'bg-rose-500 pulse-status'}`} />
-                    <span className="text-sm font-black text-slate-800 tracking-tight break-words leading-tight">
-                      {facility?.facilityName || 'Global System'}
-                    </span>
+              <div className="flex items-center gap-3">
+                {(role === 'ADMIN' || role === 'EDITOR') && (
+                  <button
+                    onClick={handleSyncRedis}
+                    disabled={syncing}
+                    className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-600 border border-indigo-100 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-100 transition-all disabled:opacity-50"
+                    title="Sync Database with Redis Cache"
+                  >
+                    <RefreshCcw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
+                    Sync Cache
+                  </button>
+                )}
+                {metricFilter !== 'all' && (
+                  <div className="px-3 py-1 bg-indigo-50 text-indigo-600 rounded-full text-[9px] font-black uppercase tracking-widest border border-indigo-100 flex items-center gap-2">
+                    <span>Filtering: {metricFilter === 'suspectedDeath' ? 'Suspected Deaths' : 'Confirmed Deaths'}</span>
+                    <button onClick={() => setMetricFilter('all')}><X className="w-3 h-3" /></button>
                   </div>
-
-                  <span className="flex items-center gap-1 text-[10px] font-bold text-slate-400 opacity-70 px-4 leading-relaxed">
-                    <span className="break-words">{facility?.district || 'N/A'}</span>
-                    <Circle className="w-1.5 h-1.5" />
-                    <span className="break-words">{facility?.division || 'N/A'}</span>
-                  </span>
-                </div>
+                )}
+                <button
+                  onClick={handleExportExcel}
+                  disabled={exporting}
+                  className="p-3 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 border border-transparent hover:border-indigo-100 rounded-2xl transition-all disabled:opacity-50"
+                  title="Export to Excel"
+                >
+                  {exporting ? <RefreshCcw className="w-5 h-5 animate-spin" /> : <FileSpreadsheet className="w-5 h-5" />}
+                </button>
+                <button
+                  onClick={handleExportPDF}
+                  disabled={exporting}
+                  className="p-3 text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-100 rounded-2xl transition-all disabled:opacity-50"
+                  title="Export to PDF"
+                >
+                  {exporting ? <RefreshCcw className="w-5 h-5 animate-spin" /> : <FileText className="w-5 h-5" />}
+                </button>
+              </div>
             </div>
-          </td>
 
-          {/* Dynamic or Legacy Data Columns */}
-          {dynamicFields.length > 0 ? (
-            dynamicFields.map(field => {
-              const source = isReportMode ? item : report;
-              const val = (source as any)?.[field.fieldKey] ?? source?.dataSnapshot?.[field.fieldKey] ?? '-';
-              return (
-                <td key={field.id} className="px-6 py-6 text-center">
-                  <span className="text-xs font-black text-slate-700 tabular-nums break-words">{val}</span>
-                </td>
-              );
-            })
-          ) : (
-            <>
-              <td className="px-6 py-6 text-center">
-                <span className={`text-xs font-black tabular-nums transition-colors break-words ${report ? 'text-indigo-600' : 'text-slate-200'}`}>{report?.suspected24h ?? '-'}</span>
-              </td>
-              <td className="px-6 py-6 text-center">
-                <span className={`text-xs font-black tabular-nums transition-colors break-words ${report ? 'text-emerald-600' : 'text-slate-200'}`}>{report?.confirmed24h ?? '-'}</span>
-              </td>
-              <td className="px-6 py-6 text-center">
-                <span className={`text-xs font-black tabular-nums transition-colors break-words ${report ? 'text-rose-600' : 'text-slate-200'}`}>
-                  {report?.suspectedDeath24h ?? '-'}
-                </span>
-              </td>
-              <td className="px-6 py-6 text-center">
-                <span className={`text-xs font-black tabular-nums transition-colors break-words ${report ? 'text-rose-800' : 'text-slate-200'}`}>
-                  {report?.confirmedDeath24h ?? '-'}
-                </span>
-              </td>
-              <td className="px-6 py-6 text-center">
-                <span className={`text-xs font-black tabular-nums transition-colors break-words ${report ? 'text-amber-600' : 'text-slate-200'}`}>{report?.admitted24h ?? '-'}</span>
-              </td>
-              <td className="px-6 py-6 text-center">
-                <span className={`text-xs font-black tabular-nums transition-colors break-words ${report ? 'text-slate-500' : 'text-slate-200'}`}>{report?.discharged24h ?? '-'}</span>
-              </td>
-            </>
-          )}
+            <div
+              ref={tableContainerRef}
+              onMouseDown={handleMouseDown}
+              onMouseLeave={handleMouseLeave}
+              onMouseUp={handleMouseUp}
+              onMouseMove={handleMouseMove}
+              className={`flex-1 overflow-x-auto overflow-y-auto custom-scrollbar relative max-h-[calc(100vh-280px)] ${isDragging ? 'cursor-grabbing select-none' : 'cursor-grab'}`}
+            >
+              {viewMode === 'GAPS' ? (
+                <div className="p-10 grid grid-cols-1 md:grid-cols-2 gap-5">
+                  {loading ? (
+                    <div className="col-span-full py-40 flex justify-center"><RefreshCcw className="w-10 h-10 text-indigo-400 animate-spin" /></div>
+                  ) : gapAnalysis.length === 0 ? (
+                    <div className="col-span-full py-40 text-center space-y-5">
+                      <CheckCircle2 className="w-20 h-20 text-emerald-400 mx-auto" />
+                      <h4 className="text-xl font-black text-slate-800">No Reporting Faults Detected</h4>
+                      <p className="text-slate-400 max-w-sm mx-auto font-medium">All monitored facilities have maintained perfect reporting synchronization in this period.</p>
+                    </div>
+                  ) : gapAnalysis.map((f: any) => (
+                    <div key={f.id} className="bg-white border border-slate-100 rounded-[2rem] p-8 shadow-sm hover:border-indigo-300 transition-all group flex flex-col">
+                      <div className="flex items-start justify-between mb-6">
+                        <div className="flex items-center gap-4">
+                          <div className="w-14 h-14 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center ring-4 ring-indigo-50/50">
+                            <Building2 className="w-7 h-7" />
+                          </div>
+                          <div className="flex flex-col">
+                            <h4 className="font-black text-slate-800 text-lg leading-tight group-hover:text-indigo-600 transition-colors uppercase tracking-tight">{f.facilityName}</h4>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] mt-1">{f.district}, {f.division}</p>
+                          </div>
+                        </div>
+                        <div className={`px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest ${f.missingCount > 3 ? 'bg-rose-50 text-rose-600 border border-rose-100' : 'bg-amber-50 text-amber-600 border border-amber-100'}`}>
+                          {f.missingCount} Missing
+                        </div>
+                      </div>
 
-          <td className="px-10 py-6 text-right">
-            <div className="flex items-center justify-end gap-1 opacity-20 group-hover:opacity-100 transition-opacity">
-              {report ? (
-                <>
-                  <button 
-                    onClick={() => setSelectedReportForView(report)}
-                    className="p-2.5 text-slate-400 hover:text-indigo-600 hover:bg-white hover:shadow-sm rounded-xl transition-all" 
-                    title="View Detail"
-                  >
-                    <Eye className="w-4 h-4" />
-                  </button>
-                  {canManage && (
-                    <>
-                      <button 
-                        onClick={() => setEntryModal({ isOpen: true, mode: 'EDIT', item: report, outbreakId: report.outbreakId || selectedOutbreakId })}
-                        className="p-2.5 text-slate-400 hover:text-indigo-600 hover:bg-white hover:shadow-sm rounded-xl transition-all" 
-                        title="Edit Context"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                      <button 
-                        onClick={() => handleDeleteReport(report.id)}
-                        className="p-2.5 text-slate-400 hover:text-rose-600 hover:bg-white hover:shadow-sm rounded-xl transition-all" 
-                        title="Purge Record"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </>
-                  )}
-                </>
+                      <div className="space-y-4 pt-6 border-t border-slate-50 flex-1">
+                        <div className="flex items-center justify-between text-[11px] font-black text-slate-500 uppercase">
+                          <span>Sync Score</span>
+                          <span className="text-indigo-600">{f.rate}%</span>
+                        </div>
+                        <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                          <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${f.rate}%` }}
+                            className="h-full bg-indigo-600 shadow-sm"
+                          />
+                        </div>
+
+                        <div className="flex flex-wrap gap-1.5 pt-2">
+                          {f.missingDates.slice(0, 10).map((day: any) => (
+                            <span key={day.toString()} className="px-2 py-1 bg-slate-50 text-slate-500 rounded-lg text-[9px] font-black uppercase tracking-tight border border-slate-100">
+                              {format(day, 'MMM dd')}
+                            </span>
+                          ))}
+                          {f.missingDates.length > 10 && (
+                            <span className="px-2 py-1 bg-indigo-50 text-indigo-600 rounded-lg text-[9px] font-black">
+                              +{f.missingDates.length - 10} More
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="pt-6 mt-auto flex justify-between items-center">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase">{f.reportsCount} reported / {f.reportsCount + f.missingCount} total</p>
+                        <button className="text-[10px] font-black text-indigo-500 hover:text-indigo-800 uppercase tracking-widest px-3 py-1.5 hover:bg-indigo-50 rounded-xl transition-all">Send Notice</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               ) : (
-                canManage ? (
-                  <button 
-                    onClick={() => setEntryModal({ isOpen: true, mode: 'CREATE', item: facility, outbreakId: selectedOutbreakId })}
-                    className="px-4 py-2 text-[9px] font-black uppercase text-indigo-600 hover:bg-white hover:shadow-md border border-transparent hover:border-slate-100 rounded-xl transition-all tracking-widest bg-slate-50 whitespace-nowrap"
-                  >
-                    Add Report
-                  </button>
-                ) : (
-                  <span className="text-[9px] font-black uppercase text-slate-300 tracking-widest">No Entry</span>
-                )
+                <table className={`w-full text-left border-collapse ${dynamicFields.length > 5 ? 'min-w-[1500px]' : 'min-w-[1100px]'}`}>
+                  <thead className="sticky top-0 z-40 bg-white shadow-sm">
+                    <tr className="bg-slate-50/50 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
+                      <th className="px-10 py-6 border-b border-slate-100 text-left w-[350px] sticky left-0 z-50 bg-slate-50 scroll-gpu">Health Facility</th>
+
+                      {/* Dynamic Headers */}
+                      {dynamicFields.length > 0 ? (
+                        dynamicFields.map(field => (
+                          <th key={field.id} className="w-[120px] px-6 py-6 border-b border-slate-100 text-center" title={field.label}>
+                            {i18n.language === 'bn' ? field.labelBn || field.label : field.label}
+                          </th>
+                        ))
+                      ) : (
+                        <>
+                          <th className="w-[100px] px-6 py-6 border-b border-slate-100 text-center">Susp. Cases</th>
+                          <th className="w-[100px] px-6 py-6 border-b border-slate-100 text-center">Conf. Cases</th>
+                          <th className="w-[100px] px-6 py-6 border-b border-slate-100 text-center">Susp. Deaths</th>
+                          <th className="w-[100px] px-6 py-6 border-b border-slate-100 text-center">Conf. Deaths</th>
+                          <th className="w-[100px] px-6 py-6 border-b border-slate-100 text-center">Admitted</th>
+                          <th className="w-[100px] px-6 py-6 border-b border-slate-100 text-center">Discharged</th>
+                        </>
+                      )}
+
+                      <th className="w-[160px] px-10 py-6 border-b border-slate-100 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {loading ? (
+                      <tr><td colSpan={4 + (dynamicFields.length > 0 ? dynamicFields.length : (viewMode === 'LOGS' ? 3 : 2)) + 1} className="p-32 text-center text-slate-400 font-bold uppercase tracking-widest text-xs">Synchronizing Console Data...</td></tr>
+                    ) : (viewMode === 'LOGS' ? reports : paginatedStatusData).map((item: any) => {
+                      // item could be a facility (STATUS) or a report (LOGS)
+                      const isReportMode = viewMode === 'LOGS';
+                      const facility = isReportMode ? item.facility : item;
+                      const report = isReportMode ? item : reportMap.get(item.id);
+                      const displayDate = isReportMode ? item.reportingDate : selectedDate;
+
+                      return (
+                        <tr key={item.id} className="group transition-colors bg-white hover:bg-slate-50 scroll-gpu">
+                          <td className="px-10 py-6 sticky left-0 z-30 bg-white group-hover:bg-slate-50 transition-colors scroll-gpu border-r border-slate-50">
+                            <div className="flex items-start gap-4 relative">
+                              {/* Subtle Status Sidebar */}
+                              <div className={`absolute -left-10 top-0 bottom-0 w-1.5 transition-all duration-300 ${report ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.4)]' : 'bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.4)]'}`} />
+
+                              <div className="flex flex-col min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <div className={`w-2 h-2 rounded-full flex-shrink-0 ${report ? 'bg-emerald-500' : 'bg-rose-500 pulse-status'}`} />
+                                  <span className="text-sm font-black text-slate-800 tracking-tight break-words leading-tight">
+                                    {facility?.facilityName || 'Global System'}
+                                  </span>
+                                </div>
+
+                                <span className="flex items-center gap-1 text-[10px] font-bold text-slate-400 opacity-70 px-4 leading-relaxed">
+                                  <span className="break-words">{facility?.district || 'N/A'}</span>
+                                  <Circle className="w-1.5 h-1.5" />
+                                  <span className="break-words">{facility?.division || 'N/A'}</span>
+                                  <Circle className="w-1.5 h-1.5" />
+                                  <span className="break-words text-[9px] text-slate-400 font-mono">{report?.user?.email || facility?.email || 'N/A'}</span>
+                                </span>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Dynamic or Legacy Data Columns */}
+                          {dynamicFields.length > 0 ? (
+                            dynamicFields.map(field => {
+                              const source = isReportMode ? item : report;
+                              const val = (source as any)?.[field.fieldKey] ?? source?.dataSnapshot?.[field.fieldKey] ?? '-';
+                              return (
+                                <td key={field.id} className="px-6 py-6 text-center">
+                                  <span className="text-xs font-black text-slate-700 tabular-nums break-words">{val}</span>
+                                </td>
+                              );
+                            })
+                          ) : (
+                            <>
+                              <td className="px-6 py-6 text-center">
+                                <span className={`text-xs font-black tabular-nums transition-colors break-words ${report ? 'text-indigo-600' : 'text-slate-200'}`}>{report?.suspected24h ?? '-'}</span>
+                              </td>
+                              <td className="px-6 py-6 text-center">
+                                <span className={`text-xs font-black tabular-nums transition-colors break-words ${report ? 'text-emerald-600' : 'text-slate-200'}`}>{report?.confirmed24h ?? '-'}</span>
+                              </td>
+                              <td className="px-6 py-6 text-center">
+                                <span className={`text-xs font-black tabular-nums transition-colors break-words ${report ? 'text-rose-600' : 'text-slate-200'}`}>
+                                  {report?.suspectedDeath24h ?? '-'}
+                                </span>
+                              </td>
+                              <td className="px-6 py-6 text-center">
+                                <span className={`text-xs font-black tabular-nums transition-colors break-words ${report ? 'text-rose-800' : 'text-slate-200'}`}>
+                                  {report?.confirmedDeath24h ?? '-'}
+                                </span>
+                              </td>
+                              <td className="px-6 py-6 text-center">
+                                <span className={`text-xs font-black tabular-nums transition-colors break-words ${report ? 'text-amber-600' : 'text-slate-200'}`}>{report?.admitted24h ?? '-'}</span>
+                              </td>
+                              <td className="px-6 py-6 text-center">
+                                <span className={`text-xs font-black tabular-nums transition-colors break-words ${report ? 'text-slate-500' : 'text-slate-200'}`}>{report?.discharged24h ?? '-'}</span>
+                              </td>
+                            </>
+                          )}
+
+                          <td className="px-10 py-6 text-right">
+                            <div className="flex items-center justify-end gap-1 opacity-20 group-hover:opacity-100 transition-opacity">
+                              {report ? (
+                                <>
+                                  <button
+                                    onClick={() => setSelectedReportForView(report)}
+                                    className="p-2.5 text-slate-400 hover:text-indigo-600 hover:bg-white hover:shadow-sm rounded-xl transition-all"
+                                    title="View Detail"
+                                  >
+                                    <Eye className="w-4 h-4" />
+                                  </button>
+                                  {canManage && (
+                                    <>
+                                      <button
+                                        onClick={() => setEntryModal({ isOpen: true, mode: 'EDIT', item: report, outbreakId: report.outbreakId || selectedOutbreakId })}
+                                        className="p-2.5 text-slate-400 hover:text-indigo-600 hover:bg-white hover:shadow-sm rounded-xl transition-all"
+                                        title="Edit Context"
+                                      >
+                                        <Edit2 className="w-4 h-4" />
+                                      </button>
+                                      <button
+                                        onClick={() => handleDeleteReport(report.id)}
+                                        className="p-2.5 text-slate-400 hover:text-rose-600 hover:bg-white hover:shadow-sm rounded-xl transition-all"
+                                        title="Purge Record"
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </button>
+                                    </>
+                                  )}
+                                </>
+                              ) : (
+                                canManage ? (
+                                  <button
+                                    onClick={() => setEntryModal({ isOpen: true, mode: 'CREATE', item: facility, outbreakId: selectedOutbreakId })}
+                                    className="px-4 py-2 text-[9px] font-black uppercase text-indigo-600 hover:bg-white hover:shadow-md border border-transparent hover:border-slate-100 rounded-xl transition-all tracking-widest bg-slate-50 whitespace-nowrap"
+                                  >
+                                    Add Report
+                                  </button>
+                                ) : (
+                                  <span className="text-[9px] font-black uppercase text-slate-300 tracking-widest">No Entry</span>
+                                )
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                  {!loading && (viewMode === 'LOGS' || viewMode === 'STATUS') && dynamicFields.length === 0 && (
+                    <tfoot className="bg-slate-50 border-t-2 border-slate-200 sticky bottom-0 z-10 scroll-gpu">
+                      <tr className="font-black text-slate-900">
+                        <td className="px-10 py-6 text-right uppercase tracking-widest text-[10px] text-slate-400" colSpan={2}>
+                          {viewMode === 'LOGS' ? 'Page Totals' : 'Consolidated Snapshot'}
+                        </td>
+                        <td className="px-6 py-6 text-center text-indigo-600 tabular-nums text-sm">{stats.periodSuspected}</td>
+                        <td className="px-6 py-6 text-center text-emerald-600 tabular-nums text-sm">{stats.periodConfirmed}</td>
+                        <td className="px-6 py-6 text-center text-rose-600 tabular-nums text-sm">{stats.periodSuspectedDeaths}</td>
+                        <td className="px-6 py-6 text-center text-rose-800 tabular-nums text-sm">{stats.periodConfirmedDeaths}</td>
+                        <td className="px-6 py-6 text-center text-indigo-400 tabular-nums text-sm">{stats.periodAdmitted}</td>
+                        <td className="px-6 py-6 text-center text-slate-400 tabular-nums text-sm">{stats.periodDischarged}</td>
+                        <td className="px-10 py-6"></td>
+                      </tr>
+                    </tfoot>
+                  )}
+                </table>
               )}
             </div>
-          </td>
-        </tr>
-      )
-    })}
-  </tbody>
-  {!loading && (viewMode === 'LOGS' || viewMode === 'STATUS') && dynamicFields.length === 0 && (
-    <tfoot className="bg-slate-50 border-t-2 border-slate-200 sticky bottom-0 z-10 scroll-gpu">
-      <tr className="font-black text-slate-900">
-        <td className="px-10 py-6 text-right uppercase tracking-widest text-[10px] text-slate-400" colSpan={2}>
-          {viewMode === 'LOGS' ? 'Page Totals' : 'Consolidated Snapshot'}
-        </td>
-        <td className="px-6 py-6 text-center text-indigo-600 tabular-nums text-sm">{stats.periodSuspected}</td>
-        <td className="px-6 py-6 text-center text-emerald-600 tabular-nums text-sm">{stats.periodConfirmed}</td>
-        <td className="px-6 py-6 text-center text-rose-600 tabular-nums text-sm">{stats.periodSuspectedDeaths}</td>
-        <td className="px-6 py-6 text-center text-rose-800 tabular-nums text-sm">{stats.periodConfirmedDeaths}</td>
-        <td className="px-6 py-6 text-center text-indigo-400 tabular-nums text-sm">{stats.periodAdmitted}</td>
-        <td className="px-6 py-6 text-center text-slate-400 tabular-nums text-sm">{stats.periodDischarged}</td>
-        <td className="px-10 py-6"></td>
-      </tr>
-    </tfoot>
-  )}
-</table>
-                 )}
+
+            {/* Unified Pagination Console */}
+            <div className="px-10 py-8 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
+              <div className="flex flex-col">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Navigation Console</p>
+                <p className="text-sm font-black text-slate-700 tracking-tight">
+                  {viewMode === 'LOGS' ? (
+                    <>Showing <b>{(page - 1) * limit + 1} - {Math.min(page * limit, pagination?.total || 0)}</b> of <b>{pagination?.total || 0}</b> logs</>
+                  ) : (
+                    <>Showing <b>{(statusPage - 1) * limit + 1} - {Math.min(statusPage * limit, filteredFacilities.length)}</b> of <b>{filteredFacilities.length}</b> units</>
+                  )}
+                </p>
               </div>
 
-              {/* Unified Pagination Console */}
-              <div className="px-10 py-8 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
-                 <div className="flex flex-col">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Navigation Console</p>
-                    <p className="text-sm font-black text-slate-700 tracking-tight">
-                       {viewMode === 'LOGS' ? (
-                         <>Showing <b>{(page - 1) * limit + 1} - {Math.min(page * limit, pagination?.total || 0)}</b> of <b>{pagination?.total || 0}</b> logs</>
-                       ) : (
-                         <>Showing <b>{(statusPage - 1) * limit + 1} - {Math.min(statusPage * limit, filteredFacilities.length)}</b> of <b>{filteredFacilities.length}</b> units</>
-                       )}
-                    </p>
-                 </div>
-                 
-                 <div className="flex items-center gap-2">
-                    <button 
-                       onClick={() => viewMode === 'LOGS' ? setPage(p => Math.max(1, p - 1)) : setStatusPage(p => Math.max(1, p - 1))}
-                       disabled={(viewMode === 'LOGS' ? page : statusPage) === 1}
-                       className="w-12 h-12 flex items-center justify-center bg-white border border-slate-200 rounded-2xl text-slate-400 hover:text-indigo-600 disabled:opacity-40 transition-all shadow-sm"
-                    >
-                       <ChevronLeft className="w-6 h-6" />
-                    </button>
-                    
-                    <div className="flex items-center gap-1.5 px-3">
-                       <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                         Page {viewMode === 'LOGS' ? page : statusPage} / {viewMode === 'LOGS' ? (pagination?.totalPages || 1) : Math.ceil(filteredFacilities.length / limit) || 1}
-                       </span>
-                    </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => viewMode === 'LOGS' ? setPage(p => Math.max(1, p - 1)) : setStatusPage(p => Math.max(1, p - 1))}
+                  disabled={(viewMode === 'LOGS' ? page : statusPage) === 1}
+                  className="w-12 h-12 flex items-center justify-center bg-white border border-slate-200 rounded-2xl text-slate-400 hover:text-indigo-600 disabled:opacity-40 transition-all shadow-sm"
+                >
+                  <ChevronLeft className="w-6 h-6" />
+                </button>
 
-                    <button 
-                       onClick={() => viewMode === 'LOGS' ? setPage(p => Math.min(pagination?.totalPages || 1, p + 1)) : setStatusPage(p => Math.min(Math.ceil(filteredFacilities.length / limit), p + 1))}
-                       disabled={viewMode === 'LOGS' ? page >= (pagination?.totalPages || 1) : statusPage >= Math.ceil(filteredFacilities.length / limit)}
-                       className="w-12 h-12 flex items-center justify-center bg-white border border-slate-200 rounded-2xl text-slate-400 hover:text-indigo-600 disabled:opacity-40 transition-all shadow-sm"
-                    >
-                       <ChevronRight className="w-6 h-6" />
-                    </button>
-                 </div>
+                <div className="flex items-center gap-1.5 px-3">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                    Page {viewMode === 'LOGS' ? page : statusPage} / {viewMode === 'LOGS' ? (pagination?.totalPages || 1) : Math.ceil(filteredFacilities.length / limit) || 1}
+                  </span>
+                </div>
+
+                <button
+                  onClick={() => viewMode === 'LOGS' ? setPage(p => Math.min(pagination?.totalPages || 1, p + 1)) : setStatusPage(p => Math.min(Math.ceil(filteredFacilities.length / limit), p + 1))}
+                  disabled={viewMode === 'LOGS' ? page >= (pagination?.totalPages || 1) : statusPage >= Math.ceil(filteredFacilities.length / limit)}
+                  className="w-12 h-12 flex items-center justify-center bg-white border border-slate-200 rounded-2xl text-slate-400 hover:text-indigo-600 disabled:opacity-40 transition-all shadow-sm"
+                >
+                  <ChevronRight className="w-6 h-6" />
+                </button>
               </div>
-           </div>
+            </div>
+          </div>
         </div>
       </div>
 
       {/* Entry / Edit Modal */}
       <AnimatePresence>
         {entryModal.isOpen && (
-          <ReportEntryModal 
+          <ReportEntryModal
             mode={entryModal.mode}
             item={entryModal.item}
             outbreakId={entryModal.outbreakId}
@@ -1298,8 +1313,8 @@ export default function UnifiedReportingHub() {
       {/* Detail View Modal */}
       <AnimatePresence>
         {selectedReportForView && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm" onClick={() => setSelectedReportForView(null)}>
-            <motion.div 
+          <div className="fixed inset-0 z-[100] flex items-start justify-center p-4 bg-slate-900/40 backdrop-blur-sm overflow-y-auto pt-16 md:pt-24" onClick={() => setSelectedReportForView(null)}>
+            <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
@@ -1308,21 +1323,21 @@ export default function UnifiedReportingHub() {
             >
               <div className="px-10 py-8 border-b border-slate-100 flex items-center justify-between">
                 <div>
-                   <h3 className="text-2xl font-black text-slate-900 tracking-tight">Report Documentation</h3>
-                   <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Snapshot of submitted epidemiologic data</p>
+                  <h3 className="text-2xl font-black text-slate-900 tracking-tight">Report Documentation</h3>
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Snapshot of submitted epidemiologic data</p>
                 </div>
                 <button onClick={() => setSelectedReportForView(null)} className="p-3 bg-slate-50 hover:bg-slate-100 rounded-2xl transition-all transition-colors"><X className="w-5 h-5 text-slate-400" /></button>
               </div>
               <div className="p-10 space-y-8 overflow-y-auto max-h-[70vh] custom-scrollbar">
                 <div className="grid grid-cols-2 gap-8">
-                   <div className="space-y-1">
-                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Facility</span>
-                      <p className="text-lg font-black text-slate-800 tracking-tighter uppercase">{selectedReportForView.facility?.facilityName}</p>
-                   </div>
-                   <div className="space-y-1">
-                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Reporting Date</span>
-                      <p className="text-lg font-black text-slate-800 tracking-tighter uppercase">{format(new Date(selectedReportForView.reportingDate), 'dd MMMM yyyy')}</p>
-                   </div>
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Facility</span>
+                    <p className="text-lg font-black text-slate-800 tracking-tighter uppercase">{selectedReportForView.facility?.facilityName}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Reporting Date</span>
+                    <p className="text-lg font-black text-slate-800 tracking-tighter uppercase">{format(new Date(selectedReportForView.reportingDate), 'dd MMMM yyyy')}</p>
+                  </div>
                 </div>
 
                 <div className="h-px bg-slate-100 w-full" />
@@ -1335,24 +1350,24 @@ export default function UnifiedReportingHub() {
                     { label: 'Discharges', val: selectedReportForView.discharged24h, color: 'slate' }
                   ].map((stat, i) => (
                     <div key={i} className="bg-slate-50 p-5 rounded-2xl border border-slate-100 text-center">
-                       <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">{stat.label}</span>
-                       <span className={`text-2xl font-black text-${stat.color}-600 tabular-nums tracking-tighter`}>{stat.val ?? 0}</span>
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">{stat.label}</span>
+                      <span className={`text-2xl font-black text-${stat.color}-600 tabular-nums tracking-tighter`}>{stat.val ?? 0}</span>
                     </div>
                   ))}
                 </div>
 
                 {selectedReportForView.dataSnapshot && (
-                   <div className="space-y-4">
-                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block border-b border-slate-100 pb-2">Extended Attributes</span>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
-                         {Object.entries(selectedReportForView.dataSnapshot).map(([key, val]: any) => (
-                           <div key={key} className="flex items-center justify-between p-3 bg-slate-50/50 rounded-xl">
-                              <span className="font-bold text-slate-500 uppercase tracking-tighter">{key}</span>
-                              <span className="font-black text-slate-800">{val}</span>
-                           </div>
-                         ))}
-                      </div>
-                   </div>
+                  <div className="space-y-4">
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block border-b border-slate-100 pb-2">Extended Attributes</span>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+                      {Object.entries(selectedReportForView.dataSnapshot).map(([key, val]: any) => (
+                        <div key={key} className="flex items-center justify-between p-3 bg-slate-50/50 rounded-xl">
+                          <span className="font-bold text-slate-500 uppercase tracking-tighter">{key}</span>
+                          <span className="font-black text-slate-800">{val}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 )}
               </div>
               <div className="px-10 py-8 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
@@ -1361,7 +1376,7 @@ export default function UnifiedReportingHub() {
                   <button className="px-6 py-3 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-700 transition-all flex items-center gap-2">
                     <FileText className="w-3.5 h-3.5" /> PDF
                   </button>
-                  <button 
+                  <button
                     onClick={() => setSelectedReportForView(null)}
                     className="px-8 py-3 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-black transition-all"
                   >
@@ -1389,7 +1404,6 @@ export default function UnifiedReportingHub() {
           animation: pulse-status 2s infinite ease-in-out;
         }
       `}</style>
-      <ScrollToTop />
       <StickyHorizontalScrollbar targetRef={tableContainerRef} />
     </div>
   );
@@ -1435,7 +1449,7 @@ const StickyHorizontalScrollbar = ({ targetRef }: { targetRef: React.RefObject<H
   if (scrollWidth <= clientWidth) return null;
 
   return (
-    <div 
+    <div
       ref={scrollbarRef}
       onScroll={handleScrollbarScroll}
       className="fixed bottom-0 left-0 right-0 z-[60] overflow-x-auto overflow-y-hidden bg-white/40 backdrop-blur-md border-t border-slate-200 h-3 custom-scrollbar hover:h-4 transition-all"
@@ -1500,8 +1514,8 @@ function ReportEntryModal({ mode, item, outbreakId, selectedDate, dynamicFields,
   const facility = mode === 'EDIT' ? item.facility : item;
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
-      <motion.div 
+    <div className="fixed inset-0 z-[120] flex items-start justify-center p-4 bg-slate-900/60 backdrop-blur-md overflow-y-auto pt-16 md:pt-24">
+      <motion.div
         initial={{ opacity: 0, scale: 0.9, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.9, y: 20 }}
@@ -1510,13 +1524,13 @@ function ReportEntryModal({ mode, item, outbreakId, selectedDate, dynamicFields,
         <div className="px-10 py-10 border-b border-slate-100 flex items-center justify-between bg-white relative">
           <div className="absolute top-0 left-0 w-2 h-full bg-indigo-600" />
           <div>
-             <h3 className="text-3xl font-black text-slate-900 tracking-tighter">
-                {mode === 'EDIT' ? 'Modify Snapshot' : 'Field Entry'}
-             </h3>
-             <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-2 flex items-center gap-2">
-                <Building2 className="w-3 h-3 text-indigo-500" />
-                {facility.facilityName}
-             </p>
+            <h3 className="text-3xl font-black text-slate-900 tracking-tighter">
+              {mode === 'EDIT' ? 'Modify Snapshot' : 'Field Entry'}
+            </h3>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-2 flex items-center gap-2">
+              <Building2 className="w-3 h-3 text-indigo-500" />
+              {facility.facilityName}
+            </p>
           </div>
           <button onClick={onClose} className="p-4 bg-slate-50 hover:bg-slate-100 rounded-2xl transition-all shadow-sm"><X className="w-5 h-5 text-slate-400" /></button>
         </div>
@@ -1524,16 +1538,16 @@ function ReportEntryModal({ mode, item, outbreakId, selectedDate, dynamicFields,
         <form onSubmit={handleSubmit} className="p-10 space-y-8 max-h-[65vh] overflow-y-auto custom-scrollbar">
           {error && (
             <div className="p-4 bg-rose-50 border border-rose-100 text-rose-600 rounded-2xl text-[11px] font-bold flex items-center gap-3">
-               <AlertCircle className="w-4 h-4" />
-               {error}
+              <AlertCircle className="w-4 h-4" />
+              {error}
             </div>
           )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div className="space-y-3">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Reporting Date</label>
-              <input 
-                type="date" 
+              <input
+                type="date"
                 value={formData.reportingDate}
                 onChange={(e) => setFormData({ ...formData, reportingDate: e.target.value })}
                 required
@@ -1559,8 +1573,8 @@ function ReportEntryModal({ mode, item, outbreakId, selectedDate, dynamicFields,
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 leading-tight block">
                     {i18n.language === 'bn' ? field.labelBn || field.label : field.label}
                   </label>
-                  <input 
-                    type={field.fieldType === 'NUMBER' ? 'number' : 'text'} 
+                  <input
+                    type={field.fieldType === 'NUMBER' ? 'number' : 'text'}
                     min="0"
                     placeholder="0"
                     value={formData[field.fieldKey] || ''}
@@ -1580,8 +1594,8 @@ function ReportEntryModal({ mode, item, outbreakId, selectedDate, dynamicFields,
               ].map((field) => (
                 <div key={field.key} className="space-y-3">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 leading-tight block">{field.label}</label>
-                  <input 
-                    type="number" 
+                  <input
+                    type="number"
                     min="0"
                     placeholder="0"
                     value={formData[field.key]}
@@ -1595,14 +1609,14 @@ function ReportEntryModal({ mode, item, outbreakId, selectedDate, dynamicFields,
         </form>
 
         <div className="px-10 py-10 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
-          <button 
+          <button
             type="button"
             onClick={onClose}
             className="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-slate-600 transition-colors"
           >
             Cancel
           </button>
-          <button 
+          <button
             type="submit"
             onClick={handleSubmit}
             disabled={saving || !outbreakId}

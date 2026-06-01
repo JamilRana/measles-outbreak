@@ -30,6 +30,7 @@ export async function POST(req: Request) {
           facilityName,
           division: division || "Unknown",
           district: district || "Unknown",
+          phone: phone
         }
       });
     }

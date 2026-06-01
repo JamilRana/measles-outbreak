@@ -18,6 +18,8 @@ export async function GET(req: Request) {
   const outbreakId = searchParams.get("outbreakId") || 'measles-2026';
   const division = searchParams.get("division") || searchParams.get("divisions");
   const district = searchParams.get("district") || searchParams.get("districts");
+  const facilityId = searchParams.get("facilityId") || searchParams.get("facility") || "";
+  const dateParam = searchParams.get("date") || searchParams.get("to");
   
   const session = await getServerSession(authOptions);
   const role = session?.user?.role || "";
@@ -30,13 +32,24 @@ export async function GET(req: Request) {
     select: { publishTimeHour: true, publishTimeMinute: true }
   });
 
+  const validDate = (d: string | null) => d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : null;
+  const vDate = validDate(dateParam);
+
   let effectiveEnd = "NOW()";
-  let isPending = false;
-  if (outbreak && !isAdmin) {
+
+  if (vDate) {
+    effectiveEnd = `'${vDate}'::date`;
+    if (outbreak && !isAdmin && vDate === today) {
+      const publishTime = new Date(now);
+      publishTime.setHours(outbreak.publishTimeHour, outbreak.publishTimeMinute, 0, 0);
+      if (now < publishTime) {
+        effectiveEnd = `(CURRENT_DATE - INTERVAL '1 second')`;
+      }
+    }
+  } else if (outbreak && !isAdmin) {
     const publishTime = new Date(now);
     publishTime.setHours(outbreak.publishTimeHour, outbreak.publishTimeMinute, 0, 0);
     if (now < publishTime) {
-      isPending = true;
       // If before publish time, shift the "now" for the interval to yesterday end
       effectiveEnd = `(CURRENT_DATE - INTERVAL '1 second')`;
     }
@@ -56,13 +69,16 @@ export async function GET(req: Request) {
       WHERE r."outbreakId" = ${outbreakId}
         AND (r.status = 'PUBLISHED' OR (${isAdmin} AND r.status = 'SUBMITTED'))
         AND r."periodStart" >= '2026-04-10'::date
-        AND r."periodStart" >= ${effectiveEnd === "NOW()" ? Prisma.raw("NOW()") : Prisma.raw("CURRENT_DATE")} - INTERVAL '1 day' * ${days}
+        AND r."periodStart" >= ${Prisma.raw(effectiveEnd)} - INTERVAL '1 day' * ${days}
         AND r."periodStart" <= ${Prisma.raw(effectiveEnd)}
         AND (${division ?? ''}::text = '' OR f.division = ${division ?? ''})
         AND (${district ?? ''}::text = '' OR f.district = ${district ?? ''})
+        AND (${facilityId}::text = '' OR f.id = ${facilityId})
       GROUP BY r."periodStart"::date
       ORDER BY date ASC
     `;
+
+    console.log("TIMESERIES DB RESULT:", result);
 
     const timeseries = result.map(row => ({
       date: row.date instanceof Date ? row.date.toISOString().split("T")[0] : String(row.date),

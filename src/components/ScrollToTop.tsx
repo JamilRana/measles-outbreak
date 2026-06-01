@@ -1,48 +1,57 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
-import { ChevronUp } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import React, { useState, useEffect } from "react";
+import { ChevronUp, ChevronDown } from "lucide-react";
+import { motion } from "framer-motion";
 
-const ScrollToTop = () => {
-  const [isVisible, setIsVisible] = useState(false);
+const ScrollButton = () => {
+  const [showUp, setShowUp] = useState(false);
 
   useEffect(() => {
-    const toggleVisibility = () => {
-      if (window.scrollY > 300) {
-        setIsVisible(true);
-      } else {
-        setIsVisible(false);
-      }
+    const checkScroll = () => {
+      setShowUp(window.scrollY > 100);
     };
 
-    window.addEventListener('scroll', toggleVisibility);
-    return () => window.removeEventListener('scroll', toggleVisibility);
+    checkScroll();
+
+    window.addEventListener("scroll", checkScroll, {
+      passive: true,
+    });
+
+    return () => {
+      window.removeEventListener("scroll", checkScroll);
+    };
   }, []);
 
-  const scrollToTop = () => {
-    window.scrollTo({
-      top: 0,
-      behavior: 'smooth',
-    });
+  const handleClick = () => {
+    if (showUp) {
+      window.scrollTo({
+        top: 0,
+        behavior: "smooth",
+      });
+    } else {
+      window.scrollTo({
+        top: document.documentElement.scrollHeight,
+        behavior: "smooth",
+      });
+    }
   };
 
   return (
-    <AnimatePresence>
-      {isVisible && (
-        <motion.button
-          initial={{ opacity: 0, scale: 0.5, y: 20 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.5, y: 20 }}
-          onClick={scrollToTop}
-          className="fixed bottom-8 right-8 z-[100] p-4 bg-indigo-600 text-white rounded-2xl shadow-2xl shadow-indigo-500/40 hover:bg-indigo-700 hover:scale-110 active:scale-95 transition-all group border border-indigo-400/30 backdrop-blur-sm"
-          aria-label="Scroll to top"
-        >
-          <ChevronUp className="w-6 h-6 group-hover:-translate-y-1 transition-transform" />
-        </motion.button>
+    <motion.button
+      onClick={handleClick}
+      className="fixed bottom-6 right-6 z-[99999] rounded-full bg-indigo-600 p-3 text-white shadow-lg hover:bg-indigo-700"
+      aria-label={showUp ? "Scroll to top" : "Scroll to bottom"}
+      whileTap={{ scale: 0.95 }}
+      whileHover={{ scale: 1.08 }}
+    >
+      {showUp ? (
+        <ChevronUp className="h-6 w-6" />
+      ) : (
+        <ChevronDown className="h-6 w-6" />
       )}
-    </AnimatePresence>
+    </motion.button>
   );
 };
 
-export default ScrollToTop;
+export default ScrollButton;

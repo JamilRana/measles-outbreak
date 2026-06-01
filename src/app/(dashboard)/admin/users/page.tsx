@@ -1,12 +1,12 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
-import { 
-  Users, 
-  Shield, 
-  Trash2, 
-  Mail, 
-  MapPin, 
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+  Users,
+  Shield,
+  Trash2,
+  Mail,
+  MapPin,
   Search,
   CheckCircle2,
   XCircle,
@@ -23,7 +23,9 @@ import {
   PlusCircle,
   Globe,
   Loader2,
-  Hospital
+  Hospital,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Breadcrumbs from '@/components/Breadcrumbs';
@@ -74,11 +76,31 @@ export default function UserManagementPage() {
     managedDistricts: [] as string[]
   });
   const [saving, setSaving] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
+  const [selectedDivision, setSelectedDivision] = useState("");
+  const [selectedDistrict, setSelectedDistrict] = useState("");
+  const [roleFilter, setRoleFilter] = useState("ALL");
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
 
   useEffect(() => {
     fetchUsers();
     fetchFacilities();
   }, []);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, selectedDivision, selectedDistrict, roleFilter, statusFilter]);
+
+  const resetFilters = () => {
+    setSelectedDivision("");
+    setSelectedDistrict("");
+    setRoleFilter("ALL");
+    setStatusFilter("all");
+    setSearchTerm("");
+    setCurrentPage(1);
+  };
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -181,33 +203,125 @@ export default function UserManagementPage() {
     } catch (e) { console.error(e); }
   };
 
-  const filteredUsers = users.filter(u => 
-    u.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    u.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    u.facilityName?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredUsers = useMemo(() => {
+    return users.filter(u => {
+      const matchesSearch = u.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            u.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            u.facilityName?.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesDivision = !selectedDivision || u.division === selectedDivision;
+      const matchesDistrict = !selectedDistrict || u.district === selectedDistrict;
+      const matchesRole = roleFilter === "ALL" || u.role === roleFilter;
+      const matchesStatus = statusFilter === "all" ||
+                            (statusFilter === "active" && u.isActive) ||
+                            (statusFilter === "inactive" && !u.isActive);
+      return matchesSearch && matchesDivision && matchesDistrict && matchesRole && matchesStatus;
+    });
+  }, [users, searchTerm, selectedDivision, selectedDistrict, roleFilter, statusFilter]);
+
+  const paginatedUsers = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return filteredUsers.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredUsers, currentPage, itemsPerPage]);
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-8 pb-16">
       <Breadcrumbs />
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">User Identity Hub</h1>
-          <p className="text-slate-500 mt-1">Manage personnel access, facility linking, and administrative scopes</p>
+          <h1 className="text-3xl font-bold text-slate-900">User Hub</h1>
+          <p className="text-slate-500 mt-1">Manage user access, facility linking</p>
         </div>
         <div className="flex items-center gap-4">
           <div className="relative group w-full md:w-72">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 focus:text-indigo-500 transition-colors" />
-            <input 
-              type="text" 
-              placeholder="Search user or facility..." 
+            <input
+              type="text"
+              placeholder="Search user or facility..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full bg-white border border-slate-200 rounded-2xl py-3 pl-12 pr-4 text-slate-700 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all shadow-sm"
             />
           </div>
-          <button onClick={openCreateModal} className="flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-black rounded-2xl shadow-xl transition-all active:scale-95">
+          <button onClick={openCreateModal} className="flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-black rounded-2xl shadow-xl transition-all active:scale-95 whitespace-nowrap">
             <PlusCircle className="w-5 h-5" /> Account
+          </button>
+        </div>
+      </div>
+
+      {/* Users Hub Filter Toolbar */}
+      <div className="flex flex-wrap items-center gap-4 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+        <div className="flex-1 min-w-[200px]">
+          <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider block mb-1.5 ml-1">Search Users</label>
+          <div className="relative group">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300 group-focus-within:text-indigo-500 transition-colors" />
+            <input
+              type="text"
+              placeholder="Search by name, email..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 pl-11 pr-4 text-xs font-bold text-slate-700 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all"
+            />
+          </div>
+        </div>
+
+        <div className="min-w-[130px]">
+          <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider block mb-1.5 ml-1">Division</label>
+          <select
+            value={selectedDivision}
+            onChange={(e) => { setSelectedDivision(e.target.value); setSelectedDistrict(""); }}
+            className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-3 text-xs font-bold text-slate-700 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 cursor-pointer"
+          >
+            <option value="">All Divisions</option>
+            {DIVISIONS.map(div => <option key={div} value={div}>{div}</option>)}
+          </select>
+        </div>
+
+        <div className="min-w-[130px]">
+          <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider block mb-1.5 ml-1">District</label>
+          <select
+            value={selectedDistrict}
+            onChange={(e) => setSelectedDistrict(e.target.value)}
+            disabled={!selectedDivision}
+            className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-3 text-xs font-bold text-slate-700 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 cursor-pointer disabled:opacity-55"
+          >
+            <option value="">All Districts</option>
+            {(selectedDivision ? DISTRICTS_BY_DIVISION[selectedDivision] || [] : []).map(dist => (
+              <option key={dist} value={dist}>{dist}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="min-w-[120px]">
+          <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider block mb-1.5 ml-1">Access Role</label>
+          <select
+            value={roleFilter}
+            onChange={(e) => setRoleFilter(e.target.value)}
+            className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-3 text-xs font-bold text-slate-700 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 cursor-pointer"
+          >
+            <option value="ALL">All Roles</option>
+            {ROLE_OPTIONS.map(r => <option key={r} value={r}>{r}</option>)}
+          </select>
+        </div>
+
+        <div className="min-w-[120px]">
+          <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider block mb-1.5 ml-1">Active Status</label>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as any)}
+            className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-3 text-xs font-bold text-slate-700 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 cursor-pointer"
+          >
+            <option value="all">All Status</option>
+            <option value="active">Active Accounts</option>
+            <option value="inactive">Inactive Accounts</option>
+          </select>
+        </div>
+
+        <div className="mt-5">
+          <button
+            onClick={resetFilters}
+            className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-xl text-xs font-bold transition-all"
+          >
+            Clear
           </button>
         </div>
       </div>
@@ -227,7 +341,7 @@ export default function UserManagementPage() {
             <tbody className="divide-y divide-slate-100 italic-last-row">
               {loading ? (
                 <tr><td colSpan={5} className="p-20 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-indigo-500" /></td></tr>
-              ) : filteredUsers.map((user) => (
+              ) : paginatedUsers.map((user) => (
                 <tr key={user.id} className="hover:bg-slate-50/50 transition-colors">
                   <td className="px-8 py-6">
                     <div className="font-bold text-slate-900">{user.name || "System Managed"}</div>
@@ -251,9 +365,9 @@ export default function UserManagementPage() {
                     </button>
                   </td>
                   <td className="px-6 py-6 text-center">
-                     <span className={`px-4 py-1.5 rounded-xl text-[10px] font-black tracking-widest uppercase ${user.role === 'ADMIN' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
-                        {user.role}
-                     </span>
+                    <span className={`px-4 py-1.5 rounded-xl text-[10px] font-black tracking-widest uppercase ${user.role === 'ADMIN' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                      {user.role}
+                    </span>
                   </td>
                   <td className="px-8 py-6 text-right">
                     <div className="flex items-center justify-end gap-3">
@@ -266,75 +380,109 @@ export default function UserManagementPage() {
             </tbody>
           </table>
         </div>
+
+        {/* Navigation Console */}
+        <div className="px-8 py-6 bg-slate-50/50 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex flex-col items-center sm:items-start">
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Navigation Console</p>
+            <p className="text-sm font-black text-slate-700 tracking-tight mt-0.5 font-sans">
+              Showing <b>{filteredUsers.length === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, filteredUsers.length)}</b> of <b>{filteredUsers.length}</b> units
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="w-11 h-11 flex items-center justify-center bg-white border border-slate-200 rounded-2xl text-slate-400 hover:text-indigo-600 disabled:opacity-40 transition-all shadow-sm active:scale-95"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-1.5 px-3">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest font-sans">
+                Page {currentPage} / {Math.ceil(filteredUsers.length / itemsPerPage) || 1}
+              </span>
+            </div>
+
+            <button
+              onClick={() => setCurrentPage(p => Math.min(Math.ceil(filteredUsers.length / itemsPerPage), p + 1))}
+              disabled={currentPage >= Math.ceil(filteredUsers.length / itemsPerPage)}
+              className="w-11 h-11 flex items-center justify-center bg-white border border-slate-200 rounded-2xl text-slate-400 hover:text-indigo-600 disabled:opacity-40 transition-all shadow-sm active:scale-95"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
       </div>
 
       <AnimatePresence>
         {showModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4">
-             <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="w-full max-w-2xl bg-white rounded-[3rem] shadow-2xl overflow-hidden border border-white/20">
-                <div className="p-10 pb-0 flex items-center justify-between">
-                   <h2 className="text-3xl font-black text-slate-900 tracking-tighter uppercase">{editingUser ? "Configure Account" : "User Creation"}</h2>
-                   <button onClick={() => setShowModal(false)} className="p-3 bg-slate-100 rounded-2xl hover:bg-rose-50 hover:text-rose-600 transition-all"><X /></button>
-                </div>
-                
-                <form onSubmit={handleSubmit} className="p-10 space-y-8 max-h-[70vh] overflow-y-auto custom-scrollbar">
-                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                      <div className="md:col-span-2 space-y-3">
-                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Primary Email Address</label>
-                         <input required type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl py-4 px-6 text-slate-800 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all" placeholder="name@dghs.gov.bd" />
-                      </div>
+          <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 backdrop-blur-md p-4 overflow-y-auto pt-16 md:pt-24">
+            <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="w-full max-w-2xl bg-white rounded-[3rem] shadow-2xl overflow-hidden border border-white/20">
+              <div className="p-10 pb-0 flex items-center justify-between">
+                <h2 className="text-3xl font-black text-slate-900 tracking-tighter uppercase">{editingUser ? "Configure Account" : "User Creation"}</h2>
+                <button onClick={() => setShowModal(false)} className="p-3 bg-slate-100 rounded-2xl hover:bg-rose-50 hover:text-rose-600 transition-all"><X /></button>
+              </div>
 
-                      <div className="space-y-3">
-                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Full Name</label>
-                         <input value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl py-4 px-6 focus:outline-none focus:border-indigo-500 transition-all" />
-                      </div>
+              <form onSubmit={handleSubmit} className="p-10 space-y-8 max-h-[70vh] overflow-y-auto custom-scrollbar">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div className="md:col-span-2 space-y-3">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Primary Email Address</label>
+                    <input required type="email" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl py-4 px-6 text-slate-800 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all" placeholder="name@dghs.gov.bd" />
+                  </div>
 
-                      <div className="space-y-3">
-                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Access Role</label>
-                         <SearchableSelect 
-                            label=""
-                            placeholder="Select Role"
-                            options={ROLE_OPTIONS.map(r => ({ value: r, label: r }))}
-                            value={formData.role}
-                            onChange={value => setFormData({...formData, role: value})}
-                         />
-                      </div>
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Full Name</label>
+                    <input value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl py-4 px-6 focus:outline-none focus:border-indigo-500 transition-all" />
+                  </div>
 
-                      <div className="md:col-span-2 space-y-3">
-                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 flex items-center justify-between">
-                            <span>Reporting Facility Assignment</span>
-                            <span className="text-[9px] lowercase italic font-normal text-amber-500">Unset for regional/national roles</span>
-                         </label>
-                         {/* <select value={formData.facilityId} onChange={e => setFormData({...formData, facilityId: e.target.value})} className="w-full bg-slate-950 border-2 border-slate-800 text-white rounded-3xl py-4 px-6 focus:outline-none focus:ring-4 focus:ring-indigo-500/20 transition-all">
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Access Role</label>
+                    <SearchableSelect
+                      label=""
+                      placeholder="Select Role"
+                      options={ROLE_OPTIONS.map(r => ({ value: r, label: r }))}
+                      value={formData.role}
+                      onChange={value => setFormData({ ...formData, role: value })}
+                    />
+                  </div>
+
+                  <div className="md:col-span-2 space-y-3">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 flex items-center justify-between">
+                      <span>Reporting Facility Assignment</span>
+                      <span className="text-[9px] lowercase italic font-normal text-amber-500">Unset for regional/national roles</span>
+                    </label>
+                    {/* <select value={formData.facilityId} onChange={e => setFormData({...formData, facilityId: e.target.value})} className="w-full bg-slate-950 border-2 border-slate-800 text-white rounded-3xl py-4 px-6 focus:outline-none focus:ring-4 focus:ring-indigo-500/20 transition-all">
                             <option value="">-- No Local Facility Assigned --</option>
                             {facilities.map(f => (
                                <option key={f.id} value={f.id}>{f.facilityName} ({f.facilityCode}) · {f.district}</option>
                             ))}
                          </select> */}
-<SearchableSelect 
-                 label="Facility"
-                 placeholder="Select Facility"
-                 options={[{ value: "", label: "• No Facility Assigned (Central Role)" }, ...facilities.map(f => ({ value: f.id, label: f.facilityName }))]}
-                 value={formData.facilityId}
-                 onChange={value => setFormData({...formData, facilityId: value})}
-                 icon={Hospital}
-               />
+                    <SearchableSelect
+                      label="Facility"
+                      placeholder="Select Facility"
+                      options={[{ value: "", label: "• No Facility Assigned (Central Role)" }, ...facilities.map(f => ({ value: f.id, label: f.facilityName }))]}
+                      value={formData.facilityId}
+                      onChange={value => setFormData({ ...formData, facilityId: value })}
+                      icon={Hospital}
+                    />
 
-                      </div>
-                      
-                      <div className="md:col-span-2 space-y-3">
-                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Security Credential</label>
-                         <input type="password" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl py-4 px-6 focus:outline-none focus:border-indigo-500 transition-all" placeholder={editingUser ? "Leave blank to ignore" : "Secure Password"} />
-                      </div>
-                   </div>
+                  </div>
 
-                   <div className="flex gap-4 pt-4 border-t border-slate-100">
-                      <button type="submit" disabled={saving} className="flex-1 bg-slate-900 hover:bg-black text-white py-5 rounded-3xl font-black uppercase tracking-[0.2em] shadow-2xl transition-all active:scale-95 disabled:opacity-50">
-                         {saving ? <Loader2 className="animate-spin mx-auto" /> : (editingUser ? "Apply Changes" : "Provision Identity")}
-                      </button>
-                   </div>
-                </form>
-             </motion.div>
+                  <div className="md:col-span-2 space-y-3">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Security Credential</label>
+                    <input type="password" value={formData.password} onChange={e => setFormData({ ...formData, password: e.target.value })} className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl py-4 px-6 focus:outline-none focus:border-indigo-500 transition-all" placeholder={editingUser ? "Leave blank to ignore" : "Secure Password"} />
+                  </div>
+                </div>
+
+                <div className="flex gap-4 pt-4 border-t border-slate-100">
+                  <button type="submit" disabled={saving} className="flex-1 bg-slate-900 hover:bg-black text-white py-5 rounded-3xl font-black uppercase tracking-[0.2em] shadow-2xl transition-all active:scale-95 disabled:opacity-50">
+                    {saving ? <Loader2 className="animate-spin mx-auto" /> : (editingUser ? "Apply Changes" : "Provision Identity")}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
           </div>
         )}
       </AnimatePresence>

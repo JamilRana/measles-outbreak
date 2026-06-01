@@ -41,6 +41,7 @@ export const authOptions: NextAuthOptions = {
         token.managedDivisions = user.managedDivisions;
         token.managedDistricts = user.managedDistricts;
         token.facilityName = user.facilityName;
+        token.facilityIsActive = (user as any).facilityIsActive;
       }
       return token;
     },
@@ -55,6 +56,7 @@ export const authOptions: NextAuthOptions = {
         session.user.managedDivisions = token.managedDivisions;
         session.user.managedDistricts = token.managedDistricts;
         session.user.facilityName = token.facilityName;
+        session.user.facilityIsActive = token.facilityIsActive;
       }
       return session;
     },
@@ -104,7 +106,7 @@ async function loginLocalUser(email: string, password: string) {
     throw new Error("Incorrect password");
   }
 
-const facility = user.facility;
+  const facility = user.facility;
   const centralRoles = ['ADMIN', 'EDITOR', 'VIEWER'];
   const isCentralUser = centralRoles.includes(user.role);
 
@@ -128,6 +130,7 @@ const facility = user.facility;
     managedDistricts: (user as any).managedDistricts,
     upazila: facility?.upazila ?? undefined,
     isActive: user.isActive,
+    facilityIsActive: facility?.isActive ?? null,
   };
 }
 
@@ -138,11 +141,49 @@ async function loginHrmUser(email: string, password: string | null) {
     throw new Error("HRM authentication failed");
   }
 
-  let facility = await prisma.facility.findUnique({
+  const existingUser = await prisma.user.findUnique({
+    where: { email: hrmData.email },
+  });
+
+  let facility;
+
+  // 1. Try finding a facility with code `hrmData.facilityCode`
+  const facilityByCode = await prisma.facility.findUnique({
     where: { facilityCode: hrmData.facilityCode },
   });
 
-  if (!facility) {
+  if (facilityByCode) {
+    // If a facility with this code already exists, update it with HRM details
+    facility = await prisma.facility.update({
+      where: { id: facilityByCode.id },
+      data: {
+        facilityName: hrmData.facilityName,
+        facilityType: hrmData.facilityType,
+        division: hrmData.division,
+        district: hrmData.district,
+        upazila: hrmData.upazila,
+        phone: hrmData.phone,
+        email: hrmData.email,
+      },
+    });
+  } else if (existingUser && existingUser.facilityId) {
+    // If facility with the code doesn't exist, but the user already has a linked facility,
+    // we update that existing facility with HRM details (including the new code).
+    facility = await prisma.facility.update({
+      where: { id: existingUser.facilityId },
+      data: {
+        facilityCode: hrmData.facilityCode,
+        facilityName: hrmData.facilityName,
+        facilityType: hrmData.facilityType,
+        division: hrmData.division,
+        district: hrmData.district,
+        upazila: hrmData.upazila,
+        phone: hrmData.phone,
+        email: hrmData.email,
+      },
+    });
+  } else {
+    // Neither exists, so create a new facility.
     facility = await prisma.facility.create({
       data: {
         facilityCode: hrmData.facilityCode,
@@ -151,6 +192,8 @@ async function loginHrmUser(email: string, password: string | null) {
         division: hrmData.division,
         district: hrmData.district,
         upazila: hrmData.upazila,
+        phone: hrmData.phone,
+        email: hrmData.email,
       },
     });
   }
@@ -160,11 +203,12 @@ async function loginHrmUser(email: string, password: string | null) {
     update: {
       name: hrmData.name,
       role: "USER",
+      facilityId: facility.id,
     },
     create: {
       email: hrmData.email,
-      name: hrmData.name,
-      nameNormalized: hrmData.email.toLowerCase().replace(/[^a-z0-9]/g, "_"),
+      name: hrmData.facilityName,
+      nameNormalized: hrmData.facilityName.toLowerCase().replace(/[^a-z0-9]/g, "_"),
       facilityId: facility.id,
       role: "USER",
     },
@@ -185,6 +229,7 @@ async function loginHrmUser(email: string, password: string | null) {
     managedDistricts: (user as any).managedDistricts,
     upazila: facility.upazila ?? undefined,
     isActive: facility.isActive,
+    facilityIsActive: facility.isActive,
   };
 }
 

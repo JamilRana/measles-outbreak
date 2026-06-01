@@ -22,10 +22,24 @@ export async function GET(request: Request) {
         division: true,
         district: true,
         upazila: true,
+        email: true,
+        phone: true,
+        users: {
+          where: { role: "USER", isActive: true },
+          select: { email: true }
+        }
       },
     });
 
-    return NextResponse.json(facilities);
+    const mapped = facilities.map((f: any) => {
+      const { users, ...rest } = f;
+      return {
+        ...rest,
+        email: f.email || users[0]?.email || null
+      };
+    });
+
+    return NextResponse.json(mapped);
   } catch (error) {
     console.error("Facilities error:", error);
     return NextResponse.json({ error: "Failed to fetch facilities" }, { status: 500 });

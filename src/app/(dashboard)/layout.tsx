@@ -3,6 +3,7 @@ import Footer from "@/components/Footer";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import ScrollToTop from "@/components/ScrollToTop";
 
 export default async function DashboardLayout({
   children,
@@ -17,6 +18,7 @@ export default async function DashboardLayout({
       <main className="flex-1 overflow-auto scroll-gpu">
         {children}
       </main>
+      <ScrollToTop />
       <Footer />
     </div>
   );

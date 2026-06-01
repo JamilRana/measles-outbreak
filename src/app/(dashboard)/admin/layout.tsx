@@ -1,21 +1,38 @@
 "use client";
 
 import { useSession } from "next-auth/react";
+import { usePathname } from "next/navigation";
 import { ShieldAlert, ArrowLeft } from "lucide-react";
 import { hasPermission } from "@/lib/rbac";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { data: session, status } = useSession();
+  const pathname = usePathname();
   
   // A simple check: only ADMIN and MANAGER (represented by EDITOR in some contexts) 
   // should access administrative infrastructure.
   const role = session?.user?.role || "";
-  const canAccessAdmin = hasPermission(role, 'user:manage') || hasPermission(role, 'settings:manage') || role === 'ADMIN' || role === 'EDITOR';
+  let canAccessAdmin = hasPermission(role, 'user:manage') || hasPermission(role, 'settings:manage') || hasPermission(role, 'admin:view') || role === 'ADMIN' || role === 'EDITOR';
+
+  // VIEWER role is only allowed to access the /admin/submissions route
+  if (role === 'VIEWER') {
+    const isSubmissionsRoute = pathname === '/admin/submissions' || pathname.startsWith('/admin/submissions/');
+    if (!isSubmissionsRoute) {
+      canAccessAdmin = false;
+    }
+  }
 
   if (status === "loading") return null;
 
   if (status === "unauthenticated") {
     if (typeof window !== "undefined") window.location.href = "/login";
+    return null;
+  }
+
+  if (session && role === 'VIEWER' && pathname === '/admin') {
+    if (typeof window !== "undefined") {
+      window.location.href = "/admin/submissions";
+    }
     return null;
   }
 
