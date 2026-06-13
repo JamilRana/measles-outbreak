@@ -34,7 +34,7 @@ export default function Navbar() {
 
           <div className="flex items-center gap-1">
             <NavLink href="/dashboard" icon={<LayoutDashboard className="w-4 h-4" />} label={t('nav.dashboard')} />
-            <NavLink href="/bulletin" icon={<FileBarChart className="w-4 h-4" />} label="Bulletin" />
+            <NavLink href="/bulletin" icon={<FileBarChart className="w-4 h-4" />} label={t('nav.bulletin')} />
             {session ? (
               <>
                 {canSubmit && (
@@ -74,11 +74,11 @@ export default function Navbar() {
             )}
             <button
               onClick={toggleLanguage}
-              className="flex hidden items-center px-1.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-indigo-100 hover:text-white transition-all text-sm font-semibold"
+              className="flex items-center px-1.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-indigo-100 hover:text-white transition-all text-sm font-semibold"
               title="Switch language"
             >
               <Globe className="w-4 h-4" />
-              <span className="hidden sm:inline">{i18n.language === 'bn' ? 'English' : 'বাংলা'}</span>
+              <span className="sm:inline">{i18n.language === 'bn' ? 'English' : 'বাংলা'}</span>
             </button>
           </div>
         </div>

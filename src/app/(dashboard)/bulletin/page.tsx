@@ -2,21 +2,16 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { 
-  Calendar, 
+import {
+  Calendar,
   AlertCircle,
-  FileBarChart,
   Printer,
   ChevronLeft,
-  ChevronRight,
-  ShieldCheck,
-  CheckCircle2,
-  Activity
+  ChevronRight
 } from 'lucide-react';
 import { getBdDateString } from '@/lib/timezone';
 import { DIVISIONS } from '@/lib/constants';
 import Image from 'next/image';
-import BreakdownTable from '@/components/BreakdownTable';
 
 const OUTBREAK_START_DATE = '2026-04-10';
 
@@ -30,25 +25,115 @@ interface StatSet {
   suspectedDeath: number;
 }
 
+const nameTranslations: Record<string, string> = {
+  // Divisions
+  'Barisal': 'বরিশাল',
+  'Chattogram': 'চট্টগ্রাম',
+  'Dhaka': 'ঢাকা',
+  'Khulna': 'খুলনা',
+  'Mymensingh': 'ময়মনসিংহ',
+  'Rajshahi': 'রাজশাহী',
+  'Rangpur': 'রংপুর',
+  'Sylhet': 'সিলেট',
+  // Districts
+  'Barguna': 'বরগুনা',
+  'Bhola': 'ভোলা',
+  'Jhalakathi': 'ঝালকাঠি',
+  'Patuakhali': 'পটুয়াখালী',
+  'Pirojpur': 'পিরোজপুর',
+  'Bandarban': 'বান্দরবান',
+  'Brahmanbaria': 'ব্রাহ্মণবাড়িয়া',
+  'Chandpur': 'চাঁদপুর',
+  "Cox's Bazar": 'কক্সবাজার',
+  'Cumilla': 'কুমিল্লা',
+  'Khagrachhari': 'খাগড়াছড়ি',
+  'Lakshmipur': 'লক্ষ্মীপুর',
+  'Noakhali': 'নোয়াখালী',
+  'Rangamati': 'রাঙ্গামাটি',
+  'Feni': 'ফেনী',
+  'Faridpur': 'ফরিদপুর',
+  'Gazipur': 'গাজীপুর',
+  'Gopalganj': 'গোপালগঞ্জ',
+  'Kishoreganj': 'কিশোরগঞ্জ',
+  'Madaripur': 'মাদারীপুর',
+  'Manikganj': 'মানিকগঞ্জ',
+  'Munshiganj': 'মুন্সীগঞ্জ',
+  'Narayanganj': 'নারায়ণগঞ্জ',
+  'Narsingdi': 'নরসিংদী',
+  'Rajbari': 'রাজবাড়ী',
+  'Shariatpur': 'শরীয়তপুর',
+  'Tangail': 'টাঙ্গাইল',
+  'Bagerhat': 'বাগেরহাট',
+  'Chuadanga': 'চুয়াডাঙ্গা',
+  'Jashore': 'যশোর',
+  'Jhenaidah': 'ঝিনাইদহ',
+  'Kushtia': 'কুষ্টিয়া',
+  'Magura': 'মাগুরা',
+  'Meherpur': 'মেহেরপুর',
+  'Narail': 'নড়াইল',
+  'Satkhira': 'সাতক্ষীরা',
+  'Jamalpur': 'জামালপুর',
+  'Netrokona': 'নেত্রকোনা',
+  'Sherpur': 'শেরপুর',
+  'Bogura': 'বগুড়া',
+  'Chapainawabganj': 'চাঁপাইনবাবগঞ্জ',
+  'Joypurhat': 'জয়পুরহাট',
+  'Naogaon': 'নওগাঁ',
+  'Natore': 'নাটোর',
+  'Pabna': 'পাবনা',
+  'Sirajganj': 'সিরাজগঞ্জ',
+  'Dinajpur': 'দিনাজপুর',
+  'Gaibandha': 'গাইবান্ধা',
+  'Kurigram': 'কুড়িগ্রাম',
+  'Lalmonirhat': 'লালমনিরহাট',
+  'Nilphamari': 'নীলফামারী',
+  'Panchagarh': 'পঞ্চগড়',
+  'Thakurgaon': 'ঠাকুরগাঁও',
+  'Habiganj': 'হবিগঞ্জ',
+  'Moulvibazar': 'মৌলভীবাজার',
+  'Sunamganj': 'সুনামগঞ্জ',
+};
+
+const nameTranslationsNormalized = Object.keys(nameTranslations).reduce((acc, key) => {
+  acc[key.toLowerCase()] = nameTranslations[key];
+  return acc;
+}, {} as Record<string, string>);
+
+const translateName = (name: string, lang: string) => {
+  if (!name) return '';
+  if (lang && lang.startsWith('bn')) {
+    const key = name.toLowerCase().trim();
+    return nameTranslationsNormalized[key] || name;
+  }
+  return name;
+};
+
 // --- Components ---
 
 const ReportHeader = ({ displayDate, filterDate, setSelectedDate, onPrint, toBnNum }: any) => {
+  const { t, i18n } = useTranslation();
   const dateObj = new Date(displayDate);
-  const months = ['জানুয়ারি', 'ফেব্রুয়ারি', 'মার্চ', 'এপ্রিল', 'মে', 'জুন', 'জুলাই', 'আগস্ট', 'সেপ্টেম্বর', 'অক্টোবর', 'নভেম্বর', 'ডিসেম্বর'];
-  const formattedDate = `${toBnNum(dateObj.getDate(), true)} ${months[dateObj.getMonth()]} ${toBnNum(dateObj.getFullYear(), true)}`;
-  
+  const monthKeys = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+
+  const formattedDate = i18n.language.startsWith('bn')
+    ? `${toBnNum(dateObj.getDate(), true)} ${t(`bulletin.months.${monthKeys[dateObj.getMonth()]}`)} ${toBnNum(dateObj.getFullYear(), true)}`
+    : dateObj.toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' });
+
   // Previous day for the range
   const prevDate = new Date(dateObj);
   prevDate.setDate(prevDate.getDate() - 1);
-  const formattedPrevDate = `${toBnNum(prevDate.getDate(), true)} ${months[prevDate.getMonth()]}`;
+
+  const formattedPrevDate = i18n.language.startsWith('bn')
+    ? `${toBnNum(prevDate.getDate(), true)} ${t(`bulletin.months.${monthKeys[prevDate.getMonth()]}`)}`
+    : prevDate.toLocaleDateString('en-US', { day: 'numeric', month: 'long' });
 
   return (
     <header className="flex flex-col items-center pt-8 pb-4 print:pt-1 print:pb-0 text-center bg-white border-b border-slate-100 relative">
       <div className="absolute top-8 left-8 no-print flex items-center gap-2 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg">
         <Calendar className="w-3.5 h-3.5 text-slate-400" />
-        <input 
-          type="date" 
-          value={filterDate} 
+        <input
+          type="date"
+          value={filterDate}
           onChange={(e) => setSelectedDate(e.target.value)}
           min="2026-04-10"
           max={new Date().toISOString().split('T')[0]}
@@ -60,42 +145,46 @@ const ReportHeader = ({ displayDate, filterDate, setSelectedDate, onPrint, toBnN
         <Image src="/logo_mohfw.png" alt="Bangladesh Govt Logo" width={60} height={60} className="mx-auto print:w-8 print:h-8" />
       </div>
       <div className="space-y-0.5 mb-6 print:mb-1">
-        <h2 className="text-sm print:text-[10px] font-bold">গণপ্রজাতন্ত্রী বাংলাদেশ সরকার</h2>
-        <h2 className="text-sm print:text-[10px] font-bold">স্বাস্থ্য ও পরিবার কল্যাণ মন্ত্রণালয়</h2>
-        <h3 className="text-xs print:text-[9px] font-semibold text-slate-700">স্বাস্থ্য সেবা বিভাগ</h3>
-        <h3 className="text-xs print:text-[9px] font-semibold text-slate-700">সমন্বিত নিয়ন্ত্রণ কেন্দ্র</h3>
-        <p className="text-[10px] text-slate-600">স্বাস্থ্য অধিদপ্তর, মহাখালী, ঢাকা-১২১২।</p>
-        <p className="text-[10px] text-slate-600">ইমেইলঃ <span className="text-blue-600 underline">bdcoronasaver@gmail.com</span></p>
+        <h2 className="text-sm print:text-[10px] font-bold">{t('bulletin.governmentTitle')}</h2>
+        <h2 className="text-sm print:text-[10px] font-bold">{t('bulletin.ministryTitle')}</h2>
+        <h3 className="text-xs print:text-[9px] font-semibold text-slate-700">{t('bulletin.divisionTitle')}</h3>
+        <h3 className="text-xs print:text-[9px] font-semibold text-slate-700">{t('bulletin.centerTitle')}</h3>
+        <p className="text-[10px] text-slate-600">{t('bulletin.dghsAddress')}</p>
+        <p className="text-[10px] text-slate-600">
+          {t('bulletin.emailLabel')} <span className="text-blue-600 underline">bdcoronasaver@gmail.com</span>
+        </p>
       </div>
 
       <div className="mb-6 print:mb-1 space-y-1">
-        <h1 className="text-lg print:text-base font-bold">হাম সংক্রান্ত পরিস্থিতি</h1>
-        <p className="text-sm font-bold">{formattedDate} </p>
-        <h2 className="text-sm print:text-xs font-bold border-b-2 border-slate-900 inline-block px-4 pb-1 print:pb-0">স্বাস্থ্য অধিদপ্তরের আজকের স্বাস্থ্য সংবাদ বিজ্ঞপ্তি</h2>
+        <h1 className="text-lg print:text-base font-bold">{t('bulletin.situationReport')}</h1>
+        <p className="text-sm font-bold">{toBnNum(formattedDate)}</p>
+        <h2 className="text-sm print:text-xs font-bold border-b-2 border-slate-900 inline-block px-4 pb-1 print:pb-0">
+          {t('bulletin.dailyBulletinTitle')}
+        </h2>
       </div>
 
       <div className="max-w-[800px] mx-auto text-[11px] print:text-[10px] font-bold space-y-2 print:space-y-0 mt-4 print:mt-0">
-        <p className="underline underline-offset-4">হাম বিষয়ক অন্যান্য তথ্যাদি নিম্নরূপঃ</p>
+        <p className="underline underline-offset-4">{t('bulletin.otherInfoTitle')}</p>
         <p className="bg-slate-50 py-1.5 px-4 rounded-full border border-slate-200">
-           {formattedPrevDate} সকাল ৮:০০ টা থেকে {toBnNum(dateObj.getDate(), true)} {months[dateObj.getMonth()]} সকাল ৮:০০ টা পর্যন্ত (তথ্য সূত্রঃ হেলথ ইমার্জেন্সি অপারেশন সেন্টার ও কন্ট্রোল রুম, স্বাস্থ্য অধিদপ্তর।)
+          {t('bulletin.timeRangeText', { prevDate: formattedPrevDate, currentDate: formattedDate })}
         </p>
       </div>
 
       <div className="flex justify-end w-full px-8 gap-3 no-print mt-2">
-        <button 
+        <button
           onClick={onPrint}
           className="px-4 py-1.5 bg-blue-600 text-white rounded text-xs font-bold hover:bg-blue-700 transition flex items-center gap-2"
         >
           <Printer className="w-3.5 h-3.5" />
-          প্রিন্ট
+          {t('bulletin.printButton')}
         </button>
       </div>
     </header>
   );
 };
 
-
-const GovernmentSummary = ({ stats, toBnNum, divisionStats, leaders }: any) => {
+const GovernmentSummary = ({ stats, toBnNum, leaders }: any) => {
+  const { t, i18n } = useTranslation();
   const tdClass = "border border-slate-900 py-2 print:py-1 px-2 text-xs print:text-[10px] font-bold";
   const headerClass = "border border-slate-900 py-1 bg-slate-50 text-[11px] print:text-[9px] font-bold";
 
@@ -105,28 +194,28 @@ const GovernmentSummary = ({ stats, toBnNum, divisionStats, leaders }: any) => {
       <table className="w-full border-collapse border border-slate-900 text-center">
         <thead>
           <tr className={headerClass}>
-            <th colSpan={2} className="border-r border-slate-900">সন্দেহজনক শনাক্ত</th>
-            <th colSpan={2} className="border-r border-slate-900">নিশ্চিত শনাক্ত</th>
-            <th className="border-r border-slate-900">ভর্তির সংখ্যা</th>
-            <th>সুস্থ</th>
+            <th colSpan={2} className="border-r border-slate-900">{t('bulletin.suspectedDetection')}</th>
+            <th colSpan={2} className="border-r border-slate-900">{t('bulletin.confirmedDetection')}</th>
+            <th className="border-r border-slate-900">{t('bulletin.hospitalAdmissions')}</th>
+            <th>{t('bulletin.recoveredLabel')}</th>
           </tr>
           <tr className="text-[9px] print:text-[8px] font-bold bg-white">
-            <th className="border border-slate-900 py-2 print:py-1 w-[16%]">গত ২৪ ঘণ্টায় সন্দেহজনক হাম রোগীর সংখ্যা</th>
-            <th className="border border-slate-900 py-2 print:py-1 w-[16%]">১০-০৪-২০২৬ থেকে অদ্যাবধি মোট সন্দেহজনক হাম রোগীর সংখ্যা</th>
-            <th className="border border-slate-900 py-2 print:py-1 w-[16%]">গত ২৪ ঘণ্টায় নিশ্চিত হাম রোগীর সংখ্যা</th>
-            <th className="border border-slate-900 py-2 print:py-1 w-[16%]">১০-০৪-২০২৬ থেকে অদ্যাবধি মোট নিশ্চিত হাম রোগীর সংখ্যা</th>
-            <th className="border border-slate-900 py-2 print:py-1 w-[18%]">১০-০৪-২০২৬ থেকে অদ্যাবধি মোট সন্দেহজনক হাম রোগীর ভর্তির সংখ্যা</th>
-            <th className="border border-slate-900 py-2 print:py-1 w-[18%]">১০-০৪-২০২৬ থেকে অদ্যাবধি হাসপাতাল হতে মোট ছাড় পাওয়া রোগীর সংখ্যা</th>
+            <th className="border border-slate-900 py-2 print:py-1 w-[16%]">{t('bulletin.suspected24hDesc')}</th>
+            <th className="border border-slate-900 py-2 print:py-1 w-[16%]">{t('bulletin.suspectedTotalDesc')}</th>
+            <th className="border border-slate-900 py-2 print:py-1 w-[16%]">{t('bulletin.confirmed24hDesc')}</th>
+            <th className="border border-slate-900 py-2 print:py-1 w-[16%]">{t('bulletin.confirmedTotalDesc')}</th>
+            <th className="border border-slate-900 py-2 print:py-1 w-[18%]">{t('bulletin.admittedTotalDesc')}</th>
+            <th className="border border-slate-900 py-2 print:py-1 w-[18%]">{t('bulletin.dischargedTotalDesc')}</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td className={tdClass}>{stats.today.suspected.toLocaleString()}</td>
-            <td className={tdClass}>{stats.cumulative.suspected.toLocaleString()}</td>
-            <td className={tdClass}>{stats.today.confirmed.toLocaleString()}</td>
-            <td className={tdClass}>{stats.cumulative.confirmed.toLocaleString()}</td>
-            <td className={tdClass}>{stats.cumulative.admitted.toLocaleString()}</td>
-            <td className={tdClass}>{stats.cumulative.recovered.toLocaleString()}</td>
+            <td className={tdClass}>{toBnNum(stats.today.suspected)}</td>
+            <td className={tdClass}>{toBnNum(stats.cumulative.suspected)}</td>
+            <td className={tdClass}>{toBnNum(stats.today.confirmed)}</td>
+            <td className={tdClass}>{toBnNum(stats.cumulative.confirmed)}</td>
+            <td className={tdClass}>{toBnNum(stats.cumulative.admitted)}</td>
+            <td className={tdClass}>{toBnNum(stats.cumulative.recovered)}</td>
           </tr>
         </tbody>
       </table>
@@ -135,112 +224,135 @@ const GovernmentSummary = ({ stats, toBnNum, divisionStats, leaders }: any) => {
       <table className="w-full border-collapse border border-slate-900 text-center mt-4">
         <thead>
           <tr className={headerClass}>
-            <th className="border-r border-slate-900">যে বিভাগে মৃত্যু বেশি</th>
-            <th className="border-r border-slate-900">যে জেলায় মৃত্যু বেশি</th>
-            <th colSpan={2} className="border-r border-slate-900">নিশ্চিত মৃত্যু</th>
-            <th colSpan={2}>সন্দেহজনক মৃত্যু</th>
+            <th className="border-r border-slate-900">{t('bulletin.highestDeathDivision')}</th>
+            <th className="border-r border-slate-900">{t('bulletin.highestDeathDistrict')}</th>
+            <th colSpan={2} className="border-r border-slate-900">{t('bulletin.confirmedDeaths')}</th>
+            <th colSpan={2}>{t('bulletin.suspectedDeaths')}</th>
           </tr>
           <tr className="text-[9px] print:text-[8px] font-bold bg-white">
-            <th className="border border-slate-900 py-2 print:py-1 w-[16%]">সন্দেহজনক হাম রোগে মৃত্যু <br/><b>{leaders.division}</b></th>
-            <th className="border border-slate-900 py-2 print:py-1 w-[16%]">সন্দেহজনক হাম রোগে মৃত্যু <br/><b>{leaders.district}</b></th>
-            <th className="border border-slate-900 py-2 print:py-1 w-[16%]">গত ২৪ ঘণ্টায় নিশ্চিত হাম রোগে মৃত্যুর সংখ্যা</th>
-            <th className="border border-slate-900 py-2 print:py-1 w-[16%]">১০-০৪-২০২৬ থেকে অদ্যাবধি মোট নিশ্চিত হাম রোগে মৃত্যুর সংখ্যা</th>
-            <th className="border border-slate-900 py-2 print:py-1 w-[16%]">গত ২৪ ঘণ্টায় সন্দেহজনক হাম রোগে মৃত্যুর সংখ্যা</th>
-            <th className="border border-slate-900 py-2 print:py-1 w-[16%]">১০-০৪-২০২৬ থেকে অদ্যাবধি মোট সন্দেহজনক হাম রোগে মৃত্যুর সংখ্যা</th>
+            <th className="border border-slate-900 py-2 print:py-1 w-[16%]">
+              {t('bulletin.suspectedDeathIn')} <strong>{translateName(leaders.division, i18n.language)}</strong>
+            </th>
+            <th className="border border-slate-900 py-2 print:py-1 w-[16%]">
+              {t('bulletin.suspectedDeathIn')} <strong>{translateName(leaders.district, i18n.language)}</strong>
+            </th>
+            <th className="border border-slate-900 py-2 print:py-1 w-[16%]">{t('bulletin.confirmedDeaths24h')}</th>
+            <th className="border border-slate-900 py-2 print:py-1 w-[16%]">{t('bulletin.confirmedDeathsTotal')}</th>
+            <th className="border border-slate-900 py-2 print:py-1 w-[16%]">{t('bulletin.suspectedDeaths24h')}</th>
+            <th className="border border-slate-900 py-2 print:py-1 w-[16%]">{t('bulletin.suspectedDeathsTotal')}</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td className={tdClass}>{leaders.divisionDeaths.toLocaleString()}</td>
-            <td className={tdClass}>{leaders.districtDeaths.toLocaleString()}</td>
-            <td className={tdClass}>{stats.today.confirmedDeath.toLocaleString()}</td>
-            <td className={tdClass}>{stats.cumulative.confirmedDeath.toLocaleString()}</td>
-            <td className={tdClass}>{stats.today.suspectedDeath.toLocaleString()}</td>
-            <td className={tdClass}>{stats.cumulative.suspectedDeath.toLocaleString()}</td>
+            <td className={tdClass}>{toBnNum(leaders.divisionDeaths)}</td>
+            <td className={tdClass}>{toBnNum(leaders.districtDeaths)}</td>
+            <td className={tdClass}>{toBnNum(stats.today.confirmedDeath)}</td>
+            <td className={tdClass}>{toBnNum(stats.cumulative.confirmedDeath)}</td>
+            <td className={tdClass}>{toBnNum(stats.today.suspectedDeath)}</td>
+            <td className={tdClass}>{toBnNum(stats.cumulative.suspectedDeath)}</td>
           </tr>
         </tbody>
       </table>
-      
+
       <div className="flex justify-end pr-2 print:pr-0 mt-2 print:mt-0">
-         <p className="text-[10px] print:text-[8px] font-bold">*** তথ্য হালনাগাদের ভিত্তিতে ***</p>
+        <p className="text-[10px] print:text-[8px] font-bold">{t('bulletin.basedOnUpdates')}</p>
       </div>
     </div>
   );
 };
 
-const DailyLogTable = ({ paginatedLog, toBnNum, logPage, totalLogPages, setLogPage, i18n }: any) => {
+const DailyLogTable = ({ paginatedLog, toBnNum, logPage, totalLogPages, setLogPage }: any) => {
+  const { t, i18n } = useTranslation();
+
   const formatDateBn = (dateStr: string) => {
     const date = new Date(dateStr);
-    if (i18n.language !== 'bn') return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+    if (!i18n.language.startsWith('bn')) {
+      return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+    }
     const months = ['জানু', 'ফেব্রু', 'মার্চ', 'এপ্রিল', 'মে', 'জুন', 'জুলাই', 'আগস্ট', 'সেপ্টে', 'অক্টো', 'নভে', 'ডিসে'];
     return `${toBnNum(date.getDate(), true)} ${months[date.getMonth()]}`;
   };
 
   return (
     <section className="space-y-4 no-print">
-       <div className="flex items-center justify-between border-b pb-3 border-slate-100">
-          <div className="flex items-center gap-3">
-             <div className="w-2.5 h-2.5 bg-indigo-600 rounded-full ring-4 ring-indigo-50"></div>
-             <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest leading-none">Temporal Outbreak progression</h3>
-          </div>
-          <div className="flex items-center gap-2">
-             <button onClick={() => setLogPage((p: number) => Math.max(1, p - 1))} disabled={logPage === 1} className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors disabled:opacity-20"><ChevronLeft className="w-4 h-4" /></button>
-             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mx-2">Page {toBnNum(logPage)} / {toBnNum(totalLogPages)}</span>
-             <button onClick={() => setLogPage((p: number) => Math.min(totalLogPages, p + 1))} disabled={logPage === totalLogPages} className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors disabled:opacity-20"><ChevronRight className="w-4 h-4" /></button>
-          </div>
-       </div>
-       <div className="overflow-hidden rounded-xl border border-slate-200 shadow-sm overflow-x-auto">
-          <table className="w-full text-center border-collapse text-[11px]">
-            <thead className="bg-slate-900 text-white font-black uppercase tracking-wider">
-               <tr>
-                  <th className="py-3 px-4 border-r border-slate-800" rowSpan={2}>Reporting Date</th>
-                  <th className="py-2 border-r border-slate-800" colSpan={2}>Suspected Cases</th>
-                  <th className="py-2 border-r border-slate-800" colSpan={2}>Confirmed Cases</th>
-                  <th className="py-2 border-r border-slate-800" colSpan={2}>Total Deaths</th>
-                  <th className="py-2 border-r border-slate-800">Admission</th>
-                  <th className="py-2">Recovery</th>
-               </tr>
-               <tr className="bg-slate-800 text-[9px] border-t border-slate-700">
-                  <th className="py-2 border-r border-slate-700">24H</th><th className="py-2 border-r border-slate-700">Total</th>
-                  <th className="py-2 border-r border-slate-700">24H</th><th className="py-2 border-r border-slate-700">Total</th>
-                  <th className="py-2 border-r border-slate-700">24H</th><th className="py-2 border-r border-slate-700">Total</th>
-                  <th className="py-2 border-r border-slate-700">Cum.</th><th className="py-2">Cum.</th>
-               </tr>
-            </thead>
-            <tbody className="bg-white font-bold tabular-nums text-slate-700 divide-y divide-slate-100">
-               {paginatedLog.map((log: any, idx: number) => (
-                  <tr key={log.date} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/20'}>
-                    <td className="py-3 border-r border-slate-50 font-black text-slate-900 bg-slate-50/30">{formatDateBn(log.date)}</td>
-                    <td className="py-3">{log.suspected24h.toLocaleString()}</td><td className="py-3 text-slate-400 bg-slate-50/30">{log.suspectedCum.toLocaleString()}</td>
-                    <td className="py-3 text-indigo-600">{log.confirmed24h.toLocaleString()}</td><td className="py-3 text-indigo-900 bg-slate-50/30">{log.confirmedCum.toLocaleString()}</td>
-                    <td className="py-3 text-rose-600">{((log.confirmedDeath24h || 0) + (log.suspectedDeath24h || 0)).toLocaleString()}</td><td className="py-3 text-rose-900 bg-slate-50/30">{((log.confirmedDeathCum || 0) + (log.suspectedDeathCum || 0)).toLocaleString()}</td>
-                    <td className="py-3">{log.admittedCum.toLocaleString()}</td><td className="py-3 bg-slate-50/30">{log.recoveredCum.toLocaleString()}</td>
-                 </tr>
-               ))}
-            </tbody>
-          </table>
-       </div>
+      <div className="flex items-center justify-between border-b pb-3 border-slate-100">
+        <div className="flex items-center gap-3">
+          <div className="w-2.5 h-2.5 bg-indigo-600 rounded-full ring-4 ring-indigo-50"></div>
+          <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest leading-none">
+            {t('bulletin.temporalProgression')}
+          </h3>
+        </div>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setLogPage((p: number) => Math.max(1, p - 1))} disabled={logPage === 1} className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors disabled:opacity-20"><ChevronLeft className="w-4 h-4" /></button>
+          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mx-2">
+            {t('bulletin.pageInfo', { page: toBnNum(logPage), totalPages: toBnNum(totalLogPages) })}
+          </span>
+          <button onClick={() => setLogPage((p: number) => Math.min(totalLogPages, p + 1))} disabled={logPage === totalLogPages} className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors disabled:opacity-20"><ChevronRight className="w-4 h-4" /></button>
+        </div>
+      </div>
+      <div className="overflow-hidden rounded-xl border border-slate-200 shadow-sm overflow-x-auto">
+        <table className="w-full text-center border-collapse text-[11px]">
+          <thead className="bg-slate-900 text-white font-black uppercase tracking-wider">
+            <tr>
+              <th className="py-3 px-4 border-r border-slate-800" rowSpan={2}>{t('bulletin.reportingDate')}</th>
+              <th className="py-2 border-r border-slate-800" colSpan={2}>{t('bulletin.suspectedCases')}</th>
+              <th className="py-2 border-r border-slate-800" colSpan={2}>{t('bulletin.confirmedCases')}</th>
+              <th className="py-2 border-r border-slate-800" colSpan={2}>{t('bulletin.totalDeaths')}</th>
+              <th className="py-2 border-r border-slate-800">{t('bulletin.admission')}</th>
+              <th className="py-2">{t('bulletin.recovery')}</th>
+            </tr>
+            <tr className="bg-slate-800 text-[9px] border-t border-slate-700">
+              <th className="py-2 border-r border-slate-700">{t('bulletin.24h')}</th>
+              <th className="py-2 border-r border-slate-700">{t('bulletin.total')}</th>
+              <th className="py-2 border-r border-slate-700">{t('bulletin.24h')}</th>
+              <th className="py-2 border-r border-slate-700">{t('bulletin.total')}</th>
+              <th className="py-2 border-r border-slate-700">{t('bulletin.24h')}</th>
+              <th className="py-2 border-r border-slate-700">{t('bulletin.total')}</th>
+              <th className="py-2 border-r border-slate-700">{t('bulletin.cum')}</th>
+              <th className="py-2">{t('bulletin.cum')}</th>
+            </tr>
+          </thead>
+          <tbody className="bg-white font-bold tabular-nums text-slate-700 divide-y divide-slate-100">
+            {paginatedLog.map((log: any, idx: number) => (
+              <tr key={log.date} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/20'}>
+                <td className="py-3 border-r border-slate-50 font-black text-slate-900 bg-slate-50/30">{formatDateBn(log.date)}</td>
+                <td className="py-3">{toBnNum(log.suspected24h)}</td>
+                <td className="py-3 text-slate-400 bg-slate-50/30">{toBnNum(log.suspectedCum)}</td>
+                <td className="py-3 text-indigo-600">{toBnNum(log.confirmed24h)}</td>
+                <td className="py-3 text-indigo-900 bg-slate-50/30">{toBnNum(log.confirmedCum)}</td>
+                <td className="py-3 text-rose-600">{toBnNum((log.confirmedDeath24h || 0) + (log.suspectedDeath24h || 0))}</td>
+                <td className="py-3 text-rose-900 bg-slate-50/30">{toBnNum((log.confirmedDeathCum || 0) + (log.suspectedDeathCum || 0))}</td>
+                <td className="py-3">{toBnNum(log.admittedCum)}</td>
+                <td className="py-3 bg-slate-50/30">{toBnNum(log.recoveredCum)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </section>
   );
 };
 
 const GovernmentBreakdownTable = ({ divisionStats, toBnNum, stats }: any) => {
+  const { t, i18n } = useTranslation();
   const headerStyles = {
-    suspected: "bg-[#FFEBEE] text-slate-900 border-x border-slate-900", // Light Red
-    admitted: "bg-[#FFCDD2] text-slate-900 border-x border-slate-900", // Soft Red
-    discharged: "bg-[#EF9A9A] text-slate-900 border-x border-slate-900", // Muted Red
-    confirmed: "bg-[#E57373] text-white border-x border-slate-900", // Medium Red
-    death: "bg-[#C62828] text-white border-x border-slate-900", // Deep Red
-    deathSus: "bg-[#B71C1C] text-white border-x border-slate-900", // Darkest Red
+    suspected: "bg-[#FFEBEE] text-slate-900 border-x border-slate-900",
+    admitted: "bg-[#FFCDD2] text-slate-900 border-x border-slate-900",
+    discharged: "bg-[#EF9A9A] text-slate-900 border-x border-slate-900",
+    confirmed: "bg-[#E57373] text-white border-x border-slate-900",
+    death: "bg-[#C62828] text-white border-x border-slate-900",
+    deathSus: "bg-[#B71C1C] text-white border-x border-slate-900",
   };
 
   return (
     <section className="space-y-4 print:space-y-1 pt-10 print:pt-1">
       <div className="text-center mb-6 print:mb-1">
         <h3 className="text-sm print:text-xs font-bold underline underline-offset-4">
-          বিভাগভিত্তিক হাম রোগী শনাক্তের সংখ্যা, মোট সন্দেহজনক রোগীর সংখ্যা ও নতুন ভর্তি, মোট ছাড়প্রাপ্ত রোগীর তথ্যাদি।
+          {t('bulletin.divisionBreakdownTitle')}
         </h3>
-        <p className="text-[10px] print:text-[8px] mt-1 print:mt-0">(তথ্য সূত্রঃ হেলথ ইমার্জেন্সি অপারেশন সেন্টার ও কন্ট্রোল রুম, স্বাস্থ্য অধিদপ্তর।)</p>
+        <p className="text-[10px] print:text-[8px] mt-1 print:mt-0">
+          ({i18n.language.startsWith('bn') ? 'তথ্য সূত্রঃ হেলথ ইমার্জেন্সি অপারেশন সেন্টার ও কন্ট্রোল রুম, স্বাস্থ্য অধিদপ্তর।' : 'Data Source: Health Emergency Operations Center & Control Room, DGHS.'})
+        </p>
       </div>
 
       <div className="overflow-x-auto print:overflow-visible border-x border-t border-slate-900">
@@ -248,57 +360,57 @@ const GovernmentBreakdownTable = ({ divisionStats, toBnNum, stats }: any) => {
           <thead>
             {/* Main Header Rows */}
             <tr className="bg-slate-50 font-bold border-b border-slate-900">
-              <th className="border-r border-slate-900 py-4 print:py-1 w-[60px]" rowSpan={2}>বিভাগ</th>
-              <th className={`${headerStyles.suspected} py-1 print:py-0.5`} rowSpan={2}>গত ২৪ ঘণ্টায় সন্দেহজনক হাম রোগীর সংখ্যা</th>
-              <th className={`${headerStyles.admitted} py-1 print:py-0.5`} rowSpan={2}>গত ২৪ ঘণ্টায় হাম রোগী ভর্তির সংখ্যা</th>
-              <th className={`${headerStyles.discharged} py-1 print:py-0.5`} rowSpan={2}>গত ২৪ ঘণ্টায় হাসপাতাল হতে মোট ছাড় পাওয়া রোগীর সংখ্যা</th>
-              <th className={`${headerStyles.death} py-1 print:py-0.5`} rowSpan={2}>গত ২৪ ঘণ্টায় নিশ্চিত হাম রোগে মৃত্যুর সংখ্যা</th>
-              <th className={`${headerStyles.confirmed} py-1 print:py-0.5`} rowSpan={2}>গত ২৪ ঘণ্টায় নিশ্চিত হাম রোগীর সংখ্যা</th>
-              <th className={`${headerStyles.deathSus} py-1 print:py-0.5`} rowSpan={2}>গত ২৪ ঘণ্টায় সন্দেহজনক হাম রোগে মৃত্যুর সংখ্যা</th>
-              <th className="bg-slate-200 border-x border-slate-900 py-1 print:py-0.5" colSpan={6}>অদ্যাবধি (১০-০৪-২০২৬ থেকে)</th>
+              <th className="border-r border-slate-900 py-4 print:py-1 w-[60px]" rowSpan={2}>{t('bulletin.divisionHeader')}</th>
+              <th className={`${headerStyles.suspected} py-1 print:py-0.5`} rowSpan={2}>{t('bulletin.todaySuspected')}</th>
+              <th className={`${headerStyles.admitted} py-1 print:py-0.5`} rowSpan={2}>{t('bulletin.todayAdmitted')}</th>
+              <th className={`${headerStyles.discharged} py-1 print:py-0.5`} rowSpan={2}>{t('bulletin.todayRecovered')}</th>
+              <th className={`${headerStyles.death} py-1 print:py-0.5`} rowSpan={2}>{t('bulletin.todayConfirmedDeath')}</th>
+              <th className={`${headerStyles.confirmed} py-1 print:py-0.5`} rowSpan={2}>{t('bulletin.todayConfirmed')}</th>
+              <th className={`${headerStyles.deathSus} py-1 print:py-0.5`} rowSpan={2}>{t('bulletin.todaySuspectedDeath')}</th>
+              <th className="bg-slate-200 border-x border-slate-900 py-1 print:py-0.5" colSpan={6}>{t('bulletin.cumulativeSince')}</th>
             </tr>
             <tr className="bg-slate-100 font-bold border-b border-slate-900">
-              <th className={`${headerStyles.suspected} py-2 print:py-0.5`}>মোট সন্দেহজনক হাম রোগীর সংখ্যা</th>
-              <th className={`${headerStyles.admitted} py-2 print:py-0.5`}>মোট সন্দেহজনক হাম রোগী ভর্তির সংখ্যা</th>
-              <th className={`${headerStyles.discharged} py-2 print:py-0.5`}>হাসপাতাল হতে মোট ছাড় পাওয়া রোগীর সংখ্যা</th>
-              <th className={`${headerStyles.confirmed} py-2 print:py-0.5`}>মোট নিশ্চিত হাম রোগীর সংখ্যা</th>
-              <th className={`${headerStyles.death} py-2 print:py-0.5`}>মোট নিশ্চিত হাম রোগে মৃত্যুর সংখ্যা</th>
-              <th className={`${headerStyles.deathSus} py-2 print:py-0.5 border-r-0`}>মোট সন্দেহজনক হাম রোগে মৃত্যুর সংখ্যা</th>
+              <th className={`${headerStyles.suspected} py-2 print:py-0.5`}>{t('bulletin.cumSuspected')}</th>
+              <th className={`${headerStyles.admitted} py-2 print:py-0.5`}>{t('bulletin.cumAdmitted')}</th>
+              <th className={`${headerStyles.discharged} py-2 print:py-0.5`}>{t('bulletin.cumRecovered')}</th>
+              <th className={`${headerStyles.confirmed} py-2 print:py-0.5`}>{t('bulletin.cumConfirmed')}</th>
+              <th className={`${headerStyles.death} py-2 print:py-0.5`}>{t('bulletin.cumConfirmedDeath')}</th>
+              <th className={`${headerStyles.deathSus} py-2 print:py-0.5 border-r-0`}>{t('bulletin.cumSuspectedDeath')}</th>
             </tr>
           </thead>
           <tbody className="font-bold text-slate-900">
             {divisionStats.map((div: any) => (
               <tr key={div.name} className="border-b border-slate-900">
-                <td className="py-2 print:py-1 border-r border-slate-900 bg-slate-50">{div.name}</td>
-                <td className="py-2 print:py-1 border-r border-slate-900">{div.today.suspected.toLocaleString()}</td>
-                <td className="py-2 print:py-1 border-r border-slate-900">{div.today.admitted.toLocaleString()}</td>
-                <td className="py-2 print:py-1 border-r border-slate-900">{div.today.recovered.toLocaleString()}</td>
-                <td className="py-2 print:py-1 border-r border-slate-900">{div.today.confirmedDeath.toLocaleString()}</td>
-                <td className="py-2 print:py-1 border-r border-slate-900">{div.today.confirmed.toLocaleString()}</td>
-                <td className="py-2 print:py-1 border-r border-slate-900">{div.today.suspectedDeath.toLocaleString()}</td>
-                <td className="py-2 print:py-1 border-r border-slate-900 bg-slate-50/50">{div.cumulative.suspected.toLocaleString()}</td>
-                <td className="py-2 print:py-1 border-r border-slate-900 bg-slate-50/50">{div.cumulative.admitted.toLocaleString()}</td>
-                <td className="py-2 print:py-1 border-r border-slate-900 bg-slate-50/50">{div.cumulative.recovered.toLocaleString()}</td>
-                <td className="py-2 print:py-1 border-r border-slate-900 bg-slate-50/50">{div.cumulative.confirmed.toLocaleString()}</td>
-                <td className="py-2 print:py-1 border-r border-slate-900 bg-slate-50/50">{div.cumulative.confirmedDeath.toLocaleString()}</td>
-                <td className="py-2 print:py-1 bg-slate-50/50">{div.cumulative.suspectedDeath.toLocaleString()}</td>
+                <td className="py-2 print:py-1 border-r border-slate-900 bg-slate-50">{translateName(div.name, i18n.language)}</td>
+                <td className="py-2 print:py-1 border-r border-slate-900">{toBnNum(div.today.suspected)}</td>
+                <td className="py-2 print:py-1 border-r border-slate-900">{toBnNum(div.today.admitted)}</td>
+                <td className="py-2 print:py-1 border-r border-slate-900">{toBnNum(div.today.recovered)}</td>
+                <td className="py-2 print:py-1 border-r border-slate-900">{toBnNum(div.today.confirmedDeath)}</td>
+                <td className="py-2 print:py-1 border-r border-slate-900">{toBnNum(div.today.confirmed)}</td>
+                <td className="py-2 print:py-1 border-r border-slate-900">{toBnNum(div.today.suspectedDeath)}</td>
+                <td className="py-2 print:py-1 border-r border-slate-900 bg-slate-50/50">{toBnNum(div.cumulative.suspected)}</td>
+                <td className="py-2 print:py-1 border-r border-slate-900 bg-slate-50/50">{toBnNum(div.cumulative.admitted)}</td>
+                <td className="py-2 print:py-1 border-r border-slate-900 bg-slate-50/50">{toBnNum(div.cumulative.recovered)}</td>
+                <td className="py-2 print:py-1 border-r border-slate-900 bg-slate-50/50">{toBnNum(div.cumulative.confirmed)}</td>
+                <td className="py-2 print:py-1 border-r border-slate-900 bg-slate-50/50">{toBnNum(div.cumulative.confirmedDeath)}</td>
+                <td className="py-2 print:py-1 bg-slate-50/50">{toBnNum(div.cumulative.suspectedDeath)}</td>
               </tr>
             ))}
             <tr className="bg-slate-100 text-[10px] font-black border-b border-slate-900">
-              <td className="py-3 border-r border-slate-900">মোট</td>
-              <td className="py-3 border-r border-slate-900">{stats.today.suspected.toLocaleString()}</td>
-              <td className="py-3 border-r border-slate-900">{stats.today.admitted.toLocaleString()}</td>
-              <td className="py-3 border-r border-slate-900">{stats.today.recovered.toLocaleString()}</td>
-              <td className="py-3 border-r border-slate-900 font-bold text-red-700">{stats.today.confirmedDeath.toLocaleString()}</td>
-              <td className="py-3 border-r border-slate-900">{stats.today.confirmed.toLocaleString()}</td>
-              <td className="py-3 border-r border-slate-900">{stats.today.suspectedDeath.toLocaleString()}</td>
-              
-              <td className="py-3 border-r border-slate-900 bg-slate-200">{stats.cumulative.suspected.toLocaleString()}</td>
-              <td className="py-3 border-r border-slate-900 bg-slate-200">{stats.cumulative.admitted.toLocaleString()}</td>
-              <td className="py-3 border-r border-slate-900 bg-slate-200">{stats.cumulative.recovered.toLocaleString()}</td>
-              <td className="py-3 border-r border-slate-900 bg-slate-200">{stats.cumulative.confirmed.toLocaleString()}</td>
-              <td className="py-3 border-r border-slate-900 bg-slate-200 font-black text-red-900">{stats.cumulative.confirmedDeath.toLocaleString()}</td>
-              <td className="py-3 bg-slate-200">{stats.cumulative.suspectedDeath.toLocaleString()}</td>
+              <td className="py-3 border-r border-slate-900">{t('bulletin.grandTotal')}</td>
+              <td className="py-3 border-r border-slate-900">{toBnNum(stats.today.suspected)}</td>
+              <td className="py-3 border-r border-slate-900">{toBnNum(stats.today.admitted)}</td>
+              <td className="py-3 border-r border-slate-900">{toBnNum(stats.today.recovered)}</td>
+              <td className="py-3 border-r border-slate-900 font-bold text-red-700">{toBnNum(stats.today.confirmedDeath)}</td>
+              <td className="py-3 border-r border-slate-900">{toBnNum(stats.today.confirmed)}</td>
+              <td className="py-3 border-r border-slate-900">{toBnNum(stats.today.suspectedDeath)}</td>
+
+              <td className="py-3 border-r border-slate-900 bg-slate-200">{toBnNum(stats.cumulative.suspected)}</td>
+              <td className="py-3 border-r border-slate-900 bg-slate-200">{toBnNum(stats.cumulative.admitted)}</td>
+              <td className="py-3 border-r border-slate-900 bg-slate-200">{toBnNum(stats.cumulative.recovered)}</td>
+              <td className="py-3 border-r border-slate-900 bg-slate-200">{toBnNum(stats.cumulative.confirmed)}</td>
+              <td className="py-3 border-r border-slate-900 bg-slate-200 font-black text-red-900">{toBnNum(stats.cumulative.confirmedDeath)}</td>
+              <td className="py-3 bg-slate-200">{toBnNum(stats.cumulative.suspectedDeath)}</td>
             </tr>
           </tbody>
         </table>
@@ -307,50 +419,53 @@ const GovernmentBreakdownTable = ({ divisionStats, toBnNum, stats }: any) => {
   );
 };
 
-const PrintFooter = ({ selectedDate, toBnNum }: any) => (
-  <footer className="hidden print:block mt-16 print:mt-2 pt-10 print:pt-1 border-t-[1.5pt] border-slate-900">
-    {/* Institutional Branding Row */}
-    <div className="flex justify-center items-center gap-20 mb-16 print:mb-2 opacity-80">
-       <div className="flex flex-col items-center gap-2">
+const PrintFooter = ({ selectedDate, toBnNum }: any) => {
+  const { t } = useTranslation();
+  return (
+    <footer className="hidden print:block mt-16 print:mt-2 pt-10 print:pt-1 border-t-[1.5pt] border-slate-900">
+      {/* Institutional Branding Row */}
+      <div className="flex justify-center items-center gap-20 mb-16 print:mb-2 opacity-80">
+        <div className="flex flex-col items-center gap-2">
           <Image src="/mis_logo.png" alt="MIS Logo" width={50} height={50} className="grayscale" />
           <p className="text-[8px] font-black uppercase text-slate-400">MIS • DGHS</p>
-       </div>
-       <div className="flex flex-col items-center gap-2">
+        </div>
+        <div className="flex flex-col items-center gap-2">
           <Image src="/dghs_logo.svg" alt="DGHS Logo" width={50} height={50} className="grayscale" />
           <p className="text-[8px] font-black uppercase text-slate-400">DGHS</p>
-       </div>
-       <div className="flex flex-col items-center gap-2">
+        </div>
+        <div className="flex flex-col items-center gap-2">
           <Image src="/logo_mohfw.png" alt="MOHFW Logo" width={50} height={50} className="grayscale" />
           <p className="text-[8px] font-black uppercase text-slate-400">MOHFW</p>
-       </div>
-    </div>
+        </div>
+      </div>
 
-    {/* Signatory Blocks */}
-    <div className="flex justify-between items-end px-4 mb-20 print:mb-4 pt-10 print:pt-2">
-       <div className="w-64">
+      {/* Signatory Blocks */}
+      <div className="flex justify-between items-end px-4 mb-20 print:mb-4 pt-10 print:pt-2">
+        <div className="w-64">
           <div className="border-b-[0.5pt] border-dotted border-slate-900 h-10 print:h-6 mb-2"></div>
-          <p className="text-[10px] font-black text-slate-900 mb-0.5 uppercase tracking-tighter">System Operator</p>
-          <p className="text-[8px] font-bold text-slate-400 uppercase leading-none italic">Manual Verification Unit • Surveillance Intelligence</p>
-       </div>
-       <div className="w-64">
+          <p className="text-[10px] font-black text-slate-900 mb-0.5 uppercase tracking-tighter">{t('bulletin.systemOperator')}</p>
+          <p className="text-[8px] font-bold text-slate-400 uppercase leading-none italic">{t('bulletin.signatureUnit')}</p>
+        </div>
+        <div className="w-64">
           <div className="border-b-[0.5pt] border-dotted border-slate-900 h-10 print:h-6 mb-2"></div>
-          <p className="text-[10px] font-black text-slate-900 mb-0.5 uppercase tracking-tighter">Authorized Officer (DGHS)</p>
-          <p className="text-[8px] font-bold text-slate-400 uppercase leading-none italic">Director, MIS & Health Informatics Hub</p>
-       </div>
-    </div>
+          <p className="text-[10px] font-black text-slate-900 mb-0.5 uppercase tracking-tighter">{t('bulletin.authorizedOfficer')}</p>
+          <p className="text-[8px] font-bold text-slate-400 uppercase leading-none italic">{t('bulletin.signatureOfficer')}</p>
+        </div>
+      </div>
 
-    {/* Final Metadata */}
-    <div className="flex justify-between items-center text-[7pt] font-medium text-slate-400 uppercase tracking-widest pt-2 border-t border-slate-100">
-       <span>Generated: {toBnNum(selectedDate, true)} {toBnNum('5:32', true)} PM</span>
-       <span>Page {toBnNum(1, true)} of {toBnNum(1, true)}</span>
-    </div>
-  </footer>
-);
+      {/* Final Metadata */}
+      <div className="flex justify-between items-center text-[7pt] font-medium text-slate-400 uppercase tracking-widest pt-2 border-t border-slate-100">
+        <span>{t('bulletin.generatedMetadata', { date: toBnNum(selectedDate, true), time: toBnNum('5:32', true) })}</span>
+        <span>{t('bulletin.pageMetadata', { page: toBnNum(1, true), totalPages: toBnNum(1, true) })}</span>
+      </div>
+    </footer>
+  );
+};
 
 // --- Main Page ---
 
 export default function BulletinPage() {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [summaryTotals, setSummaryTotals] = useState<any>(null);
   const [cumulativeTotals, setCumulativeTotals] = useState<any>(null);
@@ -371,7 +486,6 @@ export default function BulletinPage() {
     setLoading(true);
     try {
       const outbreakId = 'measles-2026';
-      // Parallel Fetching for non-dependent resources (Temporal + Today + Cumulative)
       const [temporalRes, todaySummaryRes, cumSummaryRes, districtData] = await Promise.all([
         fetch(`/api/reports/bulletin-temporal?outbreakId=${outbreakId}&to=${selectedDate}`),
         fetch(`/api/reports/summary?outbreakId=${outbreakId}&date=${selectedDate}`),
@@ -392,14 +506,13 @@ export default function BulletinPage() {
       setCumulativeTotals(cumSumData.totals);
       setCumSummaryBreakdown(cumSumData.breakdown);
       setDistrictBreakdown(districtDataJson.breakdown);
-      
-      // Set temporal metadata for header display
-      setTemporal({ 
+
+      setTemporal({
         dataDate: temporalData.history?.[0]?.date || selectedDate,
         isHistorical: temporalData.history?.[0]?.date !== selectedDate
       });
     } catch (error) {
-       console.error("Error fetching reports:", error);
+      console.error("Error fetching reports:", error);
     } finally {
       setLoading(false);
     }
@@ -442,50 +555,48 @@ export default function BulletinPage() {
       const cumDiv = cumSummaryBreakdown?.[div] || {};
       return {
         name: div,
-        today: { 
-          suspected: todayDiv.suspected24h || 0, 
-          admitted: todayDiv.admitted24h || 0, 
-          recovered: todayDiv.discharged24h || 0, 
-          suspectedDeath: todayDiv.suspectedDeath24h || 0, 
-          confirmed: todayDiv.confirmed24h || 0, 
-          confirmedDeath: todayDiv.confirmedDeath24h || 0 
+        today: {
+          suspected: todayDiv.suspected24h || 0,
+          admitted: todayDiv.admitted24h || 0,
+          recovered: todayDiv.discharged24h || 0,
+          suspectedDeath: todayDiv.suspectedDeath24h || 0,
+          confirmed: todayDiv.confirmed24h || 0,
+          confirmedDeath: todayDiv.confirmedDeath24h || 0
         },
-        cumulative: { 
-          suspected: cumDiv.suspected24h || 0, 
-          admitted: cumDiv.admitted24h || 0, 
-          recovered: cumDiv.discharged24h || 0, 
-          suspectedDeath: cumDiv.suspectedDeath24h || 0, 
-          confirmed: cumDiv.confirmed24h || 0, 
-          confirmedDeath: cumDiv.confirmedDeath24h || 0 
+        cumulative: {
+          suspected: cumDiv.suspected24h || 0,
+          admitted: cumDiv.admitted24h || 0,
+          recovered: cumDiv.discharged24h || 0,
+          suspectedDeath: cumDiv.suspectedDeath24h || 0,
+          confirmed: cumDiv.confirmed24h || 0,
+          confirmedDeath: cumDiv.confirmedDeath24h || 0
         }
       };
     });
   }, [summaryBreakdown, cumSummaryBreakdown]);
 
   const leaders = useMemo(() => {
-    // Top division by suspected death in last 24h
-    const divLeaderArr = [...divisionStats].sort((a,b) => b.today.suspectedDeath - a.today.suspectedDeath);
+    const divLeaderArr = [...divisionStats].sort((a, b) => b.today.suspectedDeath - a.today.suspectedDeath);
     const divLeader = divLeaderArr[0];
-    
-    // Top district from districtBreakdown (already filtered for selected date)
-    let districtName = 'ঢাকা';
+
+    let districtName = 'Dhaka';
     let districtDeaths = 0;
     if (districtBreakdown) {
-       const sortedDistricts = Object.entries(districtBreakdown)
-         .map(([name, data]: [string, any]) => ({ 
-           name, 
-           deaths: (Number(data.suspectedDeath24h) || 0) 
-         }))
-         .sort((a, b) => b.deaths - a.deaths);
-       
-       if (sortedDistricts.length > 0) {
-         districtName = sortedDistricts[0].name;
-         districtDeaths = sortedDistricts[0].deaths;
-       }
+      const sortedDistricts = Object.entries(districtBreakdown)
+        .map(([name, data]: [string, any]) => ({
+          name,
+          deaths: (Number(data.suspectedDeath24h) || 0)
+        }))
+        .sort((a, b) => b.deaths - a.deaths);
+
+      if (sortedDistricts.length > 0) {
+        districtName = sortedDistricts[0].name;
+        districtDeaths = sortedDistricts[0].deaths;
+      }
     }
 
     return {
-      division: divLeader?.today.suspectedDeath > 0 ? divLeader.name : 'ঢাকা',
+      division: divLeader?.today.suspectedDeath > 0 ? divLeader.name : 'Dhaka',
       divisionDeaths: divLeader?.today.suspectedDeath || 0,
       district: districtName,
       districtDeaths: districtDeaths
@@ -516,10 +627,16 @@ export default function BulletinPage() {
             <span className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
             <span className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce"></span>
           </div>
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.5em] animate-pulse">National Surveillance Intelligence</p>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.5em] animate-pulse">
+            {t('bulletin.nationalSurveillance')}
+          </p>
           <div className="space-y-1">
-             <p className="text-lg font-black text-slate-900 tracking-tight">Generating Official Bulletin</p>
-             <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest italic">Authenticating...</p>
+            <p className="text-lg font-black text-slate-900 tracking-tight">
+              {t('bulletin.generatingBulletin')}
+            </p>
+            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest italic">
+              {t('bulletin.authenticating')}
+            </p>
           </div>
         </div>
         <style jsx>{`
@@ -555,43 +672,42 @@ export default function BulletinPage() {
           h1, h2, h3, h4 { color: black !important; }
         }
       `}</style>
-      
+
       <div className="max-w-[1240px] mx-auto bg-white shadow-[0_45px_100px_-20px_rgba(0,0,0,0.1)] overflow-hidden border border-slate-100 print:shadow-none print:border-none print:max-w-none">
-        
-        <ReportHeader 
-          displayDate={temporal?.dataDate || selectedDate} 
+
+        <ReportHeader
+          displayDate={temporal?.dataDate || selectedDate}
           filterDate={selectedDate}
-          setSelectedDate={setSelectedDate} 
-          onPrint={() => window.print()} 
-          toBnNum={toBnNum} 
+          setSelectedDate={setSelectedDate}
+          onPrint={() => window.print()}
+          toBnNum={toBnNum}
         />
-        
+
         <main className="p-8 space-y-10 print:p-0 print:space-y-1">
           {temporal?.isHistorical && selectedDate === getBdDateString() && (
             <div className="bg-amber-50 border-y border-amber-200 py-3 px-8 text-center no-print">
-               <p className="text-xs font-bold text-amber-800">
-                  আজকের প্রতিবেদন এখনো প্রকাশিত হয়নি। সর্বশেষ তথ্যসূত্রঃ <span className="underline">{toBnNum(temporal.dataDate)}</span>
-               </p>
+              <p className="text-xs font-bold text-amber-800">
+                {t('bulletin.todayReportNotPublished', { date: toBnNum(temporal.dataDate) })}
+              </p>
             </div>
           )}
-          
-          <GovernmentSummary 
-            stats={stats} 
-            toBnNum={toBnNum} 
-            divisionStats={divisionStats} 
-            leaders={leaders} 
+
+          <GovernmentSummary
+            stats={stats}
+            toBnNum={toBnNum}
+            divisionStats={divisionStats}
+            leaders={leaders}
           />
-          
-          <DailyLogTable 
-            paginatedLog={paginatedLog} 
-            toBnNum={toBnNum} 
-            logPage={logPage} 
-            totalLogPages={totalLogPages} 
-            setLogPage={setLogPage} 
-            i18n={i18n} 
+
+          <DailyLogTable
+            paginatedLog={paginatedLog}
+            toBnNum={toBnNum}
+            logPage={logPage}
+            totalLogPages={totalLogPages}
+            setLogPage={setLogPage}
           />
-          
-          <GovernmentBreakdownTable 
+
+          <GovernmentBreakdownTable
             divisionStats={divisionStats}
             toBnNum={toBnNum}
             stats={stats}

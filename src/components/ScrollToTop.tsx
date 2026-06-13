@@ -1,55 +1,86 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { ChevronUp, ChevronDown } from "lucide-react";
-import { motion } from "framer-motion";
+import React, { useState, useEffect, useCallback } from 'react';
+import { ChevronUp, ChevronDown } from 'lucide-react';
+import { motion } from 'motion/react';
 
 const ScrollButton = () => {
   const [showUp, setShowUp] = useState(false);
 
-  useEffect(() => {
-    const checkScroll = () => {
-      setShowUp(window.scrollY > 100);
-    };
+  const getScrollContainer = (): HTMLElement | Window | null => {
+    const main = document.querySelector('main');
+    return main && main.scrollHeight > main.clientHeight ? main : window;
+  };
 
-    checkScroll();
+  const getScrollTop = (): number => {
+    const main = document.querySelector('main');
+    if (main && main.scrollHeight > main.clientHeight) {
+      return main.scrollTop;
+    }
+    return window.scrollY || document.documentElement.scrollTop;
+  };
 
-    window.addEventListener("scroll", checkScroll, {
-      passive: true,
-    });
-
-    return () => {
-      window.removeEventListener("scroll", checkScroll);
-    };
+  const checkScroll = useCallback(() => {
+    setShowUp(getScrollTop() > 100);
   }, []);
 
+  useEffect(() => {
+    checkScroll();
+
+    const target = getScrollContainer();
+    if (target instanceof Window) {
+      window.addEventListener('scroll', checkScroll, { passive: true });
+      return () => window.removeEventListener('scroll', checkScroll);
+    } else if (target) {
+      target.addEventListener('scroll', checkScroll, { passive: true });
+      return () => target.removeEventListener('scroll', checkScroll);
+    }
+  }, [checkScroll]);
+
   const handleClick = () => {
+    const main = document.querySelector('main');
+    const hasScrollableMain = main && main.scrollHeight > main.clientHeight;
+
     if (showUp) {
-      window.scrollTo({
-        top: 0,
-        behavior: "smooth",
-      });
+      if (hasScrollableMain) {
+        main.scrollTo({ top: 0, behavior: 'smooth' });
+      } else {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
     } else {
-      window.scrollTo({
-        top: document.documentElement.scrollHeight,
-        behavior: "smooth",
-      });
+      if (hasScrollableMain) {
+        main.scrollTo({
+          top: main.scrollHeight - main.clientHeight,
+          behavior: 'smooth'
+        });
+      } else {
+        window.scrollTo({
+          top: document.documentElement.scrollHeight - document.documentElement.clientHeight,
+          behavior: 'smooth'
+        });
+      }
     }
   };
 
   return (
     <motion.button
       onClick={handleClick}
-      className="fixed bottom-6 right-6 z-[99999] rounded-full bg-indigo-600 p-3 text-white shadow-lg hover:bg-indigo-700"
+      className="fixed bottom-8 right-8 z-[100] p-3 bg-indigo-600 text-white rounded-2xl shadow-2xl shadow-indigo-500/40 hover:bg-indigo-700 hover:scale-110 active:scale-95 transition-all border border-indigo-400/30 backdrop-blur-sm"
       aria-label={showUp ? "Scroll to top" : "Scroll to bottom"}
-      whileTap={{ scale: 0.95 }}
-      whileHover={{ scale: 1.08 }}
     >
-      {showUp ? (
-        <ChevronUp className="h-6 w-6" />
-      ) : (
-        <ChevronDown className="h-6 w-6" />
-      )}
+      <motion.div
+        key={showUp ? 'up' : 'down'}
+        initial={{ opacity: 0, scale: 0.8 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.2 }}
+        className="flex items-center justify-center"
+      >
+        {showUp ? (
+          <ChevronUp className="w-6 h-6" />
+        ) : (
+          <ChevronDown className="w-6 h-6" />
+        )}
+      </motion.div>
     </motion.button>
   );
 };

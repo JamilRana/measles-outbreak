@@ -229,13 +229,12 @@ export default function DashboardPage() {
   // -- Countdown Timer --
   const [countdown, setCountdown] = useState("00:00:00");
   useEffect(() => {
-    if (!config?.outbreak) return;
+    if (!settings?.reportingDeadline) return;
     const timer = setInterval(() => {
       const now = getBdTime();
-      const h = config.outbreak.cutoffHour;
-      const m = config.outbreak.cutoffMinute;
+      const [h, m, s] = settings.reportingDeadline.split(":").map(Number);
       const target = new Date(now);
-      target.setHours(h, m, 0, 0);
+      target.setHours(h || 23, m || 59, s || 59, 0);
 
       const diff = target.getTime() - now.getTime();
       if (diff <= 0) {
@@ -249,7 +248,7 @@ export default function DashboardPage() {
       }
     }, 1000);
     return () => clearInterval(timer);
-  }, [config?.outbreak]);
+  }, [settings]);
 
   // Fetch facilities for the selected district
   useEffect(() => {
@@ -422,17 +421,6 @@ export default function DashboardPage() {
     // Historical data or Cumulative view is always considered verified
     return "VERIFIED";
   }, [config, filterDate, viewMode]);
-
-  const formattedPublishTime = useMemo(() => {
-    if (!config?.outbreak) return "";
-    const hour = config.outbreak.publishTimeHour ?? 9;
-    const minute = config.outbreak.publishTimeMinute ?? 0;
-    const ampm = hour >= 12 ? "PM" : "AM";
-    const displayHour = hour % 12 || 12;
-    const displayMinute = minute.toString().padStart(2, "0");
-    return `${displayHour.toString().padStart(2, "0")}:${displayMinute} ${ampm}`;
-  }, [config?.outbreak]);
-
   const allReports = summary?.reports || []; // For title fallback
   const sevenDayTrend = [0, 0, 0, 0, 0, 0, 0]; // Placeholder for trend
 
@@ -611,27 +599,6 @@ export default function DashboardPage() {
               </p>
             </div>
           </div>
-
-          {config?.outbreak && (
-            <div
-              className={`flex items-center gap-4 px-6 py-4 rounded-2xl border-2 transition-all ${publicationStatus === "PENDING"
-                ? "bg-amber-950/40 border-amber-500/30"
-                : "bg-slate-950/40 border-slate-700"
-                }`}
-            >
-              <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center">
-                <Calendar className="w-5 h-5 text-indigo-400" />
-              </div>
-              <div className="text-right">
-                <p className="text-[9px] font-black uppercase tracking-[0.2em] text-indigo-400">
-                  Publish Time
-                </p>
-                <p className="text-lg font-black font-mono text-white tracking-widest uppercase">
-                  {formattedPublishTime}
-                </p>
-              </div>
-            </div>
-          )}
         </div>
       </div>
 
@@ -643,7 +610,7 @@ export default function DashboardPage() {
         >
           <AlertCircle className="w-5 h-5 text-amber-600" />
           <p className="text-xs font-bold text-amber-700 uppercase tracking-widest">
-            Today's report is pending publication. Official statistics will be available after the release time {config?.outbreak?.releaseTime} time.
+            Today's report is pending publication. Official statistics will be available after {config?.outbreak?.releaseTime}
           </p>
         </motion.div>
       )}

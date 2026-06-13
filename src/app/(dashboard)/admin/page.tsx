@@ -19,7 +19,8 @@ import {
   Activity,
   Calculator,
   History,
-  Building2
+  Building2,
+  HardDriveDownload
 } from "lucide-react";
 import { motion } from "motion/react";
 import Breadcrumbs from "@/components/Breadcrumbs";
@@ -173,6 +174,13 @@ export default function AdminPage() {
               description={t('adminPanel.systemMaintenanceDesc')} 
               icon={<Database className="w-6 h-6" />}
               color="rose"
+            />
+            <AdminCard 
+              href="/admin/backup" 
+              title={t('adminPanel.backup')} 
+              description={t('adminPanel.backupDesc')} 
+              icon={<HardDriveDownload className="w-6 h-6" />}
+              color="emerald"
             />
           </>
         )}
