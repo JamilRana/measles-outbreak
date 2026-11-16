@@ -5,11 +5,13 @@ services:
       dockerfile: Dockerfile
     ports:
       - "3000:3000"
+    env_file:
+      - .env
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/measles_db?schema=public
       - REDIS_URL=redis://redis-master:6379
-      - NEXTAUTH_SECRET=your_secret_here_change_in_production
-      - NEXTAUTH_URL=http://localhost:3000
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:-your_secret_here_change_in_production}
+      - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
       - NODE_ENV=production
     depends_on:
       db:
@@ -38,7 +40,7 @@ services:
       - POSTGRES_PASSWORD=postgres
       - POSTGRES_DB=measles_db
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -52,7 +54,7 @@ services:
     image: redis:7-alpine
     command: redis-server --appendonly yes
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis_master_data:/data
     healthcheck:
