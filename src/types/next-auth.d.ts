@@ -51,5 +51,7 @@ declare module "next-auth/jwt" {
     upazila: string | null;
     isActive: boolean;
     facilityIsActive: boolean | null;
+    lastActivity?: number;
+    isExpired?: boolean;
   }
 }

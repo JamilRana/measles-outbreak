@@ -22,6 +22,26 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     });
 
     if (!report) return NextResponse.json({ error: "Report not found" }, { status: 404 });
+
+    // Object-level authorization check (BOLA mitigation)
+    const userRole = session.user.role;
+    if (userRole === "USER") {
+      const isOwner = report.userId === session.user.id;
+      const isSameFacility = session.user.facilityId && report.facilityId === session.user.facilityId;
+      if (!isOwner && !isSameFacility) {
+        return NextResponse.json({ error: "Forbidden: You do not have permission to view this report" }, { status: 403 });
+      }
+    } else if (userRole === "VIEWER") {
+      const managedDivs = session.user.managedDivisions || [];
+      const managedDists = session.user.managedDistricts || [];
+      if (managedDivs.length > 0 && (!report.facility?.division || !managedDivs.includes(report.facility.division))) {
+        return NextResponse.json({ error: "Forbidden: Report outside managed division" }, { status: 403 });
+      }
+      if (managedDists.length > 0 && (!report.facility?.district || !managedDists.includes(report.facility.district))) {
+        return NextResponse.json({ error: "Forbidden: Report outside managed district" }, { status: 403 });
+      }
+    }
+
     return NextResponse.json(report);
   } catch (error) {
     return NextResponse.json({ error: "Failed to fetch report" }, { status: 500 });

@@ -4,6 +4,7 @@ import { DefaultSession } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
+import { rateLimit, LIMIT_PROFILES } from "@/lib/rate-limit";
 
 
 export const authOptions: NextAuthOptions = {
@@ -21,6 +22,13 @@ export const authOptions: NextAuthOptions = {
           throw new Error("Invalid credentials");
         }
 
+        // Rate limiting: 5 attempts per 5 minutes per email/identifier
+        const cleanEmail = credentials.email.trim().toLowerCase();
+        const rl = await rateLimit(`auth:${cleanEmail}`, LIMIT_PROFILES.AUTH);
+        if (!rl.success) {
+          throw new Error("Too many login attempts. Please try again in 5 minutes.");
+        }
+
         if (credentials.loginType === "hrm") {
           return await loginHrmUser(credentials.email, credentials.password);
         }
@@ -31,33 +39,43 @@ export const authOptions: NextAuthOptions = {
   ],
   callbacks: {
     async jwt({ token, user }) {
+      const now = Date.now();
+      const IDLE_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes idle timeout
+
+      if (token.lastActivity && now - token.lastActivity > IDLE_TIMEOUT_MS) {
+        // Expire token on idle timeout
+        return { ...token, id: "", isExpired: true };
+      }
+      token.lastActivity = now;
+
       if (user) {
-        token.id = user.id;
-        token.role = user.role;
-        token.facilityId = user.facilityId;
-        token.isActive = user.isActive;
-        token.division = user.division;
-        token.district = user.district;
-        token.managedDivisions = user.managedDivisions;
-        token.managedDistricts = user.managedDistricts;
-        token.facilityName = user.facilityName;
-        token.facilityIsActive = (user as any).facilityIsActive;
+        const u = user as any;
+        token.id = u.id;
+        token.role = u.role;
+        token.facilityId = u.facilityId ?? null;
+        token.isActive = u.isActive ?? true;
+        token.division = u.division ?? null;
+        token.district = u.district ?? null;
+        token.managedDivisions = u.managedDivisions ?? [];
+        token.managedDistricts = u.managedDistricts ?? [];
+        token.facilityName = u.facilityName ?? null;
+        token.facilityIsActive = u.facilityIsActive ?? null;
       }
       return token;
     },
     async session({ session, token }) {
-      if (token) {
-        session.user.id = token.id;
-        session.user.role = token.role;
-        session.user.facilityId = token.facilityId;
-        session.user.isActive = token.isActive;
-        session.user.division = token.division;
-        session.user.district = token.district;
-        session.user.managedDivisions = token.managedDivisions;
-        session.user.managedDistricts = token.managedDistricts;
-        session.user.facilityName = token.facilityName;
-        session.user.facilityIsActive = token.facilityIsActive;
+      if (!token || !token.id || token.isExpired) {
+        return null as any;
       }
+      session.user.id = token.id as string;
+      session.user.role = token.role as any;
+      session.user.facilityId = token.facilityId as string;
+      session.user.isActive = token.isActive as boolean;
+      session.user.division = token.division as string;
+      session.user.district = token.district as string;
+      session.user.managedDivisions = token.managedDivisions as string[];
+      session.user.managedDistricts = token.managedDistricts as string[];
+      session.user.facilityName = token.facilityName as string;
       return session;
     },
   },
@@ -66,7 +84,7 @@ export const authOptions: NextAuthOptions = {
   },
   session: {
     strategy: "jwt",
-    maxAge: 30 * 24 * 60 * 60,
+    maxAge: 60 * 60, // 1 hour max lifetime
   },
   cookies: {
     sessionToken: {

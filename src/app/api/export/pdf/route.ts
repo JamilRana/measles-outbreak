@@ -11,71 +11,86 @@ export async function POST(req: NextRequest) {
 
     const filterDate = date || getBdDateString();
 
+    const validDate = (d: any) => typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : null;
+    const safeDate = validDate(date);
+
     // 1. Fetch Today/Filtered Summary
     const baseFilter: any = {
       outbreakId,
       status: "PUBLISHED",
     };
 
-    if (date) {
-      baseFilter.periodStart = new Date(date);
+    if (safeDate) {
+      baseFilter.periodStart = new Date(safeDate);
     }
     if (division) baseFilter.division = division;
     if (district) baseFilter.district = district;
 
-    // Use queryRaw for high-performance aggregation (same as Task 2)
+    // Use parameterized queryRaw for high-performance aggregation
     const summaryDataPromise = prisma.$queryRaw`
       SELECT 
-        COALESCE(SUM(CAST(data_snapshot->>'suspected24h' AS INTEGER)), 0) as "suspected24h",
-        COALESCE(SUM(CAST(data_snapshot->>'confirmed24h' AS INTEGER)), 0) as "confirmed24h",
-        COALESCE(SUM(CAST(data_snapshot->>'admitted24h' AS INTEGER)), 0) as "admitted24h",
-        COALESCE(SUM(CAST(data_snapshot->>'suspectedDeath24h' AS INTEGER)), 0) as "suspectedDeath24h",
-        COALESCE(SUM(CAST(data_snapshot->>'confirmedDeath24h' AS INTEGER)), 0) as "confirmedDeath24h"
-      FROM "Report"
-      WHERE "outbreakId" = ${outbreakId}
-      AND "status" = 'PUBLISHED'
-      ${date ? Prisma.sql`AND "periodStart"::date = ${date}::date` : Prisma.empty}
+        COALESCE(SUM(COALESCE(NULLIF(r."dataSnapshot"->>'suspected24h', '')::numeric, 0)), 0)::int as "suspected24h",
+        COALESCE(SUM(COALESCE(NULLIF(r."dataSnapshot"->>'confirmed24h', '')::numeric, 0)), 0)::int as "confirmed24h",
+        COALESCE(SUM(COALESCE(NULLIF(r."dataSnapshot"->>'admitted24h', '')::numeric, 0)), 0)::int as "admitted24h",
+        COALESCE(SUM(COALESCE(NULLIF(r."dataSnapshot"->>'suspectedDeath24h', '')::numeric, 0)), 0)::int as "suspectedDeath24h",
+        COALESCE(SUM(COALESCE(NULLIF(r."dataSnapshot"->>'confirmedDeath24h', '')::numeric, 0)), 0)::int as "confirmedDeath24h"
+      FROM "Report" r
+      JOIN "Facility" f ON f.id = r."facilityId"
+      WHERE r."outbreakId" = ${outbreakId}
+      AND r."status" = 'PUBLISHED'
+      ${safeDate ? Prisma.sql`AND r."periodStart"::date = ${safeDate}::date` : Prisma.empty}
+      ${division ? Prisma.sql`AND f.division = ${division}` : Prisma.empty}
+      ${district ? Prisma.sql`AND f.district = ${district}` : Prisma.empty}
     `;
 
     // Fetch breakdown
     const breakdownPromise = prisma.$queryRaw`
       SELECT 
-        COALESCE("division", 'Unknown') as name,
-        COALESCE(SUM(CAST(data_snapshot->>'suspected24h' AS INTEGER)), 0) as "suspected24h",
-        COALESCE(SUM(CAST(data_snapshot->>'confirmed24h' AS INTEGER)), 0) as "confirmed24h",
-        COALESCE(SUM(CAST(data_snapshot->>'suspectedDeath24h' AS INTEGER)), 0) as "suspectedDeath24h",
-        COALESCE(SUM(CAST(data_snapshot->>'confirmedDeath24h' AS INTEGER)), 0) as "confirmedDeath24h"
-      FROM "Report"
-      WHERE "outbreakId" = ${outbreakId}
-      AND "status" = 'PUBLISHED'
-      ${date ? Prisma.sql`AND "periodStart"::date = ${date}::date` : Prisma.empty}
-      GROUP BY "division"
+        COALESCE(f."division", 'Unknown') as name,
+        COALESCE(SUM(COALESCE(NULLIF(r."dataSnapshot"->>'suspected24h', '')::numeric, 0)), 0)::int as "suspected24h",
+        COALESCE(SUM(COALESCE(NULLIF(r."dataSnapshot"->>'confirmed24h', '')::numeric, 0)), 0)::int as "confirmed24h",
+        COALESCE(SUM(COALESCE(NULLIF(r."dataSnapshot"->>'suspectedDeath24h', '')::numeric, 0)), 0)::int as "suspectedDeath24h",
+        COALESCE(SUM(COALESCE(NULLIF(r."dataSnapshot"->>'confirmedDeath24h', '')::numeric, 0)), 0)::int as "confirmedDeath24h"
+      FROM "Report" r
+      JOIN "Facility" f ON f.id = r."facilityId"
+      WHERE r."outbreakId" = ${outbreakId}
+      AND r."status" = 'PUBLISHED'
+      ${safeDate ? Prisma.sql`AND r."periodStart"::date = ${safeDate}::date` : Prisma.empty}
+      ${division ? Prisma.sql`AND f.division = ${division}` : Prisma.empty}
+      ${district ? Prisma.sql`AND f.district = ${district}` : Prisma.empty}
+      GROUP BY f."division"
     `;
 
     // 2. Fetch Cumulative
     const cumulativePromise = prisma.$queryRaw`
       SELECT 
-        COALESCE(SUM(CAST(data_snapshot->>'suspected24h' AS INTEGER)), 0) as "suspected24h",
-        COALESCE(SUM(CAST(data_snapshot->>'confirmed24h' AS INTEGER)), 0) as "confirmed24h",
-        COALESCE(SUM(CAST(data_snapshot->>'suspectedDeath24h' AS INTEGER)), 0) as "suspectedDeath24h",
-        COALESCE(SUM(CAST(data_snapshot->>'confirmedDeath24h' AS INTEGER)), 0) as "confirmedDeath24h"
-      FROM "Report"
-      WHERE "outbreakId" = ${outbreakId}
-      AND "status" = 'PUBLISHED'
-      ${date ? Prisma.sql`AND "periodStart"::date <= ${date}::date` : Prisma.empty}
+        COALESCE(SUM(COALESCE(NULLIF(r."dataSnapshot"->>'suspected24h', '')::numeric, 0)), 0)::int as "suspected24h",
+        COALESCE(SUM(COALESCE(NULLIF(r."dataSnapshot"->>'confirmed24h', '')::numeric, 0)), 0)::int as "confirmed24h",
+        COALESCE(SUM(COALESCE(NULLIF(r."dataSnapshot"->>'suspectedDeath24h', '')::numeric, 0)), 0)::int as "suspectedDeath24h",
+        COALESCE(SUM(COALESCE(NULLIF(r."dataSnapshot"->>'confirmedDeath24h', '')::numeric, 0)), 0)::int as "confirmedDeath24h"
+      FROM "Report" r
+      JOIN "Facility" f ON f.id = r."facilityId"
+      WHERE r."outbreakId" = ${outbreakId}
+      AND r."status" = 'PUBLISHED'
+      ${safeDate ? Prisma.sql`AND r."periodStart"::date <= ${safeDate}::date` : Prisma.empty}
+      ${division ? Prisma.sql`AND f.division = ${division}` : Prisma.empty}
+      ${district ? Prisma.sql`AND f.district = ${district}` : Prisma.empty}
     `;
 
     const cumulativeBreakdownPromise = prisma.$queryRaw`
       SELECT 
-        COALESCE("division", 'Unknown') as name,
-        COALESCE(SUM(CAST(data_snapshot->>'suspected24h' AS INTEGER)), 0) as "suspected24h",
-        COALESCE(SUM(CAST(data_snapshot->>'suspectedDeath24h' AS INTEGER)), 0) as "suspectedDeath24h",
-        COALESCE(SUM(CAST(data_snapshot->>'confirmedDeath24h' AS INTEGER)), 0) as "confirmedDeath24h"
-      FROM "Report"
-      WHERE "outbreakId" = ${outbreakId}
-      AND "status" = 'PUBLISHED'
-      ${date ? Prisma.sql`AND "periodStart"::date <= ${date}::date` : Prisma.empty}
-      GROUP BY "division"
+        COALESCE(f."division", 'Unknown') as name,
+        COALESCE(SUM(COALESCE(NULLIF(r."dataSnapshot"->>'suspected24h', '')::numeric, 0)), 0)::int as "suspected24h",
+        COALESCE(SUM(COALESCE(NULLIF(r."dataSnapshot"->>'suspectedDeath24h', '')::numeric, 0)), 0)::int as "suspectedDeath24h",
+        COALESCE(SUM(COALESCE(NULLIF(r."dataSnapshot"->>'confirmedDeath24h', '')::numeric, 0)), 0)::int as "confirmedDeath24h"
+      FROM "Report" r
+      JOIN "Facility" f ON f.id = r."facilityId"
+      WHERE r."outbreakId" = ${outbreakId}
+      AND r."status" = 'PUBLISHED'
+      ${safeDate ? Prisma.sql`AND r."periodStart"::date <= ${safeDate}::date` : Prisma.empty}
+      ${division ? Prisma.sql`AND f.division = ${division}` : Prisma.empty}
+      ${district ? Prisma.sql`AND f.district = ${district}` : Prisma.empty}
+      GROUP BY f."division"
     `;
 
     const [sumArr, brkArr, cumArr, cumBrkArr] = await Promise.all([

@@ -7,6 +7,7 @@ import { ReportStatus } from "@prisma/client";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { validateForm } from "@/lib/validation-engine";
+import { rateLimit, LIMIT_PROFILES, getClientIp } from "@/lib/rate-limit";
 
 async function getSettings() {
   const settings = await prisma.settings.findFirst();
@@ -17,6 +18,12 @@ async function getSettings() {
 
 export async function POST(request: Request) {
   try {
+    const clientIp = getClientIp(request);
+    const rl = await rateLimit(`submit:${clientIp}`, LIMIT_PROFILES.SUBMIT);
+    if (!rl.success) {
+      return NextResponse.json({ error: "Too many submission attempts. Please slow down." }, { status: 429 });
+    }
+
     const { searchParams } = new URL(request.url);
     const existingId = searchParams.get("existingId");
 
@@ -210,13 +217,18 @@ export async function PUT(request: Request) {
        return NextResponse.json({ error: "Report not found" }, { status: 404 });
     }
 
+    const session = await getServerSession(authOptions);
+    const isAdmin = session?.user?.role === "ADMIN" || session?.user?.role === "EDITOR";
+
+    if (existing.isLocked && !isAdmin) {
+      return NextResponse.json({ error: "Report is locked and cannot be edited", mode: "VIEW" }, { status: 403 });
+    }
+
     const now = getBdTime();
     const today = getBdDateString();
     const reportDateStr = existing.periodStart.toISOString().split('T')[0];
     
     let windowOpen = false;
-    const session = await getServerSession(authOptions);
-    const isAdmin = session?.user?.role === "ADMIN" || session?.user?.role === "EDITOR";
 
     if (isAdmin) {
       windowOpen = true;

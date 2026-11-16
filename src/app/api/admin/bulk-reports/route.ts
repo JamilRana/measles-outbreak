@@ -100,6 +100,18 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "No file uploaded" }, { status: 400 });
     }
 
+    // File validation: Size limit (10MB) and extension check
+    const MAX_FILE_SIZE = 10 * 1024 * 1024;
+    if (file.size > MAX_FILE_SIZE) {
+      return NextResponse.json({ error: "File exceeds maximum size of 10MB" }, { status: 400 });
+    }
+
+    const fileName = file.name.toLowerCase();
+    const validExtensions = ['.xlsx', '.xls', '.csv'];
+    if (!validExtensions.some(ext => fileName.endsWith(ext))) {
+      return NextResponse.json({ error: "Invalid file format. Only .xlsx, .xls, and .csv files are allowed" }, { status: 400 });
+    }
+
     const formFields = await prisma.formField.findMany({
       where: { outbreakId }
     });

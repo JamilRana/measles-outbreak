@@ -8,9 +8,12 @@ import * as XLSX from "xlsx";
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
-  const secret = searchParams.get("secret");
-  // Security isolation: use CRON_SECRET for cron jobs
-  if (secret !== (process.env.CRON_SECRET || process.env.NEXTAUTH_SECRET)) {
+  const authHeader = req.headers.get("authorization");
+  const bearerToken = authHeader?.startsWith("Bearer ") ? authHeader.substring(7) : null;
+  const secret = searchParams.get("secret") || bearerToken;
+  const expectedSecret = process.env.CRON_SECRET || process.env.NEXTAUTH_SECRET;
+
+  if (!expectedSecret || secret !== expectedSecret) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

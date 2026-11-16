@@ -159,6 +159,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
     }
 
+    // File validation: Size limit (50MB) and extension
+    const MAX_BACKUP_SIZE = 50 * 1024 * 1024;
+    if (file.size > MAX_BACKUP_SIZE) {
+      return NextResponse.json({ error: 'Backup file exceeds maximum allowed size of 50MB' }, { status: 400 });
+    }
+
+    if (!file.name.toLowerCase().endsWith('.json')) {
+      return NextResponse.json({ error: 'Invalid file format. Backup must be a .json file' }, { status: 400 });
+    }
+
     let backup: any;
     try {
       const text = await file.text();
