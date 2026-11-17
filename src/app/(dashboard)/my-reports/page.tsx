@@ -23,6 +23,9 @@ import {
   ResponsiveContainer 
 } from 'recharts';
 import { motion, AnimatePresence } from 'motion/react';
+import dynamic from 'next/dynamic';
+
+const ExportDossierModal = dynamic(() => import('@/components/ExportDossierModal'), { ssr: false });
 
 interface Report {
   id: string;
@@ -53,6 +56,7 @@ export default function MyReportsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
   const [lastSync, setLastSync] = useState<string>('');
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -145,12 +149,7 @@ export default function MyReportsPage() {
   const totalPages = Math.ceil(filteredReports.length / itemsPerPage);
 
   const handleExportExcel = () => {
-    import('xlsx').then(XLSX => {
-      const ws = XLSX.utils.json_to_sheet(reports);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "My Reports");
-      XLSX.writeFile(wb, `My_Daily_Reports.xlsx`);
-    });
+    setIsExportModalOpen(true);
   };
 
   if (status === 'loading' || status === 'unauthenticated') return null;
@@ -303,6 +302,14 @@ export default function MyReportsPage() {
           </div>
         )}
       </div>
+
+      <ExportDossierModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        outbreakId="measles-2026"
+        defaultDivision={session?.user?.division || ""}
+        defaultDistrict={session?.user?.district || ""}
+      />
     </div>
   );
 }

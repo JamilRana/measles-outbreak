@@ -282,6 +282,49 @@ export default function UnifiedReportForm({
     setValidationErrors(prev => prev.filter(e => e.fieldKey !== name));
   };
 
+  // Draft Auto-save to localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined' && mode === 'CREATE' && facilityId && selectedDate) {
+      const draftKey = `measles_draft_${facilityId}_${selectedDate}`;
+      const timer = setTimeout(() => {
+        try {
+          if (Object.keys(formData).some(k => formData[k] !== '')) {
+            localStorage.setItem(draftKey, JSON.stringify(formData));
+          }
+        } catch (e) {}
+      }, 800);
+      return () => clearTimeout(timer);
+    }
+  }, [formData, facilityId, selectedDate, mode]);
+
+  // Draft Recovery from localStorage on initial load
+  useEffect(() => {
+    if (typeof window !== 'undefined' && mode === 'CREATE' && facilityId && selectedDate) {
+      const draftKey = `measles_draft_${facilityId}_${selectedDate}`;
+      try {
+        const savedDraft = localStorage.getItem(draftKey);
+        if (savedDraft) {
+          const parsed = JSON.parse(savedDraft);
+          if (parsed && typeof parsed === 'object') {
+            setFormData(prev => ({ ...parsed, ...prev }));
+          }
+        }
+      } catch (e) {}
+    }
+  }, [facilityId, selectedDate, mode]);
+
+  const handleZeroReporting = () => {
+    const zeros: Record<string, string> = {};
+    fields.forEach(f => {
+      if (f.fieldType === 'NUMBER') {
+        zeros[f.fieldKey] = '0';
+      }
+    });
+    setFormData(prev => ({ ...prev, ...zeros }));
+    setValidationErrors([]);
+    setError(null);
+  };
+
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newDate = e.target.value;
     setSelectedDate(newDate);
@@ -338,6 +381,11 @@ export default function UnifiedReportForm({
       
       const result = await res.json();
       if (res.ok) {
+        try {
+          if (typeof window !== 'undefined' && facilityId && selectedDate) {
+            localStorage.removeItem(`measles_draft_${facilityId}_${selectedDate}`);
+          }
+        } catch (e) {}
         setIsSuccess(true);
         setIsPreview(false);
         if (result.id) setReportId(result.id);
@@ -616,6 +664,29 @@ export default function UnifiedReportForm({
               <div className="absolute inset-0 bg-white/60 backdrop-blur-[2px] z-20 flex flex-col items-center justify-center rounded-3xl">
                 <Loader2 className="w-8 h-8 text-indigo-500 animate-spin mb-2" />
                 <p className="text-xs font-black text-indigo-500 uppercase tracking-widest">Verifying Window...</p>
+              </div>
+            )}
+
+            {fields.length > 0 && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-5 bg-gradient-to-r from-emerald-50 to-teal-50/60 border border-emerald-200/80 rounded-2xl shadow-sm">
+                <div className="flex items-center gap-3.5">
+                  <div className="p-2.5 bg-emerald-600 text-white rounded-xl shadow-sm">
+                    <CheckCircle2 className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-emerald-950">Zero-Reporting Protocol (Nil Report)</h4>
+                    <p className="text-xs text-emerald-700 mt-0.5">
+                      No suspected or confirmed cases today? Click to populate verified zero counts across all surveillance fields.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleZeroReporting}
+                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase tracking-wider rounded-xl shadow-md shadow-emerald-600/20 transition-all whitespace-nowrap active:scale-95"
+                >
+                  Quick Fill Nil Report
+                </button>
               </div>
             )}
             {Object.entries(groupedFields).map(([section, sectionFields]) => {

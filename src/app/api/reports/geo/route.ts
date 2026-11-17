@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getBdTime, getBdDateString } from "@/lib/timezone";
-import { BD_DISTRICT_COORDS } from "@/lib/bd-districts";
+import { BD_DISTRICT_COORDS, BD_DISTRICT_POPULATION } from "@/lib/bd-districts";
 import { hasPermission } from "@/lib/rbac";
 
 /**
@@ -80,16 +80,30 @@ export async function GET(req: Request) {
 
     const geoData = result
       .filter((d) => d.district && BD_DISTRICT_COORDS[d.district])
-      .map((d) => ({
-        district: d.district,
-        division: d.division,
-        suspected: Number(d.suspected) || 0,
-        confirmed: Number(d.confirmed) || 0,
-        deaths: Number(d.deaths) || 0,
-        hospitalized: Number(d.hospitalized) || 0,
-        lat: BD_DISTRICT_COORDS[d.district].lat,
-        lng: BD_DISTRICT_COORDS[d.district].lng,
-      }));
+      .map((d) => {
+        const suspected = Number(d.suspected) || 0;
+        const confirmed = Number(d.confirmed) || 0;
+        const deaths = Number(d.deaths) || 0;
+        const hospitalized = Number(d.hospitalized) || 0;
+        const population = BD_DISTRICT_POPULATION[d.district] || 1000000;
+        const totalCases = suspected + confirmed;
+        const attackRatePer100k = Number(((totalCases / population) * 100000).toFixed(2));
+        const suspectedCfr = suspected > 0 ? Number(((deaths / suspected) * 100).toFixed(2)) : 0;
+
+        return {
+          district: d.district,
+          division: d.division,
+          suspected,
+          confirmed,
+          deaths,
+          hospitalized,
+          population,
+          attackRatePer100k,
+          suspectedCfr,
+          lat: BD_DISTRICT_COORDS[d.district].lat,
+          lng: BD_DISTRICT_COORDS[d.district].lng,
+        };
+      });
 
     return NextResponse.json(geoData);
   } catch (error) {

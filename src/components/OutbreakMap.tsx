@@ -3,121 +3,157 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import dynamic from 'next/dynamic';
+import { MapPin, Activity, Flame, ShieldAlert, Crosshair, X } from 'lucide-react';
+import type { GeoData } from '@/components/OutbreakMapInner';
 
 // Dynamically import the map to avoid SSR issues with Leaflet
 const MapInner = dynamic(() => import('@/components/OutbreakMapInner').then(mod => mod.default), {
   ssr: false,
   loading: () => (
     <div className="h-[650px] w-full bg-slate-100 animate-pulse rounded-2xl flex items-center justify-center">
-      <span className="text-slate-400 font-medium">Loading map...</span>
+      <span className="text-slate-400 font-medium">Loading interactive surveillance map...</span>
     </div>
   ),
 });
 
-interface GeoData {
-  district: string;
-  division: string;
-  confirmed: number;
-  suspected: number;
-  deaths: number;
-  hospitalized: number;
-  lat: number;
-  lng: number;
-}
-
 interface OutbreakMapProps {
   apiEndpoint?: string;
+  selectedDistrict?: string | null;
+  onSelectDistrict?: (district: string) => void;
 }
 
-export default function OutbreakMap({ apiEndpoint = '/api/reports/geo' }: OutbreakMapProps) {
+export default function OutbreakMap({
+  apiEndpoint = '/api/reports/geo',
+  selectedDistrict,
+  onSelectDistrict,
+}: OutbreakMapProps) {
   const { t } = useTranslation();
   const [geoData, setGeoData] = useState<GeoData[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showDeaths, setShowDeaths] = useState(true);
-  const [showConfirmed, setShowConfirmed] = useState(true);
-  const [showSuspected, setShowSuspected] = useState(true);
-  const [showHospitalized, setShowHospitalized] = useState(true);
+  const [metricMode, setMetricMode] = useState<'attackRate' | 'totalCases' | 'deaths' | 'hospitalized'>('attackRate');
 
   useEffect(() => {
+    let isMounted = true;
     const fetchGeoData = async () => {
       try {
+        setLoading(true);
         const res = await fetch(apiEndpoint);
         const data = await res.json();
-        setGeoData(data);
+        if (isMounted) {
+          setGeoData(Array.isArray(data) ? data : []);
+        }
       } catch (err) {
         console.error('Failed to fetch geo data:', err);
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
     fetchGeoData();
+    return () => {
+      isMounted = false;
+    };
   }, [apiEndpoint]);
 
   return (
     <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-      <div className="px-8 py-6 border-b border-slate-100 bg-slate-50/50">
-        <h3 className="text-xl font-bold text-slate-800 mb-4">{t('map.title')}</h3>
-        <div className="flex flex-wrap gap-2">
-          <button
-            onClick={() => setShowDeaths(!showDeaths)}
-            className={`map-toggle-btn ${showDeaths ? 'active' : 'inactive'}`}
-            style={{
-              borderColor: '#ef4444',
-              backgroundColor: showDeaths ? '#ef4444' : 'white',
-              color: showDeaths ? 'white' : '#ef4444',
-            }}
-          >
-            <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: showDeaths ? 'white' : '#ef4444' }} />
-            {t('map.deaths')}
-          </button>
-          <button
-            onClick={() => setShowConfirmed(!showConfirmed)}
-            className={`map-toggle-btn ${showConfirmed ? 'active' : 'inactive'}`}
-            style={{
-              borderColor: '#8b5cf6',
-              backgroundColor: showConfirmed ? '#8b5cf6' : 'white',
-              color: showConfirmed ? 'white' : '#8b5cf6',
-            }}
-          >
-            <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: showConfirmed ? 'white' : '#8b5cf6' }} />
-            {t('map.confirmedCases')}
-          </button>
-          <button
-            onClick={() => setShowSuspected(!showSuspected)}
-            className={`map-toggle-btn ${showSuspected ? 'active' : 'inactive'}`}
-            style={{
-              borderColor: '#3b82f6',
-              backgroundColor: showSuspected ? '#3b82f6' : 'white',
-              color: showSuspected ? 'white' : '#3b82f6',
-            }}
-          >
-            <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: showSuspected ? 'white' : '#3b82f6' }} />
-            {t('map.suspectedCases')}
-          </button>
-          <button
-            onClick={() => setShowHospitalized(!showHospitalized)}
-            className={`map-toggle-btn ${showHospitalized ? 'active' : 'inactive'}`}
-            style={{
-              borderColor: '#f97316',
-              backgroundColor: showHospitalized ? '#f97316' : 'white',
-              color: showHospitalized ? 'white' : '#f97316',
-            }}
-          >
-            <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: showHospitalized ? 'white' : '#f97316' }} />
-            {t('map.hospitalizations')}
-          </button>
+      <div className="px-8 py-6 border-b border-slate-100 bg-slate-50/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <MapPin className="w-5 h-5 text-indigo-600" />
+            <h3 className="text-xl font-bold text-slate-800 tracking-tight">Geographic Surveillance & Attack Rate</h3>
+          </div>
+          <p className="text-xs text-slate-500">
+            Click any district to filter all dashboard KPIs, Epi-curves, and facility tables.
+          </p>
+        </div>
+
+        {/* Metric Selector Controls */}
+        <div className="flex flex-wrap items-center gap-2">
+          {selectedDistrict && (
+            <div className="flex items-center gap-2 bg-indigo-50 border border-indigo-200 text-indigo-900 px-3 py-1.5 rounded-xl text-xs font-bold animate-in fade-in">
+              <span>Filtered: {selectedDistrict}</span>
+              {onSelectDistrict && (
+                <button
+                  type="button"
+                  onClick={() => onSelectDistrict(selectedDistrict)}
+                  className="p-0.5 hover:bg-indigo-100 rounded text-indigo-600"
+                  title="Clear district filter"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          )}
+
+          <div className="flex bg-slate-100 p-1 rounded-2xl border border-slate-200">
+            <button
+              type="button"
+              onClick={() => setMetricMode('attackRate')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                metricMode === 'attackRate'
+                  ? 'bg-white text-emerald-700 shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Activity className="w-3.5 h-3.5" />
+              Attack Rate / 100k
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setMetricMode('totalCases')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                metricMode === 'totalCases'
+                  ? 'bg-white text-purple-700 shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Flame className="w-3.5 h-3.5" />
+              Total Cases
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setMetricMode('deaths')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                metricMode === 'deaths'
+                  ? 'bg-white text-red-700 shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <ShieldAlert className="w-3.5 h-3.5" />
+              Deaths
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setMetricMode('hospitalized')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                metricMode === 'hospitalized'
+                  ? 'bg-white text-orange-700 shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Crosshair className="w-3.5 h-3.5" />
+              Hospitalized
+            </button>
+          </div>
         </div>
       </div>
+
       <div className="p-4">
         {loading ? (
-          <div className="h-[650px] w-full bg-slate-100 animate-pulse rounded-2xl" />
+          <div className="h-[650px] w-full bg-slate-100 animate-pulse rounded-2xl flex items-center justify-center">
+            <span className="text-slate-400 font-medium">Aggregating district surveillance data...</span>
+          </div>
         ) : (
           <MapInner
             geoData={geoData}
-            showDeaths={showDeaths}
-            showConfirmed={showConfirmed}
-            showSuspected={showSuspected}
-            showHospitalized={showHospitalized}
+            metricMode={metricMode}
+            selectedDistrict={selectedDistrict}
+            onSelectDistrict={onSelectDistrict}
           />
         )}
       </div>

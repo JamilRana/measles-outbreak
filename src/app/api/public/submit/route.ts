@@ -8,6 +8,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { validateForm } from "@/lib/validation-engine";
 import { rateLimit, LIMIT_PROFILES, getClientIp } from "@/lib/rate-limit";
+import { invalidateByPattern } from "@/lib/redis";
 
 async function getSettings() {
   const settings = await prisma.settings.findFirst();
@@ -196,6 +197,17 @@ export async function POST(request: Request) {
       timeout: 15000 // Increase timeout to 15s to handle rebuildSnapshot complexity
     });
 
+    // Realtime cache invalidation on report creation
+    try {
+      await Promise.all([
+        invalidateByPattern(`summary:${outbreakId}:*`),
+        invalidateByPattern(`geo:${outbreakId}:*`),
+        invalidateByPattern(`timeseries:${outbreakId}:*`),
+      ]);
+    } catch (cacheErr) {
+      console.error("[Cache] Invalidation hook error on submit:", cacheErr);
+    }
+
     return NextResponse.json({ success: true, id: report.id, message: "Report submitted", mode: "CREATE" });
   } catch (error) {
     console.error("Public submit error:", error);
@@ -325,6 +337,17 @@ export async function PUT(request: Request) {
     }, {
       timeout: 15000 // Increase timeout to 15s
     });
+
+    // Realtime cache invalidation on report update
+    try {
+      await Promise.all([
+        invalidateByPattern(`summary:${existing.outbreakId}:*`),
+        invalidateByPattern(`geo:${existing.outbreakId}:*`),
+        invalidateByPattern(`timeseries:${existing.outbreakId}:*`),
+      ]);
+    } catch (cacheErr) {
+      console.error("[Cache] Invalidation hook error on update:", cacheErr);
+    }
 
     return NextResponse.json({ success: true, id: report.id, message: "Report updated", mode: "EDIT" });
   } catch (error) {

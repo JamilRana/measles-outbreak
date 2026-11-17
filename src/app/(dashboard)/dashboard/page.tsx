@@ -67,6 +67,7 @@ const EpiInsights = dynamic(() => import("@/components/EpiInsights"), {
 });
 
 const OutbreakSelector = dynamic(() => import("@/components/OutbreakSelector"), { ssr: false });
+const ExportDossierModal = dynamic(() => import("@/components/ExportDossierModal"), { ssr: false });
 
 // Safe number conversion function
 const toBnNumSafe = (n: number | string | null | undefined, i18n: any) => {
@@ -170,6 +171,7 @@ export default function DashboardPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [exporting, setExporting] = useState(false);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
   // -- Detailed Table Sort & Pagination State --
   const [sortField, setSortField] = useState<string>("name");
@@ -456,25 +458,7 @@ export default function DashboardPage() {
   };
 
   const handleExportExcel = () => {
-    const data = tableData.map((d: any) => ({
-      [selectedDivision ? 'District' : 'Division']: d.name,
-      'Last 24h Suspected Cases': d.today.suspected,
-      'Last 24h Suspected Death': d.today.suspectedDeath,
-      'Last 24h Confirmed Cases': d.today.confirmed,
-      'Last 24h Confirmed Death': d.today.confirmedDeath,
-      'Last 24h Admitted': d.today.admitted,
-      'Last 24h Recovered': d.today.recovered,
-      'Cumulative Suspected Cases': d.cumulative.suspected,
-      'Cumulative Suspected Death': d.cumulative.suspectedDeath,
-      'Cumulative Confirmed Cases': d.cumulative.confirmed,
-      'Cumulative Confirmed Death': d.cumulative.confirmedDeath,
-      'Cumulative Admitted': d.cumulative.admitted,
-      'Cumulative Recovered': d.cumulative.recovered,
-    }));
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Surveillance");
-    XLSX.writeFile(wb, `MEASLES_SITREP_${getBdDateString()}.xlsx`);
+    setIsExportModalOpen(true);
   };
 
   const dynamicFilterParams = useMemo(() => {
@@ -812,7 +796,11 @@ export default function DashboardPage() {
               </div>
             </div>
           </div>
-          <OutbreakMap apiEndpoint={`/api/reports/geo?${dynamicFilterParams}`} />
+          <OutbreakMap
+            apiEndpoint={`/api/reports/geo?${dynamicFilterParams}`}
+            selectedDistrict={selectedDistrict}
+            onSelectDistrict={(d) => setSelectedDistrict(d === selectedDistrict ? null : d)}
+          />
           <EpiInsights apiEndpoint={`/api/reports/timeseries?${dynamicFilterParams}`} />
 
           <section className="space-y-6">
@@ -821,7 +809,7 @@ export default function DashboardPage() {
                 {selectedFacilityId ? 'FACILITY' : selectedDistrict ? 'DISTRICT' : selectedDivision ? `${selectedDivision}-WISE` : 'DIVISION-WISE'} DETAILED ANALYSIS
               </h2>
               <div className="flex gap-4">
-                <button onClick={handleExportExcel} className="flex items-center gap-3 px-8 py-4 bg-emerald-700 text-white rounded-2xl text-xs font-black uppercase shadow-2xl"><Download className="w-5 h-5" /> EXCEL</button>
+                <button onClick={handleExportExcel} className="flex items-center gap-3 px-8 py-4 bg-emerald-700 hover:bg-emerald-800 text-white rounded-2xl text-xs font-black uppercase shadow-2xl transition-all"><Download className="w-5 h-5" /> EXPORT DOSSIER</button>
               </div>
             </div>
             <div className="bg-white rounded-[3.5rem] border border-slate-200 overflow-hidden shadow-2xl">
@@ -947,6 +935,14 @@ export default function DashboardPage() {
           </section>
         </>
       )}
+
+      <ExportDossierModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        outbreakId={selectedOutbreakId}
+        defaultDivision={selectedDivision}
+        defaultDistrict={selectedDistrict}
+      />
     </div>
   );
 }
