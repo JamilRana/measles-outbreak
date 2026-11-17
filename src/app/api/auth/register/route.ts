@@ -2,9 +2,16 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 export async function POST(req: Request) {
   try {
+    const clientIp = getClientIp(req);
+    const rl = await rateLimit(`register:${clientIp}`, { limit: 5, window: 600 });
+    if (!rl.success) {
+      return NextResponse.json({ error: "Too many registration attempts. Please try again later." }, { status: 429 });
+    }
+
     const { email, password, facilityName, phone, division, district, name } = await req.json();
 
     if (!email || !password || !facilityName) {
@@ -30,6 +37,7 @@ export async function POST(req: Request) {
           facilityName,
           division: division || "Unknown",
           district: district || "Unknown",
+          phone: phone
         }
       });
     }

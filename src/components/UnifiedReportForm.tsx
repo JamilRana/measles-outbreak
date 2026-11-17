@@ -62,7 +62,8 @@ const DynamicInput = ({
     lab: FlaskConical
   };
   const Icon = iconMap[field.section || 'cases'] || Activity;
-  const label = i18n.language === 'bn' ? field.labelBn || field.label : field.label;
+  const label = field.label;
+  const labelBn = field.labelBn;
   const hasError   = fieldErrors.length > 0;
   const hasWarning = !hasError && fieldWarnings.length > 0;
 
@@ -73,22 +74,26 @@ const DynamicInput = ({
     ? 'border-red-400 focus:border-red-500 focus:ring-red-500/20 bg-red-50/30'
     : hasWarning
     ? 'border-amber-400 focus:border-amber-500 focus:ring-amber-500/20 bg-amber-50/30'
-    : 'border-slate-200 focus:border-indigo-500 focus:ring-indigo-500';
+    : 'border-slate-300 focus:border-indigo-500 focus:ring-indigo-500';
 
   if (field.fieldType === 'SELECT' && field.options) {
     let opts: string[] = [];
     try { opts = JSON.parse(field.options); } catch (e) { opts = []; }
     return (
       <div className="flex flex-col gap-1">
-        <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+        <label className="text-[11px] font-black text-slate-950 uppercase tracking-wider flex items-center gap-1.5">
           <Icon className="w-3.5 h-3.5 opacity-50" />
-          {label} {field.isRequired && <span className="text-red-500">*</span>}
+          <span className="flex items-baseline gap-1">
+            <span>{label}</span>
+            {labelBn && <span className="text-[10px] text-slate-600 normal-case font-bold">({labelBn})</span>}
+          </span>
+          {field.isRequired && <span className="text-red-500">*</span>}
         </label>
         <select
           value={value}
           onChange={(e) => onChange(field.fieldKey, e.target.value)}
           disabled={disabled}
-          className={`block w-full rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm py-2.5 px-3 border bg-white text-slate-800 disabled:bg-slate-50 transition-all font-medium ${hasError ? 'border-red-400 bg-red-50/30' : hasWarning ? 'border-amber-400 bg-amber-50/30' : ''}`}
+          className={`block w-full rounded-lg border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm py-2.5 px-3 border bg-white text-slate-950 disabled:bg-slate-50 transition-all font-medium ${hasError ? 'border-red-400 bg-red-50/30' : hasWarning ? 'border-amber-400 bg-amber-50/30' : ''}`}
         >
           <option value="">{t('common.selectOption')}</option>
           {opts.map((opt: string) => (
@@ -103,9 +108,13 @@ const DynamicInput = ({
   
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+      <label className="text-[11px] font-black text-slate-950 uppercase tracking-wider flex items-center gap-1.5">
         <Icon className="w-3.5 h-3.5 opacity-50" />
-        {label} {field.isRequired && <span className="text-red-500">*</span>}
+        <span className="flex items-baseline gap-1">
+          <span>{label}</span>
+          {labelBn && <span className="text-[10px] text-slate-600 normal-case font-bold lowercase">({labelBn})</span>}
+        </span>
+        {field.isRequired && <span className="text-red-500">*</span>}
       </label>
       <input
         type={field.fieldType === 'NUMBER' ? 'number' : field.fieldType === 'DATE' ? 'date' : 'text'}
@@ -154,7 +163,7 @@ export default function UnifiedReportForm({
 }: UnifiedReportFormProps) {
   const { t, i18n } = useTranslation();
   const { data: session } = useSession();
-  const [mode, setMode] = useState<'CREATE' | 'EDIT' | 'VIEW'>(initialMode || 'CREATE');
+  const [mode, setMode] = useState<'CREATE' | 'EDIT' | 'VIEW'>(initialMode || 'VIEW');
   const [windowInfo, setWindowInfo] = useState<{ open: boolean; type: string | null; details: any } | null>(null);
 
   useEffect(() => {
@@ -393,7 +402,7 @@ export default function UnifiedReportForm({
   return (
     <div className="relative space-y-6">
       {/* Date & Mode Banner */}
-      <div className={`bg-indigo-50/50 border ${windowInfo?.open ? 'border-indigo-300 shadow-md' : 'border-indigo-100'} rounded-2xl p-6 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all relative overflow-hidden`}>
+      <div className={`bg-indigo-50/50 border ${windowInfo?.open ? 'border-indigo-400 shadow-md' : 'border-indigo-200'} rounded-2xl p-6 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all relative overflow-hidden`}>
          {isDataLoading && (
            <div className="absolute inset-0 bg-white/40 flex items-center justify-center backdrop-blur-[1px] z-10">
              <Loader2 className="w-5 h-5 text-indigo-500 animate-spin" />
@@ -404,14 +413,16 @@ export default function UnifiedReportForm({
               {mode === 'VIEW' ? <Lock className="w-6 h-6" /> : <Calendar className="w-6 h-6" />}
             </div>
             <div className="flex-1">
-              <p className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.2em] mb-0.5">Reporting Date</p>
+              <p className="text-[10px] font-black text-indigo-600 uppercase tracking-[0.2em] mb-0.5">
+                Reporting Date <span className="normal-case font-bold opacity-80">(রিপোর্টিং তারিখ)</span>
+              </p>
               <div className="relative group">
                 <input
                   type="date"
                   value={selectedDate}
                   onChange={handleDateChange}
                   max={getBdDateString()}
-                  className="bg-transparent border-none p-0 text-lg font-black text-slate-800 tracking-tight focus:ring-0 cursor-pointer hover:text-indigo-600 transition-colors"
+                  className="bg-transparent border-none p-0 text-lg font-black text-slate-950 tracking-tight focus:ring-0 cursor-pointer hover:text-indigo-600 transition-colors"
                 />
                 <div className="absolute left-0 -bottom-1 w-0 h-0.5 bg-indigo-600 group-hover:w-full transition-all duration-300"></div>
               </div>
@@ -496,7 +507,7 @@ export default function UnifiedReportForm({
                     {mode === 'VIEW' ? <Lock className="w-8 h-8" /> : <CheckCircle2 className="w-8 h-8" />}
                   </div>
                   <div>
-                    <h2 className="text-2xl font-black text-slate-900 tracking-tight">
+                    <h2 className="text-2xl font-black text-slate-950 tracking-tight">
                       {mode === 'VIEW' ? 'Record Insight' : 'Review Submission'}
                     </h2>
                     <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest mt-1">
@@ -505,30 +516,27 @@ export default function UnifiedReportForm({
                   </div>
                </div>
 
-               <div className="mt-10 space-y-12">
+               <div className="mt-8 max-h-[50vh] overflow-y-auto pr-4 space-y-10 custom-scrollbar">
                   {Object.entries(groupedFields).map(([section, sectionFields]) => {
                     const info = sectionInfo[section] || { title: section, icon: Activity, color: 'text-slate-600' };
                     return (
                       <div key={section} className="relative">
-                        <div className="flex items-center gap-3 mb-6">
-                          <info.icon className={`w-5 h-5 ${info.color}`} />
-                          <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest leading-none">{info.title}</h3>
+                        <div className="flex items-center gap-3 mb-4 sticky top-0 bg-white z-10 py-2">
+                          <info.icon className={`w-4 h-4 ${info.color}`} />
+                          <h3 className="text-[10px] font-black text-slate-800 uppercase tracking-[0.2em] leading-none">{info.title}</h3>
                           <div className="flex-1 h-px bg-slate-100"></div>
                         </div>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6">
-                           {sectionFields.map(field => {
-                            const fieldLabel = i18n.language === 'bn' ? field.labelBn || field.label : field.label;
-                            return (
-                              <div key={field.id} className="group">
-                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter mb-2 truncate" title={fieldLabel}>{fieldLabel}</p>
-                                <div className="p-4 bg-slate-50 border border-slate-100 rounded-xl group-hover:bg-white group-hover:border-indigo-100 transition-all">
-                                  <p className={`text-2xl font-black ${formData[field.fieldKey] && formData[field.fieldKey] !== '0' ? 'text-indigo-600' : 'text-slate-300'}`}>
-                                    {formData[field.fieldKey] || '0'}
-                                  </p>
-                                </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
+                           {sectionFields.map(field => (
+                              <div key={field.id} className="group p-3 bg-slate-50 border border-slate-100 rounded-xl hover:bg-white hover:border-indigo-100 transition-all">
+                                <p className="text-[8px] font-black text-slate-400 uppercase tracking-tight mb-1 truncate" title={`${field.label} ${field.labelBn ? `(${field.labelBn})` : ''}`}>
+                                  {field.label}
+                                </p>
+                                <p className={`text-lg font-black ${formData[field.fieldKey] && formData[field.fieldKey] !== '0' ? 'text-indigo-600' : 'text-slate-300'}`}>
+                                  {formData[field.fieldKey] || '0'}
+                                </p>
                               </div>
-                            );
-                          })}
+                           ))}
                         </div>
                       </div>
                     );
@@ -604,22 +612,28 @@ export default function UnifiedReportForm({
                 </p>
               </div>
             )}
+            {isDataLoading && fields.length > 0 && (
+              <div className="absolute inset-0 bg-white/60 backdrop-blur-[2px] z-20 flex flex-col items-center justify-center rounded-3xl">
+                <Loader2 className="w-8 h-8 text-indigo-500 animate-spin mb-2" />
+                <p className="text-xs font-black text-indigo-500 uppercase tracking-widest">Verifying Window...</p>
+              </div>
+            )}
             {Object.entries(groupedFields).map(([section, sectionFields]) => {
               const info = sectionInfo[section] || { title: section, icon: Activity, color: 'text-slate-600', bg: 'bg-slate-100' };
               return (
-                <div key={section} className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden group hover:border-indigo-100 transition-colors">
+                <div key={section} className="bg-white border border-slate-200 shadow-sm rounded-2xl overflow-hidden group hover:border-indigo-300 transition-colors">
                   <div className={`px-6 py-4 border-b border-slate-50 flex items-center justify-between`}>
                     <div className="flex items-center gap-2">
                        <div className={`p-1.5 ${info.bg} ${info.color} rounded-lg`}>
                         <info.icon className="w-5 h-5" />
                        </div>
-                       <h3 className={`font-black text-sm text-slate-800 uppercase tracking-widest`}>
+                       <h3 className={`font-black text-sm text-slate-950 uppercase tracking-widest`}>
                          {info.title}
                        </h3>
                     </div>
-                    <div className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">{sectionFields.length} Channels</div>
+                    <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{sectionFields.length} Channels</div>
                   </div>
-                  <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-8">
+                  <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-4">
                     {sectionFields.map(field => (
                       <DynamicInput 
                         key={field.id} 

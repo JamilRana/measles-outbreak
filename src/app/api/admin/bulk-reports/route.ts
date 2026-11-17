@@ -4,16 +4,18 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import * as XLSX from "xlsx";
 import { createAuditLog, AuditActions } from "@/lib/audit";
+import { hasPermission } from "@/lib/rbac";
 
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions);
-  if (!session || session.user.role !== "ADMIN") {
+  if (!session || !hasPermission(session.user.role, 'data:manage')) {
     return new Response("Unauthorized", { status: 401 });
   }
 
   try {
     const { searchParams } = new URL(req.url);
     const outbreakId = searchParams.get("outbreakId");
+    const format = searchParams.get("format") || "xlsx";
 
     if (!outbreakId) {
       return new Response("Outbreak ID is required", { status: 400 });
@@ -54,6 +56,16 @@ export async function GET(req: Request) {
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Sample Reports");
 
+    if (format === "csv") {
+      const csv = XLSX.utils.sheet_to_csv(worksheet);
+      return new Response(csv, {
+        headers: {
+          "Content-Type": "text/csv",
+          "Content-Disposition": `attachment; filename="sample_reports_${outbreakId}.csv"`
+        }
+      });
+    }
+
     const buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
 
     return new Response(buffer, {
@@ -71,7 +83,7 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
-  if (!session || session.user.role !== "ADMIN") {
+  if (!session || !hasPermission(session.user.role, 'data:manage')) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -86,6 +98,18 @@ export async function POST(req: Request) {
     
     if (!file) {
       return NextResponse.json({ error: "No file uploaded" }, { status: 400 });
+    }
+
+    // File validation: Size limit (10MB) and extension check
+    const MAX_FILE_SIZE = 10 * 1024 * 1024;
+    if (file.size > MAX_FILE_SIZE) {
+      return NextResponse.json({ error: "File exceeds maximum size of 10MB" }, { status: 400 });
+    }
+
+    const fileName = file.name.toLowerCase();
+    const validExtensions = ['.xlsx', '.xls', '.csv'];
+    if (!validExtensions.some(ext => fileName.endsWith(ext))) {
+      return NextResponse.json({ error: "Invalid file format. Only .xlsx, .xls, and .csv files are allowed" }, { status: 400 });
     }
 
     const formFields = await prisma.formField.findMany({

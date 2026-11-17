@@ -7,6 +7,7 @@ interface GeoData {
   district: string;
   division: string;
   confirmed: number;
+  suspected: number;
   deaths: number;
   hospitalized: number;
   lat: number;
@@ -17,10 +18,11 @@ interface Props {
   geoData: GeoData[];
   showDeaths: boolean;
   showConfirmed: boolean;
+  showSuspected: boolean;
   showHospitalized: boolean;
 }
 
-export default function OutbreakMapInner({ geoData, showDeaths, showConfirmed, showHospitalized }: Props) {
+export default function OutbreakMapInner({ geoData, showDeaths, showConfirmed, showSuspected, showHospitalized }: Props) {
   const getRadius = (count: number) => Math.max(6, Math.min(30, Math.sqrt(count) * 4));
   const bangladeshBounds: [[number, number], [number, number]] = [
     [20.3, 88.0], // Southwest
@@ -85,6 +87,29 @@ export default function OutbreakMapInner({ geoData, showDeaths, showConfirmed, s
                   <p className="font-bold text-slate-800 text-base">{item.district}</p>
                   <p className="text-slate-500 text-xs mb-2">{item.division}</p>
                   <p className="text-purple-600 font-semibold">Confirmed: {item.confirmed}</p>
+                </div>
+              </Popup>
+            </CircleMarker>
+          )}
+
+          {/* Suspected — Blue */}
+          {showSuspected && item.suspected > 0 && (
+            <CircleMarker
+              center={[item.lat - 0.02, item.lng + 0.02]}
+              radius={getRadius(item.suspected)}
+              pathOptions={{
+                fillColor: '#3b82f6',
+                color: '#2563eb',
+                weight: 2,
+                opacity: 0.9,
+                fillOpacity: 0.4,
+              }}
+            >
+              <Popup>
+                <div className="text-sm">
+                  <p className="font-bold text-slate-800 text-base">{item.district}</p>
+                  <p className="text-slate-500 text-xs mb-2">{item.division}</p>
+                  <p className="text-blue-600 font-semibold">Suspected: {item.suspected}</p>
                 </div>
               </Popup>
             </CircleMarker>

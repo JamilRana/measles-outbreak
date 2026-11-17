@@ -12,6 +12,7 @@
 
 # testing
 /coverage
+/scratch
 
 # next.js
 /.next/
@@ -32,6 +33,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel
@@ -39,3 +41,14 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Database dumps & sensitive data exports
+*.dump
+*.sql
+*.csv
+backups/
+version 2/
+version_2_structure.md
+yesterday_changes.md
+
+

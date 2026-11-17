@@ -4,6 +4,8 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { rebuildSnapshot } from "@/lib/snapshot";
 import { ReportStatus } from "@prisma/client";
+import { autoPublishReports } from "@/lib/publish-manager";
+import { hasPermission } from "@/lib/rbac";
 
 /**
  * GET /api/reports
@@ -47,6 +49,9 @@ export async function GET(req: Request) {
     }
 
     if (effectiveOutbreakId) {
+      // Auto-publish reports if we are past the publish time
+      await autoPublishReports(effectiveOutbreakId);
+
       outbreak = await prisma.outbreak.findUnique({
         where: { id: effectiveOutbreakId },
         select: { publishTimeHour: true, publishTimeMinute: true }
@@ -55,10 +60,14 @@ export async function GET(req: Request) {
       if (outbreak) {
         const publishTime = new Date(bdNow);
         publishTime.setHours(outbreak.publishTimeHour || 0, outbreak.publishTimeMinute || 0, 0, 0);
-        const isAdmin = session?.user?.role === "ADMIN" || session?.user?.role === "EDITOR";
+        const isAdmin = session?.user?.role === "ADMIN" || session?.user?.role === "EDITOR" || hasPermission(session?.user?.role || "", 'admin:view');
         enforcePublishTime = (bdNow < publishTime) && !isAdmin;
+        
+        // Phase 4: If we are specifically looking for a facility/date (Submission), 
+        // we DO NOT want to shift to yesterday, we want the actual date requested.
+        const isSubmissionLookup = !!facilityId;
 
-        if (specificDate === todayStr && enforcePublishTime) {
+        if (specificDate === todayStr && enforcePublishTime && !isSubmissionLookup) {
           const yesterday = new Date(bdNow);
           yesterday.setDate(yesterday.getDate() - 1);
           specificDate = getBdDateString(yesterday);
@@ -77,13 +86,38 @@ export async function GET(req: Request) {
       ];
     }
 
-    const isAdmin = session?.user?.role === "ADMIN" || session?.user?.role === "EDITOR";
+    const isAdmin = session?.user?.role === "ADMIN" || session?.user?.role === "EDITOR" || hasPermission(session?.user?.role || "", 'admin:view');
     const where: any = { outbreakId: effectiveOutbreakId };
+    
     if (!isAdmin) {
-      where.status = ReportStatus.PUBLISHED;
+      // Phase 4: Public users usually see only PUBLISHED data for dashboards,
+      // but when querying a specific facility/date (Submission Preview), 
+      // they MUST be able to see their SUBMITTED (unverified) data.
+      if (facilityId && specificDate) {
+        where.status = { in: [ReportStatus.PUBLISHED, ReportStatus.SUBMITTED] };
+      } else {
+        where.status = ReportStatus.PUBLISHED;
+      }
     }
     
     if (facilityId) where.facilityId = facilityId;
+
+    const metric = searchParams.get("metric");
+    if (metric === 'suspectedDeath') {
+      where.fieldValues = {
+        some: {
+          formField: { fieldKey: 'suspectedDeath24h' },
+          value: { not: '0', notIn: ['', 'null'] }
+        }
+      };
+    } else if (metric === 'confirmedDeath') {
+      where.fieldValues = {
+        some: {
+          formField: { fieldKey: 'confirmedDeath24h' },
+          value: { not: '0', notIn: ['', 'null'] }
+        }
+      };
+    }
     if (Object.keys(geoFilter).length > 0) where.facility = geoFilter;
     
     const adjustedTo = enforcePublishTime && to === todayStr ? getBdDateString(new Date(bdNow.getTime() - 86400000)) : to;
@@ -104,7 +138,17 @@ export async function GET(req: Request) {
     const [reports, totalCount] = await Promise.all([
       prisma.report.findMany({
         where,
-        include: { facility: true, user: { select: { name: true } } },
+        include: {
+          facility: {
+            include: {
+              users: {
+                where: { role: "USER", isActive: true },
+                select: { email: true }
+              }
+            }
+          },
+          user: { select: { name: true, email: true, role: true } }
+        },
         orderBy: { periodStart: 'desc' },
         skip: (page - 1) * limit,
         take: limit
@@ -113,12 +157,29 @@ export async function GET(req: Request) {
     ]);
 
     // Format for frontend (preserving keys)
-    const formatted = reports.map(r => ({
-      ...r,
-      reportingDate: r.periodStart,
-      published: r.status === ReportStatus.PUBLISHED,
-      ...(r.dataSnapshot as any)
-    }));
+    const formatted = reports.map(r => {
+      const facilityUserEmail = r.facility.users?.[0]?.email || null;
+      const resolvedEmail = (r.user && r.user.role === 'USER')
+        ? r.user.email
+        : (facilityUserEmail || r.facility.email || 'N/A');
+
+      const { users, ...cleanFacility } = r.facility;
+
+      return {
+        ...r,
+        reportingDate: r.periodStart,
+        published: r.status === ReportStatus.PUBLISHED,
+        facility: {
+          ...cleanFacility,
+          email: r.facility.email || facilityUserEmail || 'N/A'
+        },
+        user: r.user ? {
+          ...r.user,
+          email: resolvedEmail
+        } : null,
+        ...(r.dataSnapshot as any)
+      };
+    });
 
     return NextResponse.json({
       reports: formatted,

@@ -4,6 +4,7 @@ import { DefaultSession } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
+import { rateLimit, LIMIT_PROFILES } from "@/lib/rate-limit";
 
 
 export const authOptions: NextAuthOptions = {
@@ -21,6 +22,13 @@ export const authOptions: NextAuthOptions = {
           throw new Error("Invalid credentials");
         }
 
+        // Rate limiting: 5 attempts per 5 minutes per email/identifier
+        const cleanEmail = credentials.email.trim().toLowerCase();
+        const rl = await rateLimit(`auth:${cleanEmail}`, LIMIT_PROFILES.AUTH);
+        if (!rl.success) {
+          throw new Error("Too many login attempts. Please try again in 5 minutes.");
+        }
+
         if (credentials.loginType === "hrm") {
           return await loginHrmUser(credentials.email, credentials.password);
         }
@@ -31,31 +39,43 @@ export const authOptions: NextAuthOptions = {
   ],
   callbacks: {
     async jwt({ token, user }) {
+      const now = Date.now();
+      const IDLE_TIMEOUT_MS = 24 * 60 * 60 * 1000; // 24 hours idle timeout
+
+      if (token.lastActivity && (now - (token.lastActivity as number)) > IDLE_TIMEOUT_MS) {
+        // Expire token on idle timeout
+        return { ...token, id: "", isExpired: true };
+      }
+      token.lastActivity = now;
+
       if (user) {
-        token.id = user.id;
-        token.role = user.role;
-        token.facilityId = user.facilityId;
-        token.isActive = user.isActive;
-        token.division = user.division;
-        token.district = user.district;
-        token.managedDivisions = user.managedDivisions;
-        token.managedDistricts = user.managedDistricts;
-        token.facilityName = user.facilityName;
+        const u = user as any;
+        token.id = u.id;
+        token.role = u.role;
+        token.facilityId = u.facilityId ?? null;
+        token.isActive = u.isActive ?? true;
+        token.division = u.division ?? null;
+        token.district = u.district ?? null;
+        token.managedDivisions = u.managedDivisions ?? [];
+        token.managedDistricts = u.managedDistricts ?? [];
+        token.facilityName = u.facilityName ?? null;
+        token.facilityIsActive = u.facilityIsActive ?? null;
       }
       return token;
     },
     async session({ session, token }) {
-      if (token) {
-        session.user.id = token.id;
-        session.user.role = token.role;
-        session.user.facilityId = token.facilityId;
-        session.user.isActive = token.isActive;
-        session.user.division = token.division;
-        session.user.district = token.district;
-        session.user.managedDivisions = token.managedDivisions;
-        session.user.managedDistricts = token.managedDistricts;
-        session.user.facilityName = token.facilityName;
+      if (!token || !token.id || token.isExpired) {
+        return null as any;
       }
+      session.user.id = token.id as string;
+      session.user.role = token.role as any;
+      session.user.facilityId = token.facilityId as string;
+      session.user.isActive = token.isActive as boolean;
+      session.user.division = token.division as string;
+      session.user.district = token.district as string;
+      session.user.managedDivisions = token.managedDivisions as string[];
+      session.user.managedDistricts = token.managedDistricts as string[];
+      session.user.facilityName = token.facilityName as string;
       return session;
     },
   },
@@ -64,14 +84,14 @@ export const authOptions: NextAuthOptions = {
   },
   session: {
     strategy: "jwt",
-    maxAge: 30 * 24 * 60 * 60,
+    maxAge: 30 * 24 * 60 * 60, // 30 days lifetime
   },
   cookies: {
     sessionToken: {
       name: `next-auth.session-token`,
       options: {
         httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
+        secure: false,
         sameSite: "lax",
         path: "/",
       },
@@ -104,7 +124,7 @@ async function loginLocalUser(email: string, password: string) {
     throw new Error("Incorrect password");
   }
 
-const facility = user.facility;
+  const facility = user.facility;
   const centralRoles = ['ADMIN', 'EDITOR', 'VIEWER'];
   const isCentralUser = centralRoles.includes(user.role);
 
@@ -128,6 +148,7 @@ const facility = user.facility;
     managedDistricts: (user as any).managedDistricts,
     upazila: facility?.upazila ?? undefined,
     isActive: user.isActive,
+    facilityIsActive: facility?.isActive ?? null,
   };
 }
 
@@ -138,11 +159,49 @@ async function loginHrmUser(email: string, password: string | null) {
     throw new Error("HRM authentication failed");
   }
 
-  let facility = await prisma.facility.findUnique({
+  const existingUser = await prisma.user.findUnique({
+    where: { email: hrmData.email },
+  });
+
+  let facility;
+
+  // 1. Try finding a facility with code `hrmData.facilityCode`
+  const facilityByCode = await prisma.facility.findUnique({
     where: { facilityCode: hrmData.facilityCode },
   });
 
-  if (!facility) {
+  if (facilityByCode) {
+    // If a facility with this code already exists, update it with HRM details
+    facility = await prisma.facility.update({
+      where: { id: facilityByCode.id },
+      data: {
+        facilityName: hrmData.facilityName,
+        facilityType: hrmData.facilityType,
+        division: hrmData.division,
+        district: hrmData.district,
+        upazila: hrmData.upazila,
+        phone: hrmData.phone,
+        email: hrmData.email,
+      },
+    });
+  } else if (existingUser && existingUser.facilityId) {
+    // If facility with the code doesn't exist, but the user already has a linked facility,
+    // we update that existing facility with HRM details (including the new code).
+    facility = await prisma.facility.update({
+      where: { id: existingUser.facilityId },
+      data: {
+        facilityCode: hrmData.facilityCode,
+        facilityName: hrmData.facilityName,
+        facilityType: hrmData.facilityType,
+        division: hrmData.division,
+        district: hrmData.district,
+        upazila: hrmData.upazila,
+        phone: hrmData.phone,
+        email: hrmData.email,
+      },
+    });
+  } else {
+    // Neither exists, so create a new facility.
     facility = await prisma.facility.create({
       data: {
         facilityCode: hrmData.facilityCode,
@@ -151,6 +210,8 @@ async function loginHrmUser(email: string, password: string | null) {
         division: hrmData.division,
         district: hrmData.district,
         upazila: hrmData.upazila,
+        phone: hrmData.phone,
+        email: hrmData.email,
       },
     });
   }
@@ -160,11 +221,12 @@ async function loginHrmUser(email: string, password: string | null) {
     update: {
       name: hrmData.name,
       role: "USER",
+      facilityId: facility.id,
     },
     create: {
       email: hrmData.email,
-      name: hrmData.name,
-      nameNormalized: hrmData.email.toLowerCase().replace(/[^a-z0-9]/g, "_"),
+      name: hrmData.facilityName,
+      nameNormalized: hrmData.facilityName.toLowerCase().replace(/[^a-z0-9]/g, "_"),
       facilityId: facility.id,
       role: "USER",
     },
@@ -185,6 +247,7 @@ async function loginHrmUser(email: string, password: string | null) {
     managedDistricts: (user as any).managedDistricts,
     upazila: facility.upazila ?? undefined,
     isActive: facility.isActive,
+    facilityIsActive: facility.isActive,
   };
 }
 

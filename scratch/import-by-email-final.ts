@@ -59,39 +59,6 @@ async function main() {
                     stats.skipped++
                     continue
                 }
-
-                await prisma.dailyReport.upsert({
-                    where: {
-                        facilityId_outbreakId_reportingDate: {
-                            facilityId,
-                            outbreakId,
-                            reportingDate
-                        }
-                    },
-                    update: {
-                        suspected24h: report.suspectedCases || 0,
-                        confirmed24h: report.confirmedCases || 0,
-                        suspectedDeath24h: report.suspectedDeaths || 0,
-                        confirmedDeath24h: report.confirmedDeaths || 0,
-                        admitted24h: report.admitted || 0,
-                        discharged24h: report.discharged || 0,
-                        published: true,
-                        userId: userId
-                    },
-                    create: {
-                        facilityId,
-                        outbreakId,
-                        reportingDate,
-                        suspected24h: report.suspectedCases || 0,
-                        confirmed24h: report.confirmedCases || 0,
-                        suspectedDeath24h: report.suspectedDeaths || 0,
-                        confirmedDeath24h: report.confirmedDeaths || 0,
-                        admitted24h: report.admitted || 0,
-                        discharged24h: report.discharged || 0,
-                        published: true,
-                        userId: userId
-                    }
-                })
                 process.stdout.write('.')
                 stats.imported++
 

@@ -7,6 +7,7 @@ import { ReportStatus } from "@prisma/client";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { validateForm } from "@/lib/validation-engine";
+import { rateLimit, LIMIT_PROFILES, getClientIp } from "@/lib/rate-limit";
 
 async function getSettings() {
   const settings = await prisma.settings.findFirst();
@@ -17,6 +18,12 @@ async function getSettings() {
 
 export async function POST(request: Request) {
   try {
+    const clientIp = getClientIp(request);
+    const rl = await rateLimit(`submit:${clientIp}`, LIMIT_PROFILES.SUBMIT);
+    if (!rl.success) {
+      return NextResponse.json({ error: "Too many submission attempts. Please slow down." }, { status: 429 });
+    }
+
     const { searchParams } = new URL(request.url);
     const existingId = searchParams.get("existingId");
 
@@ -57,6 +64,8 @@ export async function POST(request: Request) {
         allowBacklogReporting: true,
         backlogStartDate: true,
         backlogEndDate: true,
+        cutoffHour: true,
+        cutoffMinute: true,
       }
     });
 
@@ -67,13 +76,19 @@ export async function POST(request: Request) {
 
     const session = await getServerSession(authOptions);
     const isAdmin = session?.user?.role === "ADMIN" || session?.user?.role === "EDITOR";
-
+    const now = getBdTime();
     if (isAdmin) {
       windowOpen = true;
       windowType = 'ADMIN_OVERRIDE';
     } else if (reportDateStr === today) {
-      windowOpen = true;
-      windowType = 'FALLBACK';
+      if (outbreak) {
+        const cutoff = new Date(now);
+        cutoff.setHours(outbreak.cutoffHour, outbreak.cutoffMinute, 0, 0);
+        if (now <= cutoff) {
+          windowOpen = true;
+          windowType = 'FALLBACK';
+        }
+      }
     } else if (outbreak?.allowBacklogReporting) {
       const start = outbreak.backlogStartDate;
       const end = outbreak.backlogEndDate;
@@ -202,8 +217,48 @@ export async function PUT(request: Request) {
        return NextResponse.json({ error: "Report not found" }, { status: 404 });
     }
 
-    if (existing.isLocked) {
-      return NextResponse.json({ error: "Report is locked" }, { status: 403 });
+    const session = await getServerSession(authOptions);
+    const isAdmin = session?.user?.role === "ADMIN" || session?.user?.role === "EDITOR";
+
+    if (existing.isLocked && !isAdmin) {
+      return NextResponse.json({ error: "Report is locked and cannot be edited", mode: "VIEW" }, { status: 403 });
+    }
+
+    const now = getBdTime();
+    const today = getBdDateString();
+    const reportDateStr = existing.periodStart.toISOString().split('T')[0];
+    
+    let windowOpen = false;
+
+    if (isAdmin) {
+      windowOpen = true;
+    } else if (reportDateStr === today) {
+      const outbreak = await prisma.outbreak.findUnique({
+        where: { id: existing.outbreakId },
+        select: { cutoffHour: true, cutoffMinute: true }
+      });
+      if (outbreak) {
+        const cutoff = new Date(now);
+        cutoff.setHours(outbreak.cutoffHour, outbreak.cutoffMinute, 0, 0);
+        if (now <= cutoff) windowOpen = true;
+      }
+    } else {
+      // Check backlog for past dates
+      const outbreak = await prisma.outbreak.findUnique({
+        where: { id: existing.outbreakId },
+        select: { allowBacklogReporting: true, backlogStartDate: true, backlogEndDate: true }
+      });
+      if (outbreak?.allowBacklogReporting) {
+        const start = outbreak.backlogStartDate;
+        const end = outbreak.backlogEndDate;
+        if ((!start || existing.periodStart >= start) && (!end || existing.periodStart <= end)) {
+          windowOpen = true;
+        }
+      }
+    }
+
+    if (!windowOpen) {
+      return NextResponse.json({ error: "Reporting window is closed for this record", mode: "VIEW" }, { status: 403 });
     }
 
     // Server-side field validation (same engine as client, same rules)

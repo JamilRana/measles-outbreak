@@ -18,6 +18,7 @@ interface GeoData {
   district: string;
   division: string;
   confirmed: number;
+  suspected: number;
   deaths: number;
   hospitalized: number;
   lat: number;
@@ -34,6 +35,7 @@ export default function OutbreakMap({ apiEndpoint = '/api/reports/geo' }: Outbre
   const [loading, setLoading] = useState(true);
   const [showDeaths, setShowDeaths] = useState(true);
   const [showConfirmed, setShowConfirmed] = useState(true);
+  const [showSuspected, setShowSuspected] = useState(true);
   const [showHospitalized, setShowHospitalized] = useState(true);
 
   useEffect(() => {
@@ -81,6 +83,18 @@ export default function OutbreakMap({ apiEndpoint = '/api/reports/geo' }: Outbre
             {t('map.confirmedCases')}
           </button>
           <button
+            onClick={() => setShowSuspected(!showSuspected)}
+            className={`map-toggle-btn ${showSuspected ? 'active' : 'inactive'}`}
+            style={{
+              borderColor: '#3b82f6',
+              backgroundColor: showSuspected ? '#3b82f6' : 'white',
+              color: showSuspected ? 'white' : '#3b82f6',
+            }}
+          >
+            <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: showSuspected ? 'white' : '#3b82f6' }} />
+            {t('map.suspectedCases')}
+          </button>
+          <button
             onClick={() => setShowHospitalized(!showHospitalized)}
             className={`map-toggle-btn ${showHospitalized ? 'active' : 'inactive'}`}
             style={{
@@ -102,6 +116,7 @@ export default function OutbreakMap({ apiEndpoint = '/api/reports/geo' }: Outbre
             geoData={geoData}
             showDeaths={showDeaths}
             showConfirmed={showConfirmed}
+            showSuspected={showSuspected}
             showHospitalized={showHospitalized}
           />
         )}

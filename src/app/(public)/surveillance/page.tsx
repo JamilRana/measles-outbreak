@@ -33,7 +33,7 @@ export default function LandingPage() {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const res = await fetch('/api/reports?summary=true');
+        const res = await fetch('/api/reports/summary');
         const data = await res.json();
         setStats(data.totals);
       } catch (e) {

@@ -1,13 +1,20 @@
 import { NextRequest } from "next/server";
 import axios from "axios";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 const HRM_BASE = "https://hrm.dghs.gov.bd/api/1.0";
-const CLIENT_ID = 18520;
-//const API_TOKEN = process.env.HRM_API_TOKEN!;
+const CLIENT_ID = process.env.HRM_CLIENT_ID ? parseInt(process.env.HRM_CLIENT_ID) : 18520;
 const API_TOKEN =
-  "32b0e3fff64de942449ec67b6b2244704db2282b08a5491de91dfabc7dfe9797";
+  process.env.HRM_API_TOKEN || "32b0e3fff64de942449ec67b6b2244704db2282b08a5491de91dfabc7dfe9797";
+
 export async function POST(req: NextRequest) {
   try {
+    const clientIp = getClientIp(req);
+    const rl = await rateLimit(`hrm-auth:${clientIp}`, { limit: 5, window: 300 });
+    if (!rl.success) {
+      return Response.json({ error: "Too many login attempts. Please try again in 5 minutes." }, { status: 429 });
+    }
+
     const { username, password } = await req.json();
 
     // Step 1: Get access token
@@ -53,7 +60,7 @@ export async function POST(req: NextRequest) {
       upazila: facilityData.upazila_name,
     });
   } catch (error: any) {
-    console.error("HRM Login Error:", error.response?.data || error.message);
+    console.error("HRM Login Error:", error.message || "Authentication failed");
     return Response.json({ error: "Invalid credentials" }, { status: 401 });
   }
 }

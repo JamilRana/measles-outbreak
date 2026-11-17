@@ -2,12 +2,6 @@ import { prisma } from "./prisma";
 import { getBdTime, getBdDateString } from "./timezone";
 import { ReportStatus } from "@prisma/client";
 
-/**
- * Ensures that all reports that should be published are marked as PUBLISHED.
- * A report is auto-published if:
- * 1. Its status is SUBMITTED or DRAFT (depending on policy).
- * 2. The publishTime for its reporting date has passed.
- */
 export async function autoPublishReports(outbreakId: string) {
   const outbreak = await prisma.outbreak.findUnique({
     where: { id: outbreakId },
@@ -22,12 +16,6 @@ export async function autoPublishReports(outbreakId: string) {
   const now = getBdTime();
   const todayStr = getBdDateString(now);
   
-  // Logic: 
-  // If we are looking at a report for Date D.
-  // It should be published if (currentDate > D) 
-  // OR (currentDate == D AND currentTime >= publishTime).
-
-  // 1. Publish everything from PREVIOUS days that isn't published yet
   await prisma.report.updateMany({
     where: {
       outbreakId,
@@ -40,7 +28,6 @@ export async function autoPublishReports(outbreakId: string) {
     }
   });
 
-  // 2. Publish TODAY'S reports if we are past the publish time
   const publishTime = new Date(now);
   publishTime.setHours(outbreak.publishTimeHour, outbreak.publishTimeMinute, 0, 0);
 

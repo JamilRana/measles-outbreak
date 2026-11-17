@@ -19,21 +19,24 @@ import {
   Activity,
   Calculator,
   History,
-  Building2
+  Building2,
+  HardDriveDownload
 } from "lucide-react";
 import { motion } from "motion/react";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import { ArrowLeft } from "lucide-react";
+import { hasPermission } from "@/lib/rbac";
 
 export default function AdminPage() {
   const { data: session } = useSession();
   const { t } = useTranslation();
-  const role = session?.user?.role;
-
+  const role = session?.user?.role || "";
   const isAdmin = role === "ADMIN";
-  const isManager = role === "MANAGER";
+  const isEditor = role === "EDITOR";
+  const isViewer = role === "VIEWER";
+  const canViewAdmin = hasPermission(role, 'admin:view');
 
-  if (role && !isAdmin && !isManager) {
+  if (role && !canViewAdmin) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
         <div className="bg-white p-12 rounded-[3rem] shadow-xl max-w-md text-center border border-slate-100 relative overflow-hidden">
@@ -64,15 +67,15 @@ export default function AdminPage() {
       <Breadcrumbs />
       <div>
         <h1 className="text-3xl font-bold text-slate-900">
-          {isAdmin ? t('adminPanel.title') : isManager ? 'Manager Dashboard' : 'Dashboard'}
+          {isAdmin ? t('adminPanel.title') : isEditor ? 'Manager Dashboard' : isViewer ? 'Administrative Viewer' : 'Dashboard'}
         </h1>
         <p className="text-slate-500 mt-1">
-          {isAdmin ? t('adminPanel.subtitle') : isManager ? 'Manage reports and monitor submissions' : 'Access restricted'}
+          {isAdmin ? t('adminPanel.subtitle') : isEditor ? 'Manage reports and monitor submissions' : isViewer ? 'Read-only access to surveillance systems' : 'Access restricted'}
         </p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {(isAdmin || isManager) && (
+        {canViewAdmin && (
           <>
             <AdminCard 
               href="/admin/submissions" 
@@ -88,10 +91,24 @@ export default function AdminPage() {
               icon={<Upload className="w-6 h-6" />}
               color="indigo"
             />
+            <AdminCard 
+              href="/admin/outbreaks" 
+              title="Outbreak Management" 
+              description={isViewer ? "View outbreak configurations and timelines" : "Manage outbreak events, thresholds, and reporting windows"}
+              icon={<Activity className="w-6 h-6" />}
+              color="rose"
+            />
+            <AdminCard 
+              href="/admin/facilities" 
+              title="Facility Management" 
+              description={isViewer ? "View health facility metadata and locations" : "Manage official health facilities, DGHS codes, and geographic metadata"}
+              icon={<Building2 className="w-6 h-6" />}
+              color="indigo"
+            />
           </>
         )}
 
-        {isManager && (
+        {isEditor && (
           <>
             <AdminCard 
               hidden={true} 
@@ -106,13 +123,6 @@ export default function AdminPage() {
 
         {isAdmin && (
           <>
-            <AdminCard 
-              href="/admin/outbreaks" 
-              title="Outbreak Management" 
-              description="Manage outbreak events, thresholds, and reporting windows" 
-              icon={<Activity className="w-6 h-6" />}
-              color="rose"
-            />
             <AdminCard 
               hidden={true} 
               href="/admin/indicators" 
@@ -145,13 +155,6 @@ export default function AdminPage() {
               color="indigo"
             />
             <AdminCard 
-              href="/admin/facilities" 
-              title="Facility Registry" 
-              description="Manage official health facilities, DGHS codes, and geographic metadata" 
-              icon={<Building2 className="w-6 h-6" />}
-              color="indigo"
-            />
-            <AdminCard 
               href="/admin/users" 
               title={t('adminPanel.userAccounts')} 
               description={t('adminPanel.userAccountsDesc')} 
@@ -171,6 +174,13 @@ export default function AdminPage() {
               description={t('adminPanel.systemMaintenanceDesc')} 
               icon={<Database className="w-6 h-6" />}
               color="rose"
+            />
+            <AdminCard 
+              href="/admin/backup" 
+              title={t('adminPanel.backup')} 
+              description={t('adminPanel.backupDesc')} 
+              icon={<HardDriveDownload className="w-6 h-6" />}
+              color="emerald"
             />
           </>
         )}

@@ -14,7 +14,7 @@ import { ShieldAlert, ArrowLeft } from 'lucide-react';
 import { hasPermission } from '@/lib/rbac';
 
 export default function AuthenticatedReportPage() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const [selectedOutbreakId, setSelectedOutbreakId] = useState('');
   const [selectedDate, setSelectedDate] = useState(getBdDateString());
   const [selectedFacilityId, setSelectedFacilityId] = useState('');
@@ -24,7 +24,16 @@ export default function AuthenticatedReportPage() {
   const [mounted, setMounted] = useState(false);
   const [formMode, setFormMode] = useState<'CREATE' | 'EDIT' | 'VIEW'>('CREATE');
 
-  const canSubmit = hasPermission(session?.user?.role || "", 'report:create');
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      window.location.href = '/login';
+    }
+  }, [status]);
+
+  if (status === 'loading' || status === 'unauthenticated') return null;
+
+  const isFacilityInactive = session?.user?.facilityId && session?.user?.facilityIsActive === false;
+  const canSubmit = hasPermission(session?.user?.role || "", 'report:create') && !isFacilityInactive;
 
   useEffect(() => { setMounted(true); }, []);
 
@@ -102,7 +111,11 @@ export default function AuthenticatedReportPage() {
            </div>
            <h1 className="text-3xl font-black text-slate-800 mb-3 tracking-tight">Access Restricted</h1>
            <p className="text-slate-500 font-medium mb-10 leading-relaxed">
-              Your account has <b>Viewer-only</b> privileges. You do not have permission to submit or modify surveillance records.
+              {isFacilityInactive ? (
+                <>Your facility (<b>{session.user.facilityName}</b>) does not currently have reporting access. Please contact the administrator.</>
+              ) : (
+                <>Your account has <b>Viewer-only</b> privileges. You do not have permission to submit or modify surveillance records.</>
+              )}
            </p>
            <button 
              onClick={() => window.location.href = '/dashboard'} 
@@ -122,12 +135,14 @@ export default function AuthenticatedReportPage() {
         <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="bg-white border border-slate-100 rounded-xl p-4 shadow-sm">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 block">1. Outbreak Context</label>
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 block">
+                1. Outbreak Context <span className="normal-case font-bold opacity-60">(১. প্রাদুর্ভাবের প্রেক্ষাপট)</span>
+              </label>
               <OutbreakSelector onSelect={setSelectedOutbreakId} defaultValue={selectedOutbreakId} />
             </div>
             {!session?.user?.facilityId && (
               <div className="bg-white border border-slate-100 rounded-xl p-4 shadow-sm">
-                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 block">2. Reporting Location</label>
+                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 block">2. Reporting Location <span className="normal-case font-bold opacity-60">(২. রিপোর্টিং অবস্থান)</span></label>
                  <LocationSelector onSelect={handleLocationSelect} />
               </div>
             )}
@@ -137,6 +152,8 @@ export default function AuthenticatedReportPage() {
             <div className="space-y-6">
               {settings && deadlineInfo && (
                 <DeadlineCard 
+                  submissionOpenHour={settings.submissionOpenHour}
+                  submissionOpenMinute={settings.submissionOpenMinute}
                   cutoffHour={settings.cutoffHour}
                   cutoffMinute={settings.cutoffMinute}
                   editDeadlineHour={settings.editDeadlineHour}
@@ -153,7 +170,7 @@ export default function AuthenticatedReportPage() {
                 />
               )}
 
-              <div className="bg-white border border-slate-100 rounded-xl p-4 md:p-8 shadow-sm">
+              <div className="bg-white border border-slate-200 rounded-2xl p-4 md:p-8 shadow-sm">
                  <UnifiedReportForm 
                    outbreakId={selectedOutbreakId}
                    facilityId={selectedFacilityId}

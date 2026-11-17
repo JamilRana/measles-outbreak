@@ -16,12 +16,13 @@ export default function Navbar() {
     i18n.changeLanguage(newLang);
   };
 
-  const canViewAdmin = hasPermission(session?.user?.role || "", 'user:manage');
+  const canViewAdmin = hasPermission(session?.user?.role || "", 'admin:view');
   const canViewReports = hasPermission(session?.user?.role || "", 'report:read:own');
-  const canSubmit = hasPermission(session?.user?.role || "", 'report:create');
+  const isFacilityInactive = session?.user?.facilityId && session?.user?.facilityIsActive === false;
+  const canSubmit = hasPermission(session?.user?.role || "", 'report:create') && !isFacilityInactive;
 
   return (
-    <nav className="bg-[#1E3A5F] text-white shadow-lg relative z-50 border-b border-white/5">
+    <nav className="bg-[#1E3A5F] text-white shadow-lg sticky top-0 z-50 border-b border-white/5 scroll-gpu">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           <Link href="/" className="flex items-center gap-3">
@@ -31,41 +32,35 @@ export default function Navbar() {
             <span className="text-xl font-bold tracking-tight hidden md:inline">{t('app.title')}</span>
           </Link>
 
-          <div className="flex items-center gap-3">
-            <button
-              onClick={toggleLanguage}
-              className="flex hidden items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-indigo-100 hover:text-white transition-all text-sm font-semibold"
-              title="Switch language"
-            >
-              <Globe className="w-4 h-4" />
-              <span className="hidden sm:inline">{i18n.language === 'bn' ? 'English' : 'বাংলা'}</span>
-            </button>
-
+          <div className="flex items-center gap-1">
+            <NavLink href="/dashboard" icon={<LayoutDashboard className="w-4 h-4" />} label={t('nav.dashboard')} />
+            <NavLink href="/bulletin" icon={<FileBarChart className="w-4 h-4" />} label={t('nav.bulletin')} />
             {session ? (
               <>
-                <div className="flex gap-1">
-                  <NavLink href="/dashboard" icon={<LayoutDashboard className="w-4 h-4" />} label={t('nav.dashboard')} />
-                  <NavLink href="/bulletin" icon={<FileBarChart className="w-4 h-4" />} label="Bulletin" />
-                  {canSubmit && (
-                    <NavLink href="/report" icon={<Zap className="w-4 h-4" />} label={t('nav.report')} />
-                  )}
-                  {canViewReports && (
-                    <NavLink href="/my-reports" icon={<FileText className="w-4 h-4" />} label={t('nav.myReports')} />
-                  )}
-                  {canViewAdmin && (
-                    <NavLink href="/admin" icon={<Settings className="w-4 h-4" />} label={t('nav.admin')} />
-                  )}
-                </div>
-                
+                {canSubmit && (
+                  <NavLink href="/report" icon={<Zap className="w-4 h-4" />} label={t('nav.report')} />
+                )}
+                {canViewReports && (
+                  <NavLink href="/my-reports" icon={<FileText className="w-4 h-4" />} label={t('nav.myReports')} />
+                )}
+                {canViewAdmin && (
+                  <NavLink href={session?.user?.role === 'VIEWER' ? "/admin/submissions" : "/admin"} icon={<Settings className="w-4 h-4" />} label={t('nav.admin')} />
+                )}
                 <div className="h-6 w-[1px] bg-indigo-500/50 mx-1" />
-                
-                <div className="hidden sm:flex flex-col items-end">
-                  <span className="text-[10px] text-indigo-200 uppercase font-bold tracking-tighter">{t('nav.facility')}</span>
-                  <span className="text-sm font-semibold truncate max-w-[150px]">{session.user.facilityName}</span>
+
+                <div
+                  className="hidden sm:flex flex-col items-end px-2"
+                  title={session?.user?.facilityName || ""}
+                >
+                  <span className="text-xs sm:text-sm font-semibold text-right max-w-[140px] md:max-w-[200px] xl:max-w-[300px] line-clamp-2 leading-tight">
+                    {session.user.facilityName}
+                  </span>
                 </div>
 
-                <button 
-                  onClick={() => signOut({ callbackUrl: "/login" })}
+                <button
+                  onClick={() => {
+                    signOut({ callbackUrl: `${window.location.origin}/login` });
+                  }}
                   className="p-2 hover:bg-white/10 rounded-full transition-colors group"
                   title={t('nav.signOut')}
                 >
@@ -77,6 +72,14 @@ export default function Navbar() {
                 {t('nav.signIn')}
               </Link>
             )}
+            <button
+              onClick={toggleLanguage}
+              className="flex items-center px-1.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-indigo-100 hover:text-white transition-all text-sm font-semibold"
+              title="Switch language"
+            >
+              <Globe className="w-4 h-4" />
+              <span className="sm:inline">{i18n.language === 'bn' ? 'English' : 'বাংলা'}</span>
+            </button>
           </div>
         </div>
       </div>
@@ -86,8 +89,8 @@ export default function Navbar() {
 
 function NavLink({ href, icon, label }: { href: string; icon: React.ReactNode; label: string }) {
   return (
-    <Link 
-      href={href} 
+    <Link
+      href={href}
       className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-white/10 text-indigo-100 hover:text-white transition-all text-sm font-medium"
     >
       {icon}

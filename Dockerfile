@@ -1,9 +1,15 @@
 # Stage 1: Dependencies
 FROM node:20-alpine AS deps
+RUN apk add --no-cache libc6-compat
 WORKDIR /app
-COPY package*.json ./
+
+# Install dependencies based on the preferred package manager
+COPY package.json package-lock.json* ./
 COPY prisma ./prisma
-RUN npm install
+RUN \
+  if [ -f package-lock.json ]; then npm ci --network-timeout=100000; \
+  else npm install; \
+  fi
 
 # Stage 2: Builder
 FROM node:20-alpine AS builder
@@ -11,6 +17,9 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
+# Provide dummy values for build-time environment variables
+ENV DATABASE_URL="postgresql://postgres:postgres@localhost:5432/db?schema=public"
+ENV REDIS_URL="redis://localhost:6379"
 RUN npx prisma generate
 RUN npm run build
 
@@ -30,6 +39,7 @@ COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next ./.next
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/next.config.ts ./next.config.ts
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/reports_by_email.json ./reports_by_email.json
 

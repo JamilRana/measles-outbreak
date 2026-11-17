@@ -45,7 +45,7 @@ interface Report {
 }
 
 export default function MyReportsPage() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -55,8 +55,16 @@ export default function MyReportsPage() {
   const [lastSync, setLastSync] = useState<string>('');
 
   useEffect(() => {
-    fetchMyReports();
-  }, []);
+    if (status === 'unauthenticated') {
+      window.location.href = '/login';
+    }
+  }, [status]);
+
+  useEffect(() => {
+    if (status === 'authenticated') {
+      fetchMyReports();
+    }
+  }, [status]);
 
   const fetchMyReports = async () => {
     setLoading(true);
@@ -145,7 +153,7 @@ export default function MyReportsPage() {
     });
   };
 
-  if (!session) return null;
+  if (status === 'loading' || status === 'unauthenticated') return null;
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-8 pb-16">
@@ -155,7 +163,7 @@ export default function MyReportsPage() {
             My Reports <span className="text-slate-400 font-medium lowercase">/ আমার প্রতিবেদন</span>
           </h1>
           <p className="text-slate-500 mt-1 font-medium">
-            Submitted daily reports for {session.user.facilityName}
+            Submitted daily reports for {session?.user?.facilityName}
           </p>
         </div>
         <div className="flex flex-col items-end gap-2">

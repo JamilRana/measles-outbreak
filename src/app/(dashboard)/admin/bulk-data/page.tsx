@@ -8,6 +8,8 @@ import Breadcrumbs from '@/components/Breadcrumbs';
 import UnifiedReportForm from '@/components/UnifiedReportForm';
 import { useSearchParams } from 'next/navigation';
 import { SearchableSelect } from '@/components/SearchableSelect';
+import { useSession } from 'next-auth/react';
+import { hasPermission } from '@/lib/rbac';
 
 
 interface User {
@@ -27,6 +29,11 @@ export default function BulkDataPage() {
 }
 
 function BulkDataContent() {
+  const { data: session } = useSession();
+  const role = session?.user?.role || "";
+  const canManage = hasPermission(role, 'data:manage') || role === 'ADMIN' || role === 'EDITOR';
+  const canView = hasPermission(role, 'admin:view');
+
   const searchParams = useSearchParams();
   const [outbreaks, setOutbreaks] = useState<any[]>([]);
   const [selectedOutbreakId, setSelectedOutbreakId] = useState("");
@@ -106,6 +113,16 @@ function BulkDataContent() {
     }
   };
 
+  if (!canView) {
+    return (
+      <div className="p-8 text-center">
+        <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+        <h1 className="text-2xl font-bold text-slate-800">Access Denied</h1>
+        <p className="text-slate-500 mt-2">You need administrative privileges to access this page.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="p-8 max-w-4xl mx-auto space-y-8">
       <Breadcrumbs />
@@ -122,41 +139,58 @@ function BulkDataContent() {
           <Upload className="w-4 h-4 inline mr-2" />
           Bulk Upload
         </button>
-        <button
-          onClick={() => setMode('single')}
-          className={`px-4 py-2 rounded-lg font-bold text-sm transition-all ${mode === 'single' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-        >
-          <Plus className="w-4 h-4 inline mr-2" />
-          Single Entry
-        </button>
+        {canManage && (
+          <button
+            onClick={() => setMode('single')}
+            className={`px-4 py-2 rounded-lg font-bold text-sm transition-all ${mode === 'single' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+          >
+            <Plus className="w-4 h-4 inline mr-2" />
+            Single Entry
+          </button>
+        )}
       </div>
 
       {mode === 'bulk' ? (
         <>
           <div className="bg-white rounded-3xl border border-slate-300 shadow-md p-8">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="flex items-center gap-3 flex-1">
                 <div className="p-2 bg-indigo-50 rounded-xl">
                   <Upload className="w-5 h-5 text-indigo-600" />
                 </div>
                 <div>
-                  <h3 className="text-xl font-black text-slate-800">Upload CSV File</h3>
-                  <p className="text-sm text-slate-400 font-medium">Select a CSV file with report data</p>
+                  <h3 className="text-xl font-black text-slate-800">Upload Data File</h3>
+                  <p className="text-sm text-slate-400 font-medium">Select an Excel or CSV file with report data</p>
                 </div>
               </div>
-              <button
-                onClick={() => {
-                  if (!selectedOutbreakId) {
-                    alert("Please select an outbreak context first to download the correct template.");
-                    return;
-                  }
-                  window.location.href = `/api/admin/bulk-reports?outbreakId=${selectedOutbreakId}`;
-                }}
-                className="flex items-center gap-2 px-4 py-2 border border-slate-200 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors"
-              >
-                <Download className="w-4 h-4" />
-                Download Template
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    if (!selectedOutbreakId) {
+                      alert("Please select an outbreak context first.");
+                      return;
+                    }
+                    window.location.href = `/api/admin/bulk-reports?outbreakId=${selectedOutbreakId}&format=xlsx`;
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 border border-slate-200 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors"
+                >
+                  <Download className="w-4 h-4" />
+                  Excel Template
+                </button>
+                <button
+                  onClick={() => {
+                    if (!selectedOutbreakId) {
+                      alert("Please select an outbreak context first.");
+                      return;
+                    }
+                    window.location.href = `/api/admin/bulk-reports?outbreakId=${selectedOutbreakId}&format=csv`;
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 border border-slate-200 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors"
+                >
+                  <FileText className="w-4 h-4" />
+                  CSV Template
+                </button>
+              </div>
             </div>
 
             <div className="mb-6 bg-slate-50 border border-slate-200 rounded-2xl p-5">
@@ -201,7 +235,7 @@ function BulkDataContent() {
               )}
             </div>
 
-            {file && (
+            {file && canManage && (
               <motion.div 
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -221,6 +255,9 @@ function BulkDataContent() {
                 </button>
               </motion.div>
             )}
+            {file && !canManage && (
+               <p className="mt-4 text-center text-xs font-bold text-amber-600 uppercase tracking-widest">Read-Only Access: Upload Restricted</p>
+            )}
           </div>
 
           {result && (
@@ -233,13 +270,24 @@ function BulkDataContent() {
                   : "bg-amber-50 border-amber-200"
               }`}
             >
-              <div className="flex items-center gap-3 mb-4">
-                {result.failed === 0 ? (
-                  <CheckCircle className="w-6 h-6 text-emerald-600" />
-                ) : (
-                  <AlertCircle className="w-6 h-6 text-amber-600" />
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  {result.failed === 0 ? (
+                    <CheckCircle className="w-6 h-6 text-emerald-600" />
+                  ) : (
+                    <AlertCircle className="w-6 h-6 text-amber-600" />
+                  )}
+                  <h3 className="text-lg font-bold text-slate-800">{result.message}</h3>
+                </div>
+                {result.success > 0 && (
+                  <button 
+                    onClick={() => window.location.href = '/'}
+                    className="text-indigo-600 hover:text-indigo-800 text-sm font-bold flex items-center gap-1 bg-white px-3 py-1.5 rounded-lg border border-indigo-100 shadow-sm"
+                  >
+                    View Dashboard
+                    <ChevronDown className="w-4 h-4 -rotate-90" />
+                  </button>
                 )}
-                <h3 className="text-lg font-bold text-slate-800">{result.message}</h3>
               </div>
               
               <div className="flex gap-6 mb-4">
@@ -284,7 +332,7 @@ function BulkDataContent() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5">
               <SearchableSelect 
-                label="1. Outbreak Target"
+                label="1. Outbreak Target (১. প্রাদুর্ভাবের প্রেক্ষাপট)"
                 placeholder="Select Outbreak Context"
                 options={outbreaks.map(o => ({ value: o.id, label: o.name }))}
                 value={selectedOutbreakId}
@@ -295,7 +343,7 @@ function BulkDataContent() {
 
             <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5">
               <SearchableSelect 
-                label="2. Facility Context"
+                label="2. Facility Context (২. স্বাস্থ্যসেবা কেন্দ্রের প্রেক্ষাপট)"
                 placeholder="Select Reporting Facility"
                 options={users.map(u => ({ value: u.id, label: `${u.facilityName} (${u.district})` }))}
                 value={selectedUser?.id || ''}

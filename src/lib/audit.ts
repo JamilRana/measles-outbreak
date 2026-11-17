@@ -51,6 +51,8 @@ export const AuditActions = {
   FACILITY_CREATE: "FACILITY_CREATE",
   FACILITY_UPDATE: "FACILITY_UPDATE",
   FACILITY_DELETE: "FACILITY_DELETE",
+  BACKUP_EXPORT: "BACKUP_EXPORT",
+  BACKUP_RESTORE: "BACKUP_RESTORE",
 } as const;
 
 export type AuditAction = typeof AuditActions[keyof typeof AuditActions];

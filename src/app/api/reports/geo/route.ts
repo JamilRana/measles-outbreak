@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { getBdTime, getBdDateString } from "@/lib/timezone";
 import { BD_DISTRICT_COORDS } from "@/lib/bd-districts";
+import { hasPermission } from "@/lib/rbac";
 
 /**
  * GET /api/reports/geo
@@ -17,9 +21,38 @@ export async function GET(req: Request) {
     const district = searchParams.get("district") || searchParams.get("districts");
     const from = searchParams.get("from");
     const to = searchParams.get("to");
+    const facilityId = searchParams.get("facilityId") || searchParams.get("facility") || "";
+
+    // Temporal Visibility Logic
+    const session = await getServerSession(authOptions);
+    const role = session?.user?.role || "";
+    const isAdmin = role === 'ADMIN' || role === 'EDITOR' || hasPermission(role, 'admin:view');
+    const now = getBdTime();
+    const today = getBdDateString(now);
+    let effectiveDate = date;
+
+    const outbreak = await prisma.outbreak.findUnique({
+      where: { id: outbreakId },
+      select: { publishTimeHour: true, publishTimeMinute: true }
+    });
+
+    let isPending = false;
+    if (outbreak && !isAdmin) {
+      const publishTime = new Date(now);
+      publishTime.setHours(outbreak.publishTimeHour, outbreak.publishTimeMinute, 0, 0);
+      
+      // ONLY trigger pending status if explicitly requesting today's date
+      if (now < publishTime && effectiveDate === today) {
+        isPending = true;
+      }
+    }
+
+    if (isPending) {
+      return NextResponse.json([]);
+    }
 
     const validDate = (d: string | null) => d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : null;
-    const vDate = validDate(date);
+    const vDate = validDate(effectiveDate);
     const vFrom = validDate(from);
     const vTo = validDate(to);
 
@@ -27,6 +60,7 @@ export async function GET(req: Request) {
       SELECT
         f.division,
         f.district,
+        COALESCE(SUM(COALESCE(NULLIF(r."dataSnapshot"->>'suspected24h', '')::numeric, 0)), 0) AS suspected,
         COALESCE(SUM(COALESCE(NULLIF(r."dataSnapshot"->>'confirmed24h', '')::numeric, 0)), 0) AS confirmed,
         COALESCE(SUM(COALESCE(NULLIF(r."dataSnapshot"->>'suspectedDeath24h', '')::numeric, 0)), 0) +
         COALESCE(SUM(COALESCE(NULLIF(r."dataSnapshot"->>'confirmedDeath24h', '')::numeric, 0)), 0) AS deaths,
@@ -34,12 +68,13 @@ export async function GET(req: Request) {
       FROM "Report" r
       JOIN "Facility" f ON f.id = r."facilityId"
       WHERE r."outbreakId" = ${outbreakId}
-        AND r.status = 'PUBLISHED'
+        AND (r.status = 'PUBLISHED' OR (${isAdmin} AND r.status = 'SUBMITTED'))
         AND (${vDate}::text IS NULL OR r."periodStart"::date = ${vDate}::date)
         AND (${vFrom}::text IS NULL OR r."periodStart"::date >= ${vFrom}::date)
         AND (${vTo}::text IS NULL OR r."periodStart"::date <= ${vTo}::date)
         AND (${division ?? ''}::text = '' OR f.division = ${division ?? ''})
         AND (${district ?? ''}::text = '' OR f.district = ${district ?? ''})
+        AND (${facilityId}::text = '' OR f.id = ${facilityId})
       GROUP BY f.division, f.district
     `;
 
@@ -48,6 +83,7 @@ export async function GET(req: Request) {
       .map((d) => ({
         district: d.district,
         division: d.division,
+        suspected: Number(d.suspected) || 0,
         confirmed: Number(d.confirmed) || 0,
         deaths: Number(d.deaths) || 0,
         hospitalized: Number(d.hospitalized) || 0,
