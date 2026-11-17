@@ -40,9 +40,9 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async jwt({ token, user }) {
       const now = Date.now();
-      const IDLE_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes idle timeout
+      const IDLE_TIMEOUT_MS = 24 * 60 * 60 * 1000; // 24 hours idle timeout
 
-      if (token.lastActivity && now - token.lastActivity > IDLE_TIMEOUT_MS) {
+      if (token.lastActivity && (now - (token.lastActivity as number)) > IDLE_TIMEOUT_MS) {
         // Expire token on idle timeout
         return { ...token, id: "", isExpired: true };
       }
@@ -84,14 +84,14 @@ export const authOptions: NextAuthOptions = {
   },
   session: {
     strategy: "jwt",
-    maxAge: 60 * 60, // 1 hour max lifetime
+    maxAge: 30 * 24 * 60 * 60, // 30 days lifetime
   },
   cookies: {
     sessionToken: {
-      name: process.env.NODE_ENV === "production" ? `__Secure-next-auth.session-token` : `next-auth.session-token`,
+      name: `next-auth.session-token`,
       options: {
         httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
+        secure: false,
         sameSite: "lax",
         path: "/",
       },
