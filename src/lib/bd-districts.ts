@@ -80,3 +80,86 @@ export const BD_DISTRICT_COORDS: Record<string, { lat: number; lng: number }> = 
   'Sunamganj': { lat: 25.0658, lng: 91.3950 },
   'Sylhet': { lat: 24.8949, lng: 91.8687 },
 };
+
+// Official Bangladesh Bureau of Statistics (BBS 2022 Census) district populations
+export const BD_DISTRICT_POPULATION: Record<string, number> = {
+  // Barisal
+  'Barguna': 1010530,
+  'Barisal': 2570450,
+  'Bhola': 1932514,
+  'Jhalakathi': 710000,
+  'Patuakhali': 1727254,
+  'Pirojpur': 1198195,
+
+  // Chattogram
+  'Bandarban': 481109,
+  'Brahmanbaria': 3306559,
+  'Chandpur': 2635748,
+  'Chattogram': 9169464,
+  "Cox's Bazar": 2823265,
+  'Cumilla': 6212216,
+  'Feni': 1648896,
+  'Khagrachhari': 714119,
+  'Lakshmipur': 1937948,
+  'Noakhali': 3625252,
+  'Rangamati': 647587,
+
+  // Dhaka
+  'Dhaka': 14734025,
+  'Faridpur': 2162876,
+  'Gazipur': 5263474,
+  'Gopalganj': 1295053,
+  'Kishoreganj': 3267630,
+  'Madaripur': 1293027,
+  'Manikganj': 1558024,
+  'Munshiganj': 1621379,
+  'Narayanganj': 3909138,
+  'Narsingdi': 2584452,
+  'Rajbari': 1189821,
+  'Shariatpur': 1254546,
+  'Tangail': 4037608,
+
+  // Khulna
+  'Bagerhat': 1613079,
+  'Chuadanga': 1234066,
+  'Jashore': 3076849,
+  'Jhenaidah': 2005849,
+  'Khulna': 2613385,
+  'Kushtia': 2149692,
+  'Magura': 1033115,
+  'Meherpur': 705356,
+  'Narail': 788673,
+  'Satkhira': 2196581,
+
+  // Mymensingh
+  'Jamalpur': 2499737,
+  'Mymensingh': 5899052,
+  'Netrokona': 2324856,
+  'Sherpur': 1501189,
+
+  // Rajshahi
+  'Bogura': 3734300,
+  'Chapainawabganj': 1835528,
+  'Joypurhat': 956447,
+  'Naogaon': 2784598,
+  'Natore': 1859921,
+  'Pabna': 2909622,
+  'Rajshahi': 2915013,
+  'Sirajganj': 3357758,
+
+  // Rangpur
+  'Dinajpur': 3315238,
+  'Gaibandha': 2562232,
+  'Kurigram': 2329161,
+  'Lalmonirhat': 1428406,
+  'Nilphamari': 2092567,
+  'Panchagarh': 1179843,
+  'Rangpur': 3169615,
+  'Thakurgaon': 1534395,
+
+  // Sylhet
+  'Habiganj': 2358886,
+  'Moulvibazar': 2123445,
+  'Sunamganj': 2695495,
+  'Sylhet': 3857037,
+};
