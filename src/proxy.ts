@@ -46,7 +46,11 @@ export async function proxy(request: NextRequest) {
     const token = await getToken({
       req: request,
       secret: process.env.NEXTAUTH_SECRET,
-      cookieName: request.cookies.get('__Secure-next-auth.session-token.v2')
+      cookieName: request.cookies.get('__Secure-next-auth.session-token')
+        ? '__Secure-next-auth.session-token'
+        : request.cookies.get('next-auth.session-token')
+        ? 'next-auth.session-token'
+        : request.cookies.get('__Secure-next-auth.session-token.v2')
         ? '__Secure-next-auth.session-token.v2'
         : 'next-auth.session-token.v2',
     });

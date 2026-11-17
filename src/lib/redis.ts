@@ -6,9 +6,12 @@ const globalForRedis = global as unknown as { redis: Redis | undefined };
 
 export const redis = globalForRedis.redis ?? new Redis(redisUrl, {
   lazyConnect: true,
-  maxRetriesPerRequest: null,
+  maxRetriesPerRequest: 1,
+  connectTimeout: 2000,
+  commandTimeout: 2000,
   retryStrategy(times) {
-    const delay = Math.min(times * 50, 2000);
+    if (times > 5) return null; // Stop retrying after 5 attempts to avoid log spam
+    const delay = Math.min(times * 50, 1000);
     return delay;
   },
 });
