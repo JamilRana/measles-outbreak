@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import dynamic from 'next/dynamic';
+import { useTranslation } from 'react-i18next';
 import {
   CheckCircle2,
   AlertTriangle,
@@ -43,9 +44,25 @@ export default function OutbreakMap({
   onSelectDistrict,
   onSelectDivision: externalOnSelectDivision,
 }: OutbreakMapProps) {
+  const { i18n } = useTranslation();
   const [geoData, setGeoData] = useState<GeoData[]>([]);
   const [loading, setLoading] = useState(true);
   const [metricMode, setMetricMode] = useState<MetricMode>('confirmed');
+
+  const toBnNum = (n: number | string | null | undefined) => {
+    if (n == null || n === '') return '0';
+    if (i18n.language !== 'bn') return Number(n).toLocaleString('en-US');
+    const bnNums = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
+    return Number(n)
+      .toLocaleString('en-US')
+      .toString()
+      .split('')
+      .map(char => {
+        const digit = parseInt(char, 10);
+        return !isNaN(digit) ? bnNums[digit] : char;
+      })
+      .join('');
+  };
 
   // Local division state if not externally controlled
   const [internalDivision, setInternalDivision] = useState<string | null>(null);
@@ -215,10 +232,10 @@ export default function OutbreakMap({
       <div className="px-6 py-5 border-b border-slate-100 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
           <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">
-            Surveillance geo-intel
+            {i18n.language === 'bn' ? 'ভৌগোলিক নজরদারি' : 'Surveillance geo-intel'}
           </span>
           <h3 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-            Outbreak map — affected areas
+            {i18n.language === 'bn' ? 'প্রাদুর্ভাব মানচিত্র — আক্রান্ত এলাকা' : 'Outbreak map — affected areas'}
           </h3>
         </div>
 
@@ -234,7 +251,7 @@ export default function OutbreakMap({
             }`}
           >
             <span className="w-2.5 h-2.5 rounded-full bg-blue-600" />
-            Confirmed cases
+            {i18n.language === 'bn' ? 'নিশ্চিত কেস' : 'Confirmed cases'}
           </button>
 
           <button
@@ -247,7 +264,7 @@ export default function OutbreakMap({
             }`}
           >
             <span className="w-2.5 h-2.5 rounded-full bg-amber-600" />
-            Suspected cases
+            {i18n.language === 'bn' ? 'সন্দেহভাজন কেস' : 'Suspected cases'}
           </button>
 
           <button
@@ -260,7 +277,7 @@ export default function OutbreakMap({
             }`}
           >
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-600" />
-            Hospitalised
+            {i18n.language === 'bn' ? 'ভর্তি' : 'Hospitalised'}
           </button>
 
           <button
@@ -273,7 +290,7 @@ export default function OutbreakMap({
             }`}
           >
             <span className="w-2.5 h-2.5 rounded-full bg-rose-600" />
-            Deaths
+            {i18n.language === 'bn' ? 'মৃত্যু' : 'Deaths'}
           </button>
 
           <button
@@ -286,7 +303,7 @@ export default function OutbreakMap({
             }`}
           >
             <span className="w-2.5 h-2.5 rounded-full bg-indigo-600" />
-            Attack Rate / 100k
+            {i18n.language === 'bn' ? 'আক্রমণের হার / প্রতি ১ লাখ' : 'Attack Rate / 100k'}
           </button>
         </div>
       </div>
@@ -298,7 +315,9 @@ export default function OutbreakMap({
           {loading ? (
             <div className="h-[620px] w-full bg-slate-100/70 animate-pulse rounded-2xl flex flex-col items-center justify-center gap-3 border border-slate-200/80">
               <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
-              <span className="text-slate-500 font-medium">Aggregating district surveillance data...</span>
+              <span className="text-slate-500 font-medium">
+                {i18n.language === 'bn' ? 'জেলা ভিত্তিক নজরদারি তথ্য একত্রিত করা হচ্ছে...' : 'Aggregating district surveillance data...'}
+              </span>
             </div>
           ) : (
             <MapInner
@@ -319,21 +338,21 @@ export default function OutbreakMap({
             <div className="mb-5">
               <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
                 <Compass className="w-3.5 h-3.5 text-blue-600" />
-                <span>Active region</span>
+                <span>{i18n.language === 'bn' ? 'সক্রিয় অঞ্চল' : 'Active region'}</span>
               </div>
               <h4 className="text-2xl font-black text-slate-900 tracking-tight">
                 {selectedDistrict
-                  ? `${selectedDistrict} District`
+                  ? (i18n.language === 'bn' ? `${selectedDistrict} জেলা` : `${selectedDistrict} District`)
                   : activeDivision
-                  ? `${activeDivision} Division`
-                  : 'National summary'}
+                  ? (i18n.language === 'bn' ? `${activeDivision} বিভাগ` : `${activeDivision} Division`)
+                  : (i18n.language === 'bn' ? 'জাতীয় সারাংশ' : 'National summary')}
               </h4>
               <p className="text-xs text-slate-500 mt-0.5">
                 {selectedDistrict
-                  ? `${activeDivision || 'Division'} · ${bdDateStr}`
+                  ? `${activeDivision || (i18n.language === 'bn' ? 'বিভাগ' : 'Division')} · ${bdDateStr}`
                   : activeDivision
-                  ? `Reporting districts · ${bdDateStr}`
-                  : `All divisions · ${bdDateStr}`}
+                  ? (i18n.language === 'bn' ? `রিপোর্টিং জেলাসমূহ · ${bdDateStr}` : `Reporting districts · ${bdDateStr}`)
+                  : (i18n.language === 'bn' ? `সকল বিভাগ · ${bdDateStr}` : `All divisions · ${bdDateStr}`)}
               </p>
             </div>
 
@@ -344,10 +363,12 @@ export default function OutbreakMap({
                   <div className="p-1.5 bg-blue-100 rounded-lg text-blue-700">
                     <CheckCircle2 className="w-4 h-4" />
                   </div>
-                  <span className="font-semibold text-slate-800 text-sm">Confirmed</span>
+                  <span className="font-semibold text-slate-800 text-sm">
+                    {i18n.language === 'bn' ? 'নিশ্চিত' : 'Confirmed'}
+                  </span>
                 </div>
                 <span className="text-xl font-black text-blue-900">
-                  {activeStats.confirmed.toLocaleString()}
+                  {toBnNum(activeStats.confirmed)}
                 </span>
               </div>
 
@@ -356,10 +377,12 @@ export default function OutbreakMap({
                   <div className="p-1.5 bg-amber-100 rounded-lg text-amber-700">
                     <AlertTriangle className="w-4 h-4" />
                   </div>
-                  <span className="font-semibold text-slate-800 text-sm">Suspected</span>
+                  <span className="font-semibold text-slate-800 text-sm">
+                    {i18n.language === 'bn' ? 'সন্দেহভাজন' : 'Suspected'}
+                  </span>
                 </div>
                 <span className="text-xl font-black text-amber-900">
-                  {activeStats.suspected.toLocaleString()}
+                  {toBnNum(activeStats.suspected)}
                 </span>
               </div>
 
@@ -368,10 +391,12 @@ export default function OutbreakMap({
                   <div className="p-1.5 bg-emerald-100 rounded-lg text-emerald-700">
                     <Bed className="w-4 h-4" />
                   </div>
-                  <span className="font-semibold text-slate-800 text-sm">Hospitalised</span>
+                  <span className="font-semibold text-slate-800 text-sm">
+                    {i18n.language === 'bn' ? 'ভর্তি' : 'Hospitalised'}
+                  </span>
                 </div>
                 <span className="text-xl font-black text-emerald-900">
-                  {activeStats.hospitalized.toLocaleString()}
+                  {toBnNum(activeStats.hospitalized)}
                 </span>
               </div>
 
@@ -380,10 +405,12 @@ export default function OutbreakMap({
                   <div className="p-1.5 bg-rose-100 rounded-lg text-rose-700">
                     <Heart className="w-4 h-4" />
                   </div>
-                  <span className="font-semibold text-slate-800 text-sm">Deaths</span>
+                  <span className="font-semibold text-slate-800 text-sm">
+                    {i18n.language === 'bn' ? 'মৃত্যু' : 'Deaths'}
+                  </span>
                 </div>
                 <span className="text-xl font-black text-rose-900">
-                  {activeStats.deaths.toLocaleString()}
+                  {toBnNum(activeStats.deaths)}
                 </span>
               </div>
             </div>
@@ -393,8 +420,8 @@ export default function OutbreakMap({
               <span>👆</span>
               <span>
                 {selectedDistrict || activeDivision
-                  ? 'Click Back or Bangladesh to return to national summary'
-                  : 'Click a division on the map to filter this panel'}
+                  ? (i18n.language === 'bn' ? 'জাতীয় সারাংশে ফিরতে পেছনে বা বাংলাদেশে ক্লিক করুন' : 'Click Back or Bangladesh to return to national summary')
+                  : (i18n.language === 'bn' ? 'এই প্যানেল ফিল্টার করতে মানচিত্রে কোনো বিভাগে ক্লিক করুন' : 'Click a division on the map to filter this panel')}
               </span>
             </div>
 
@@ -403,7 +430,9 @@ export default function OutbreakMap({
               <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 mb-3">
                 <TrendingUp className="w-3.5 h-3.5 text-rose-600" />
                 <span>
-                  High-burden {activeDivision ? 'districts' : 'divisions'}
+                  {i18n.language === 'bn' 
+                    ? `উচ্চ ঝুঁকিপূর্ণ ${activeDivision ? 'জেলাসমূহ' : 'বিভাগসমূহ'}` 
+                    : `High-burden ${activeDivision ? 'districts' : 'divisions'}`}
                 </span>
               </div>
 
@@ -423,7 +452,7 @@ export default function OutbreakMap({
                   >
                     <div className="flex items-center gap-2.5 min-w-[100px]">
                       <span className="w-5 h-5 rounded-full bg-slate-200 text-slate-600 font-bold text-[10px] flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                        {idx + 1}
+                        {toBnNum(idx + 1)}
                       </span>
                       <span className="text-xs font-bold text-slate-800 group-hover:text-blue-700 transition-colors">
                         {item.name}
@@ -438,8 +467,8 @@ export default function OutbreakMap({
                       />
                     </div>
 
-                    <span className="text-xs font-black text-slate-900 min-w-[40px] text-right">
-                      {item.val.toLocaleString()}
+                    <span className="text-xs font-black text-slate-900 min-w-[40px] text-right font-mono">
+                      {toBnNum(item.val)}
                     </span>
                   </button>
                 ))}
@@ -449,7 +478,7 @@ export default function OutbreakMap({
 
           {/* Provenance & Timestamp Footer (Image 2 pattern) */}
           <div className="pt-6 mt-6 border-t border-slate-200/70 text-[11px] text-slate-400 font-medium text-center">
-            Source: Civil Surgeon Office · Updated 07:00 BST
+            {i18n.language === 'bn' ? 'উৎস: সিভিল সার্জন কার্যালয় · হালনাগাদ ০৭:০০ BST' : 'Source: Civil Surgeon Office · Updated 07:00 BST'}
           </div>
         </div>
       </div>

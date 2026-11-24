@@ -4,6 +4,7 @@ import React, { useMemo, useCallback, useEffect, useState, useRef } from 'react'
 import { MapContainer, GeoJSON, useMap } from 'react-leaflet';
 import type { Layer, LeafletMouseEvent, PathOptions } from 'leaflet';
 import { MapPin, ArrowLeft, Sparkles } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import bdGeoJsonRaw from '@/data/bangladesh-districts.json';
 import { normalizeDistrictName, normalizeDivisionName } from '@/lib/bd-districts';
 
@@ -200,7 +201,23 @@ export default function OutbreakMapInner({
   onSelectDistrict,
   onSelectDivision,
 }: Props) {
+  const { i18n } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const toBnNum = (n: number | string | null | undefined) => {
+    if (n == null || n === '') return '0';
+    if (i18n.language !== 'bn') return Number(n).toLocaleString('en-US');
+    const bnNums = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
+    return Number(n)
+      .toLocaleString('en-US')
+      .toString()
+      .split('')
+      .map(char => {
+        const digit = parseInt(char, 10);
+        return !isNaN(digit) ? bnNums[digit] : char;
+      })
+      .join('');
+  };
 
   // Single React-managed state for hovered polygon card (avoids multi-card leakage)
   const [hovered, setHovered] = useState<{
@@ -431,7 +448,7 @@ export default function OutbreakMapInner({
       className="relative w-full h-[620px] bg-slate-50/60 rounded-2xl overflow-hidden border border-slate-200/90 select-none"
     >
       {/* 1. In-Map Breadcrumb & Back Navigation (Image 2 pattern) */}
-      <div className="absolute top-4 left-4 z-[1000] flex items-center gap-2">
+      <div className="absolute top-4 left-4 z-20 flex items-center gap-2">
         {(selectedDistrict || selectedDivision) && (
           <button
             type="button"
@@ -439,7 +456,7 @@ export default function OutbreakMapInner({
             className="flex items-center gap-1.5 px-3 py-1.5 bg-white/95 backdrop-blur-md border border-slate-200/90 rounded-xl text-xs font-bold text-slate-700 shadow-sm hover:bg-slate-100 hover:text-slate-900 transition-all cursor-pointer"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Back</span>
+            <span>{i18n.language === 'bn' ? 'পেছনে' : 'Back'}</span>
           </button>
         )}
 
@@ -455,7 +472,7 @@ export default function OutbreakMapInner({
               !selectedDivision && !selectedDistrict ? 'text-slate-900 font-bold' : ''
             }`}
           >
-            Bangladesh
+            {i18n.language === 'bn' ? 'বাংলাদেশ' : 'Bangladesh'}
           </button>
           {selectedDivision && (
             <>
@@ -510,7 +527,7 @@ export default function OutbreakMapInner({
       {/* 3. Single React-Managed Floating Hover Card (Image 2 pattern) */}
       {hovered && cardPos && (
         <div
-          className="absolute z-[1100] pointer-events-none transition-all duration-75 ease-out"
+          className="absolute z-30 pointer-events-none transition-all duration-75 ease-out"
           style={{
             left: `${cardPos.x}px`,
             top: `${cardPos.y}px`,
@@ -519,12 +536,12 @@ export default function OutbreakMapInner({
           <div className="bg-white/95 backdrop-blur-md border border-slate-200/90 shadow-xl rounded-2xl p-4 w-60 text-slate-800">
             <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
               <MapPin className="w-3 h-3 text-slate-400" />
-              <span>District</span>
+              <span>{i18n.language === 'bn' ? 'জেলা' : 'District'}</span>
             </div>
             <div className="text-base font-black text-slate-900 tracking-tight mb-2.5">
               {hovered.name}
               <span className="ml-1.5 text-xs font-semibold text-slate-400 font-normal">
-                ({hovered.division} Div.)
+                {i18n.language === 'bn' ? `(${hovered.division} বিভাগ)` : `(${hovered.division} Div.)`}
               </span>
             </div>
 
@@ -532,52 +549,54 @@ export default function OutbreakMapInner({
               <div className="flex items-center justify-between">
                 <span className="flex items-center gap-1.5 text-slate-600 font-medium">
                   <span className="w-2 h-2 rounded-full bg-amber-500" />
-                  Suspected
+                  {i18n.language === 'bn' ? 'সন্দেহভাজন' : 'Suspected'}
                 </span>
                 <span className="font-bold text-slate-900">
-                  {(hovered.data?.suspected || 0).toLocaleString()}
+                  {toBnNum(hovered.data?.suspected || 0)}
                 </span>
               </div>
 
               <div className="flex items-center justify-between">
                 <span className="flex items-center gap-1.5 text-slate-600 font-medium">
                   <span className="w-2 h-2 rounded-full bg-blue-600" />
-                  Confirmed
+                  {i18n.language === 'bn' ? 'নিশ্চিত' : 'Confirmed'}
                 </span>
                 <span className="font-bold text-blue-700">
-                  {(hovered.data?.confirmed || 0).toLocaleString()}
+                  {toBnNum(hovered.data?.confirmed || 0)}
                 </span>
               </div>
 
               <div className="flex items-center justify-between">
                 <span className="flex items-center gap-1.5 text-slate-600 font-medium">
                   <span className="w-2 h-2 rounded-full bg-emerald-600" />
-                  Hospitalised
+                  {i18n.language === 'bn' ? 'ভর্তি' : 'Hospitalised'}
                 </span>
                 <span className="font-bold text-slate-900">
-                  {(hovered.data?.hospitalized || 0).toLocaleString()}
+                  {toBnNum(hovered.data?.hospitalized || 0)}
                 </span>
               </div>
 
               <div className="flex items-center justify-between">
                 <span className="flex items-center gap-1.5 text-slate-600 font-medium">
                   <span className="w-2 h-2 rounded-full bg-rose-600" />
-                  Deaths
+                  {i18n.language === 'bn' ? 'মৃত্যু' : 'Deaths'}
                 </span>
                 <span
                   className={`font-bold ${
                     (hovered.data?.deaths || 0) > 0 ? 'text-rose-600 font-black' : 'text-slate-400'
                   }`}
                 >
-                  {(hovered.data?.deaths || 0).toLocaleString()}
+                  {toBnNum(hovered.data?.deaths || 0)}
                 </span>
               </div>
 
               {hovered.data?.attackRatePer100k !== undefined && (
                 <div className="pt-1.5 mt-1 border-t border-slate-100 flex items-center justify-between text-[11px]">
-                  <span className="text-slate-500">Attack Rate (/100k):</span>
+                  <span className="text-slate-500">
+                    {i18n.language === 'bn' ? 'আক্রমণ হার (/১০০ হাজার):' : 'Attack Rate (/100k):'}
+                  </span>
                   <span className="font-mono font-bold text-indigo-700">
-                    {hovered.data.attackRatePer100k}
+                    {toBnNum(hovered.data.attackRatePer100k)}
                   </span>
                 </div>
               )}
@@ -587,27 +606,31 @@ export default function OutbreakMapInner({
       )}
 
       {/* 4. Bottom-Left Context Guidance Pill (Image 2 pattern) */}
-      <div className="absolute bottom-4 left-4 z-[1000] pointer-events-none">
+      <div className="absolute bottom-4 left-4 z-20 pointer-events-none">
         <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white/95 backdrop-blur-md border border-slate-200/90 rounded-full text-[11px] font-semibold text-slate-600 shadow-sm">
           <Sparkles className="w-3.5 h-3.5 text-blue-500" />
           <span>
             {selectedDistrict
-              ? 'Click another district or Back to zoom out'
+              ? (i18n.language === 'bn' ? 'জুম আউট করতে অন্য জেলা বা পেছনে ক্লিক করুন' : 'Click another district or Back to zoom out')
               : selectedDivision
-              ? 'Click a district to focus'
-              : 'Click a division or district to zoom in'}
+              ? (i18n.language === 'bn' ? 'ফোকাস করতে একটি জেলা ক্লিক করুন' : 'Click a district to focus')
+              : (i18n.language === 'bn' ? 'জুম ইন করতে একটি বিভাগ বা জেলা ক্লিক করুন' : 'Click a division or district to zoom in')}
           </span>
         </div>
       </div>
 
       {/* 5. Bottom-Right Compact Legend (Image 2 pattern) */}
-      <div className="absolute bottom-4 right-4 z-[1000] bg-white/95 backdrop-blur-md border border-slate-200/90 shadow-md rounded-2xl p-3 text-xs text-slate-700 min-w-[170px]">
+      <div className="absolute bottom-4 right-4 z-20 bg-white/95 backdrop-blur-md border border-slate-200/90 shadow-md rounded-2xl p-3 text-xs text-slate-700 min-w-[170px]">
         <div className="font-bold text-[11px] text-slate-700 mb-1.5 capitalize">
           {metricMode === 'attackRate'
-            ? 'Attack Rate (/100k)'
+            ? (i18n.language === 'bn' ? 'আক্রমণ হার (/১০০ হাজার)' : 'Attack Rate (/100k)')
             : metricMode === 'hospitalized'
-            ? 'Hospitalised Cases'
-            : `${metricMode} Cases`}
+            ? (i18n.language === 'bn' ? 'ভর্তিকৃত কেস' : 'Hospitalised Cases')
+            : metricMode === 'deaths'
+            ? (i18n.language === 'bn' ? 'মৃত্যু' : 'Deaths')
+            : metricMode === 'suspected'
+            ? (i18n.language === 'bn' ? 'সন্দেহভাজন কেস' : 'Suspected Cases')
+            : (i18n.language === 'bn' ? 'নিশ্চিত কেস' : 'Confirmed Cases')}
         </div>
         <div
           className={`h-2 w-full rounded-full mb-1 ${
@@ -623,12 +646,12 @@ export default function OutbreakMapInner({
           }`}
         />
         <div className="flex justify-between text-[10px] text-slate-400 font-semibold mb-1.5">
-          <span>Low</span>
-          <span>High</span>
+          <span>{i18n.language === 'bn' ? 'কম' : 'Low'}</span>
+          <span>{i18n.language === 'bn' ? 'বেশি' : 'High'}</span>
         </div>
         <div className="flex items-center gap-1.5 text-[10px] text-slate-500 border-t border-slate-100 pt-1">
           <span className="w-2.5 h-2.5 rounded bg-slate-100 border border-slate-300" />
-          <span>No data / reporting facility</span>
+          <span>{i18n.language === 'bn' ? 'কোন তথ্য নেই / স্বাস্থ্য প্রতিষ্ঠান অপ্রকাশিত' : 'No data / reporting facility'}</span>
         </div>
       </div>
     </div>

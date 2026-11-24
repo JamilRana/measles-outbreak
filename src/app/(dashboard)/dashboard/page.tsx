@@ -603,16 +603,18 @@ export default function DashboardPage() {
             <div>
               <div className="flex flex-wrap items-center gap-2 mb-1">
                 <span className="text-[10px] font-black uppercase tracking-[0.25em] text-indigo-400">
-                  DGHS National Surveillance Command
+                  {i18n.language === "bn" ? "ডিজিএইচএস জাতীয় রোগ নজরদারি কমান্ড" : "DGHS National Surveillance Command"}
                 </span>
                 <span className="inline-block w-1 h-1 rounded-full bg-slate-600" />
                 <span className="text-[10px] font-mono font-medium text-slate-400">
-                  {viewMode === "today" ? `Live Date: ${filterDate}` : "Cumulative Outbreak Timeline"}
+                  {viewMode === "today" 
+                    ? (i18n.language === "bn" ? `লাইভ তারিখ: ${toBnNumSafe(filterDate, i18n)}` : `Live Date: ${filterDate}`) 
+                    : (i18n.language === "bn" ? "ক্রমপুঞ্জিত প্রাদুর্ভাব সময়রেখা" : "Cumulative Outbreak Timeline")}
                 </span>
               </div>
 
               <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight text-white flex items-center gap-3">
-                {config?.outbreak?.name || "Measles Outbreak Surveillance"}
+                {config?.outbreak?.name || (i18n.language === "bn" ? "হাম প্রাদুর্ভাব নজরদারি" : "Measles Outbreak Surveillance")}
               </h1>
 
               {/* Geographic Breadcrumbs */}
@@ -623,7 +625,7 @@ export default function DashboardPage() {
                   onClick={handleClearAllFilters}
                   className="hover:text-white transition-colors underline decoration-slate-600 underline-offset-4"
                 >
-                  Bangladesh National
+                  {i18n.language === "bn" ? "বাংলাদেশ জাতীয়" : "Bangladesh National"}
                 </button>
                 {selectedDivision && (
                   <>
@@ -636,20 +638,20 @@ export default function DashboardPage() {
                       }}
                       className="hover:text-white transition-colors underline decoration-slate-600 underline-offset-4 text-slate-300"
                     >
-                      {selectedDivision} Division
+                      {selectedDivision} {i18n.language === "bn" ? "বিভাগ" : "Division"}
                     </button>
                   </>
                 )}
                 {selectedDistrict && (
                   <>
                     <ChevronRight className="w-3.5 h-3.5 text-slate-600" />
-                    <span className="text-indigo-400 font-bold">{selectedDistrict} District</span>
+                    <span className="text-indigo-400 font-bold">{selectedDistrict} {i18n.language === "bn" ? "জেলা" : "District"}</span>
                   </>
                 )}
                 {selectedFacilityId && (
                   <>
                     <ChevronRight className="w-3.5 h-3.5 text-slate-600" />
-                    <span className="text-emerald-400 font-bold">Facility Selected</span>
+                    <span className="text-emerald-400 font-bold">{i18n.language === "bn" ? "স্বাস্থ্য প্রতিষ্ঠান নির্বাচিত" : "Facility Selected"}</span>
                   </>
                 )}
               </div>
@@ -671,8 +673,8 @@ export default function DashboardPage() {
                 <Clock className="w-4 h-4 text-amber-400 shrink-0" />
               )}
               <div>
-                <span className="block text-[9px] uppercase tracking-wider opacity-75">Data State</span>
-                <span>{publicationStatus === "VERIFIED" ? "Verified SitRep" : "Provisional"}</span>
+                <span className="block text-[9px] uppercase tracking-wider opacity-75">{i18n.language === "bn" ? "তথ্য স্থিতি" : "Data State"}</span>
+                <span>{publicationStatus === "VERIFIED" ? (i18n.language === "bn" ? "যাচাইকৃত সিটর্যাপ" : "Verified SitRep") : (i18n.language === "bn" ? "সাময়িক" : "Provisional")}</span>
               </div>
             </div>
 
@@ -681,10 +683,10 @@ export default function DashboardPage() {
               <Clock className="w-4 h-4 text-rose-400 shrink-0" />
               <div>
                 <span className="block text-[9px] font-black uppercase tracking-wider text-rose-400">
-                  Reporting Window
+                  {i18n.language === "bn" ? "রিপোর্টিং উইন্ডো" : "Reporting Window"}
                 </span>
                 <span className="font-mono font-bold text-white tracking-wider">
-                  {countdown}
+                  {toBnNumSafe(countdown, i18n)}
                 </span>
               </div>
             </div>
@@ -763,12 +765,12 @@ export default function DashboardPage() {
                 <div className="flex flex-wrap bg-slate-100 p-1 rounded-2xl border border-slate-200 gap-1">
                   {(
                     [
-                      { id: "today", label: "Today" },
-                      { id: "yesterday", label: "Yesterday" },
-                      { id: "last7", label: "Last 7 Days" },
-                      { id: "last30", label: "Last 30 Days" },
-                      { id: "month", label: "By Month" },
-                      { id: "custom", label: "Custom Range" },
+                      { id: "today", label: i18n.language === "bn" ? "আজ" : "Today" },
+                      { id: "yesterday", label: i18n.language === "bn" ? "গতকাল" : "Yesterday" },
+                      { id: "last7", label: i18n.language === "bn" ? "গত ৭ দিন" : "Last 7 Days" },
+                      { id: "last30", label: i18n.language === "bn" ? "গত ৩০ দিন" : "Last 30 Days" },
+                      { id: "month", label: i18n.language === "bn" ? "মাস অনুযায়ী" : "By Month" },
+                      { id: "custom", label: i18n.language === "bn" ? "কাস্টম রেঞ্জ" : "Custom Range" },
                     ] as const
                   ).map((p) => (
                     <button
@@ -789,14 +791,14 @@ export default function DashboardPage() {
                 {activeDatePreset === "today" && (
                   <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 rounded-xl border border-slate-200 text-xs font-mono font-bold text-slate-700">
                     <Calendar className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
-                    <span>{filterDate}</span>
+                    <span>{toBnNumSafe(filterDate, i18n)}</span>
                   </div>
                 )}
 
                 {activeDatePreset === "yesterday" && (
                   <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 rounded-xl border border-slate-200 text-xs font-mono font-bold text-slate-700">
                     <Calendar className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
-                    <span>{filterDate}</span>
+                    <span>{toBnNumSafe(filterDate, i18n)}</span>
                   </div>
                 )}
 
@@ -834,7 +836,9 @@ export default function DashboardPage() {
                       min="2026-04-10"
                       className="bg-transparent border-none p-0 focus:ring-0 text-slate-800 font-bold cursor-pointer text-xs"
                     />
-                    <span className="text-slate-400 font-bold text-[10px] uppercase">to</span>
+                    <span className="text-slate-400 font-bold text-[10px] uppercase">
+                      {i18n.language === "bn" ? "থেকে" : "to"}
+                    </span>
                     <input
                       type="date"
                       value={dateRange.to || ""}
@@ -854,8 +858,11 @@ export default function DashboardPage() {
                 {/* Division Filter */}
                 <div className="min-w-[190px]">
                   <SearchableSelect
-                    placeholder="All Bangladesh (Divisions)"
-                    options={[{ value: "", label: "All Bangladesh" }, ...DIVISIONS.map(d => ({ value: d, label: `${d} Division` }))]}
+                    placeholder={i18n.language === "bn" ? "সমগ্র বাংলাদেশ (বিভাগ)" : "All Bangladesh (Divisions)"}
+                    options={[
+                      { value: "", label: i18n.language === "bn" ? "সমগ্র বাংলাদেশ" : "All Bangladesh" },
+                      ...DIVISIONS.map(d => ({ value: d, label: i18n.language === "bn" ? `${d} বিভাগ` : `${d} Division` }))
+                    ]}
                     value={selectedDivision || ""}
                     onChange={value => {
                       setSelectedDivision(value || null);
@@ -869,8 +876,11 @@ export default function DashboardPage() {
                 {selectedDivision && DISTRICTS[selectedDivision] && (
                   <div className="min-w-[190px]">
                     <SearchableSelect
-                      placeholder="All Districts"
-                      options={[{ value: "", label: `All ${selectedDivision} Districts` }, ...(DISTRICTS[selectedDivision] || []).map(d => ({ value: d, label: `${d} District` }))]}
+                      placeholder={i18n.language === "bn" ? "সকল জেলা" : "All Districts"}
+                      options={[
+                        { value: "", label: i18n.language === "bn" ? `${selectedDivision} বিভাগের সকল জেলা` : `All ${selectedDivision} Districts` },
+                        ...(DISTRICTS[selectedDivision] || []).map(d => ({ value: d, label: i18n.language === "bn" ? `${d} জেলা` : `${d} District` }))
+                      ]}
                       value={selectedDistrict || ""}
                       onChange={value => {
                         setSelectedDistrict(value || null);
@@ -912,7 +922,7 @@ export default function DashboardPage() {
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4 lg:gap-4">
               {/* KPI 1: সন্দেহভাজন কেস */}
               <ModernKPICard
-                title="সন্দেহভাজন কেস"
+                title={i18n.language === "bn" ? "সন্দেহভাজন কেস" : "Suspected Cases"}
                 value={toBnNumSafe(totalSuspected, i18n)}
                 icon={<Users />}
                 accentColor="#f59e0b"
@@ -920,7 +930,7 @@ export default function DashboardPage() {
 
               {/* KPI 2: নিশ্চিত কেস */}
               <ModernKPICard
-                title="নিশ্চিত কেস"
+                title={i18n.language === "bn" ? "নিশ্চিত কেস" : "Confirmed Cases"}
                 value={toBnNumSafe(totalConfirmed, i18n)}
                 icon={<CheckCircle2 />}
                 accentColor="#2563eb"
@@ -928,7 +938,7 @@ export default function DashboardPage() {
 
               {/* KPI 3: সন্দেহভাজন মৃত্যু */}
               <ModernKPICard
-                title="সন্দেহভাজন মৃত্যু"
+                title={i18n.language === "bn" ? "সন্দেহভাজন মৃত্যু" : "Suspected Deaths"}
                 value={toBnNumSafe(totalSuspectedDeaths, i18n)}
                 icon={<AlertTriangle />}
                 accentColor="#f97316"
@@ -936,7 +946,7 @@ export default function DashboardPage() {
 
               {/* KPI 4: নিশ্চিত মৃত্যু */}
               <ModernKPICard
-                title="নিশ্চিত মৃত্যু"
+                title={i18n.language === "bn" ? "নিশ্চিত মৃত্যু" : "Confirmed Deaths"}
                 value={toBnNumSafe(totalConfirmedDeaths, i18n)}
                 icon={<Skull />}
                 accentColor="#ef4444"
@@ -944,7 +954,7 @@ export default function DashboardPage() {
 
               {/* KPI 5: ভর্তি */}
               <ModernKPICard
-                title="ভর্তি"
+                title={i18n.language === "bn" ? "ভর্তি" : "Hospitalized"}
                 value={toBnNumSafe(totalAdmitted, i18n)}
                 icon={<Hospital />}
                 accentColor="#059669"
@@ -952,7 +962,7 @@ export default function DashboardPage() {
 
               {/* KPI 6: ছাড়পত্র */}
               <ModernKPICard
-                title="ছাড়পত্র"
+                title={i18n.language === "bn" ? "ছাড়পত্র" : "Discharged"}
                 value={toBnNumSafe(totalRecovered, i18n)}
                 icon={<Activity />}
                 accentColor="#10b981"
@@ -976,11 +986,11 @@ export default function DashboardPage() {
                         {i18n.language === "bn" ? "দৈনিক স্বাস্থ্য প্রতিষ্ঠান রিপোর্টিং কমপ্লায়েন্স (১০:০০ ঘটিকা BST)" : "Facility Reporting Compliance (10:00 AM BST Cutoff)"}
                       </span>
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
-                        {complianceData?.metrics?.complianceRate ?? 0}% {i18n.language === "bn" ? "সময়মতো" : "On-Time"}
+                        {toBnNumSafe(complianceData?.metrics?.complianceRate ?? 0, i18n)}% {i18n.language === "bn" ? "সময়মতো" : "On-Time"}
                       </span>
                     </div>
                     <p className="text-[11px] text-slate-500 mt-0.5">
-                      {complianceData?.metrics?.onTimeCount ?? 0} {i18n.language === "bn" ? "সময়মতো জমা" : "On-Time"} · {complianceData?.metrics?.lateCount ?? 0} {i18n.language === "bn" ? "দেরিতে জমা" : "Late"} · {complianceData?.metrics?.missedCount ?? 0} {i18n.language === "bn" ? "অনুপস্থিত" : "Missed"} · {complianceData?.metrics?.submittedCount ?? 0}/{complianceData?.metrics?.totalFacilities ?? 0} {i18n.language === "bn" ? "প্রতিষ্ঠান জমা দিয়েছে" : "Facilities Sent"}
+                      {toBnNumSafe(complianceData?.metrics?.onTimeCount ?? 0, i18n)} {i18n.language === "bn" ? "সময়মতো জমা" : "On-Time"} · {toBnNumSafe(complianceData?.metrics?.lateCount ?? 0, i18n)} {i18n.language === "bn" ? "দেরিতে জমা" : "Late"} · {toBnNumSafe(complianceData?.metrics?.missedCount ?? 0, i18n)} {i18n.language === "bn" ? "অনুপস্থিত" : "Missed"} · {toBnNumSafe(complianceData?.metrics?.submittedCount ?? 0, i18n)}/{toBnNumSafe(complianceData?.metrics?.totalFacilities ?? 0, i18n)} {i18n.language === "bn" ? "প্রতিষ্ঠান জমা দিয়েছে" : "Facilities Sent"}
                     </p>
                   </div>
                 </div>
@@ -998,15 +1008,17 @@ export default function DashboardPage() {
               <div>
                 <h3 className="text-base font-black text-slate-900 uppercase tracking-tight flex items-center gap-2.5">
                   <AlertTriangle className="w-5 h-5 text-rose-500 shrink-0" />
-                  Priority Epidemiological Hotspots
+                  {i18n.language === "bn" ? "শীর্ষ ঝুঁকিপূর্ণ মহামারী হটস্পট" : "Priority Epidemiological Hotspots"}
                 </h3>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  Top geographic areas ranked by mortality & case burden. Click any hotspot to isolate in dashboard.
+                  {i18n.language === "bn" 
+                    ? "মৃত্যু ও আক্রান্তের সংখ্যা অনুযায়ী শীর্ষ ভৌগোলিক অঞ্চল। ড্যাশবোর্ডে ফিল্টার করতে ক্লিক করুন।" 
+                    : "Top geographic areas ranked by mortality & case burden. Click any hotspot to isolate in dashboard."}
                 </p>
               </div>
 
               <span className="text-[10px] font-mono font-bold text-slate-400 bg-slate-100 px-3 py-1 rounded-full self-start sm:self-auto">
-                Ranked by Total Deaths
+                {i18n.language === "bn" ? "মোট মৃত্যুর ভিত্তিতে সাজানো" : "Ranked by Total Deaths"}
               </span>
             </div>
 
@@ -1038,7 +1050,7 @@ export default function DashboardPage() {
                     >
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 group-hover:text-slate-900 transition-colors">
-                          #{idx + 1} {d.name}
+                          #{toBnNumSafe(idx + 1, i18n)} {d.name}
                         </span>
                         <ArrowUpRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-indigo-600 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
                       </div>
@@ -1048,7 +1060,9 @@ export default function DashboardPage() {
                           <span className="text-2xl font-black text-slate-900 font-mono">
                             {toBnNumSafe(cumDeaths, i18n)}
                           </span>
-                          <span className="text-[10px] font-bold text-slate-400 ml-1 uppercase">Deaths</span>
+                          <span className="text-[10px] font-bold text-slate-400 ml-1 uppercase">
+                            {i18n.language === "bn" ? "মৃত্যু" : "Deaths"}
+                          </span>
                         </div>
 
                         <span
@@ -1057,12 +1071,12 @@ export default function DashboardPage() {
                               : "bg-slate-200 text-slate-600"
                             }`}
                         >
-                          CFR {hotspotCfr}%
+                          CFR {toBnNumSafe(hotspotCfr, i18n)}%
                         </span>
                       </div>
 
                       <div className="mt-2 text-[11px] text-slate-500 font-medium">
-                        Total Cases: <b>{toBnNumSafe(cumCases, i18n)}</b>
+                        {i18n.language === "bn" ? "মোট কেস:" : "Total Cases:"} <b>{toBnNumSafe(cumCases, i18n)}</b>
                       </div>
                     </button>
                   );
@@ -1118,15 +1132,17 @@ export default function DashboardPage() {
                 <h2 className="text-xl sm:text-2xl font-black text-slate-900 uppercase tracking-tight flex items-center gap-2.5">
                   <TableIcon className="w-5 h-5 text-indigo-600 shrink-0" />
                   {selectedFacilityId
-                    ? "Facility-Level Surveillance Matrix"
+                    ? (i18n.language === "bn" ? "স্বাস্থ্য প্রতিষ্ঠান ভিত্তিক নজরদারি ম্যাট্রিক্স" : "Facility-Level Surveillance Matrix")
                     : selectedDistrict
-                      ? `${selectedDistrict} District Facility Matrix`
+                      ? (i18n.language === "bn" ? `${selectedDistrict} জেলা স্বাস্থ্য প্রতিষ্ঠান ম্যাট্রিক্স` : `${selectedDistrict} District Facility Matrix`)
                       : selectedDivision
-                        ? `${selectedDivision} Division District Breakdown`
-                        : "National Administrative Breakdown"}
+                        ? (i18n.language === "bn" ? `${selectedDivision} বিভাগীয় জেলা বিভাজন` : `${selectedDivision} Division District Breakdown`)
+                        : (i18n.language === "bn" ? "জাতীয় প্রশাসনিক বিভাজন" : "National Administrative Breakdown")}
                 </h2>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Click any row to drill down into district-level or facility-level data.
+                  {i18n.language === "bn" 
+                    ? "জেলা বা স্বাস্থ্য প্রতিষ্ঠান ভিত্তিক তথ্য দেখতে যেকোনো সারিতে ক্লিক করুন।" 
+                    : "Click any row to drill down into district-level or facility-level data."}
                 </p>
               </div>
 
@@ -1139,7 +1155,7 @@ export default function DashboardPage() {
                     type="text"
                     value={tableSearchTerm}
                     onChange={(e) => setTableSearchTerm(e.target.value)}
-                    placeholder="Search district / facility..."
+                    placeholder={i18n.language === "bn" ? "জেলা বা স্বাস্থ্য প্রতিষ্ঠান খুঁজুন..." : "Search district / facility..."}
                     className="w-full bg-white border border-slate-200 rounded-2xl pl-10 pr-4 py-2 text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:border-indigo-500 shadow-sm"
                   />
                   {tableSearchTerm && (
@@ -1176,7 +1192,13 @@ export default function DashboardPage() {
                         className="px-6 py-6 text-left border-r border-slate-800 bg-slate-950 sticky left-0 z-20 cursor-pointer hover:bg-slate-900 transition-colors group select-none min-w-[180px]"
                       >
                         <div className="flex items-center justify-between gap-2">
-                          <span>{selectedDistrict ? "FACILITY NAME" : selectedDivision ? "DISTRICT" : "DIVISION"}</span>
+                          <span>
+                            {selectedDistrict
+                              ? (i18n.language === "bn" ? "স্বাস্থ্য প্রতিষ্ঠান" : "FACILITY NAME")
+                              : selectedDivision
+                                ? (i18n.language === "bn" ? "জেলা" : "DISTRICT")
+                                : (i18n.language === "bn" ? "বিভাগ" : "DIVISION")}
+                          </span>
                           {sortField === "name" ? (
                             sortDirection === "asc" ? <ChevronUp className="w-3.5 h-3.5 text-indigo-400" /> : <ChevronDown className="w-3.5 h-3.5 text-indigo-400" />
                           ) : (
@@ -1185,42 +1207,58 @@ export default function DashboardPage() {
                         </div>
                       </th>
                       <th colSpan={6} className="px-6 py-3.5 bg-slate-900 border-b border-white/10 tracking-widest text-slate-300">
-                        Last 24 Hours Surveillance
+                        {i18n.language === "bn" ? "গত ২৪ ঘণ্টার নজরদারি" : "Last 24 Hours Surveillance"}
                       </th>
                       <th colSpan={6} className="px-6 py-3.5 bg-slate-950 border-b border-white/10 tracking-widest text-indigo-300">
-                        Cumulative Outbreak Volume
+                        {i18n.language === "bn" ? "ক্রমপুঞ্জিত মোট প্রাদুর্ভাব" : "Cumulative Outbreak Volume"}
                       </th>
                     </tr>
                     <tr className="bg-slate-900 border-t border-white/10 text-[8px]">
-                      <th colSpan={2} className="px-3 py-2.5 border-r border-white/10 bg-slate-800/60">Suspected</th>
-                      <th colSpan={2} className="px-3 py-2.5 border-r border-white/10 bg-slate-800/60">Confirmed</th>
-                      <th className="px-3 py-2.5 border-r border-white/10 bg-slate-800/60">Admitted</th>
-                      <th className="px-3 py-2.5 border-r border-white/10 bg-slate-800/60">Discharged</th>
-                      <th colSpan={2} className="px-3 py-2.5 border-r border-white/10 bg-slate-950/80">Suspected</th>
-                      <th colSpan={2} className="px-3 py-2.5 border-r border-white/10 bg-slate-950/80">Confirmed</th>
-                      <th className="px-3 py-2.5 border-r border-white/10 bg-slate-950/80">Admitted</th>
-                      <th className="px-3 py-2.5 border-r border-white/10 bg-slate-950/80">Discharged</th>
+                      <th colSpan={2} className="px-3 py-2.5 border-r border-white/10 bg-slate-800/60">
+                        {i18n.language === "bn" ? "সন্দেহভাজন" : "Suspected"}
+                      </th>
+                      <th colSpan={2} className="px-3 py-2.5 border-r border-white/10 bg-slate-800/60">
+                        {i18n.language === "bn" ? "নিশ্চিত" : "Confirmed"}
+                      </th>
+                      <th className="px-3 py-2.5 border-r border-white/10 bg-slate-800/60">
+                        {i18n.language === "bn" ? "ভর্তি" : "Admitted"}
+                      </th>
+                      <th className="px-3 py-2.5 border-r border-white/10 bg-slate-800/60">
+                        {i18n.language === "bn" ? "ছাড়পত্র" : "Discharged"}
+                      </th>
+                      <th colSpan={2} className="px-3 py-2.5 border-r border-white/10 bg-slate-950/80">
+                        {i18n.language === "bn" ? "সন্দেহভাজন" : "Suspected"}
+                      </th>
+                      <th colSpan={2} className="px-3 py-2.5 border-r border-white/10 bg-slate-950/80">
+                        {i18n.language === "bn" ? "নিশ্চিত" : "Confirmed"}
+                      </th>
+                      <th className="px-3 py-2.5 border-r border-white/10 bg-slate-950/80">
+                        {i18n.language === "bn" ? "ভর্তি" : "Admitted"}
+                      </th>
+                      <th className="px-3 py-2.5 border-r border-white/10 bg-slate-950/80">
+                        {i18n.language === "bn" ? "ছাড়পত্র" : "Discharged"}
+                      </th>
                     </tr>
                     <tr className="bg-slate-950 text-slate-400 border-t border-slate-800 text-[8px]">
-                      {renderSortableHeader("today.suspected", "Cases", "bg-slate-900 text-white")}
-                      {renderSortableHeader("today.suspectedDeath", "Deaths", "bg-slate-900 text-rose-400")}
-                      {renderSortableHeader("today.confirmed", "Cases", "bg-slate-900 text-white")}
-                      {renderSortableHeader("today.confirmedDeath", "Deaths", "bg-slate-900 text-rose-400")}
-                      {renderSortableHeader("today.admitted", "Total", "bg-slate-900 text-white")}
-                      {renderSortableHeader("today.recovered", "Total", "bg-slate-900 text-white")}
-                      {renderSortableHeader("cumulative.suspected", "Cases", "bg-slate-950 text-white")}
-                      {renderSortableHeader("cumulative.suspectedDeath", "Deaths", "bg-slate-950 text-rose-400")}
-                      {renderSortableHeader("cumulative.confirmed", "Cases", "bg-slate-950 text-white")}
-                      {renderSortableHeader("cumulative.confirmedDeath", "Deaths", "bg-slate-950 text-rose-400")}
-                      {renderSortableHeader("cumulative.admitted", "Total", "bg-slate-950 text-white")}
-                      {renderSortableHeader("cumulative.recovered", "Total", "bg-slate-950 text-white")}
+                      {renderSortableHeader("today.suspected", i18n.language === "bn" ? "কেস" : "Cases", "bg-slate-900 text-white")}
+                      {renderSortableHeader("today.suspectedDeath", i18n.language === "bn" ? "মৃত্যু" : "Deaths", "bg-slate-900 text-rose-400")}
+                      {renderSortableHeader("today.confirmed", i18n.language === "bn" ? "কেস" : "Cases", "bg-slate-900 text-white")}
+                      {renderSortableHeader("today.confirmedDeath", i18n.language === "bn" ? "মৃত্যু" : "Deaths", "bg-slate-900 text-rose-400")}
+                      {renderSortableHeader("today.admitted", i18n.language === "bn" ? "মোট" : "Total", "bg-slate-900 text-white")}
+                      {renderSortableHeader("today.recovered", i18n.language === "bn" ? "মোট" : "Total", "bg-slate-900 text-white")}
+                      {renderSortableHeader("cumulative.suspected", i18n.language === "bn" ? "কেস" : "Cases", "bg-slate-950 text-white")}
+                      {renderSortableHeader("cumulative.suspectedDeath", i18n.language === "bn" ? "মৃত্যু" : "Deaths", "bg-slate-950 text-rose-400")}
+                      {renderSortableHeader("cumulative.confirmed", i18n.language === "bn" ? "কেস" : "Cases", "bg-slate-950 text-white")}
+                      {renderSortableHeader("cumulative.confirmedDeath", i18n.language === "bn" ? "মৃত্যু" : "Deaths", "bg-slate-950 text-rose-400")}
+                      {renderSortableHeader("cumulative.admitted", i18n.language === "bn" ? "মোট" : "Total", "bg-slate-950 text-white")}
+                      {renderSortableHeader("cumulative.recovered", i18n.language === "bn" ? "মোট" : "Total", "bg-slate-950 text-white")}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-xs">
                     {paginatedTableData.length === 0 ? (
                       <tr>
                         <td colSpan={13} className="text-center py-12 text-slate-400 font-medium">
-                          No matching records found for "{tableSearchTerm}".
+                          {i18n.language === "bn" ? `"${tableSearchTerm}" এর সাথে মিলে এমন কোনো তথ্য পাওয়া যায়নি।` : `No matching records found for "${tableSearchTerm}".`}
                         </td>
                       </tr>
                     ) : (
@@ -1288,7 +1326,11 @@ export default function DashboardPage() {
                     {/* Aggregate Summary Footer Row */}
                     <tr className="bg-slate-950 text-white font-black text-xs text-center">
                       <td className="py-5 px-6 text-left sticky left-0 bg-slate-950 z-10 uppercase tracking-wider">
-                        {selectedDistrict ? "District Total" : selectedDivision ? "Division Aggregate" : "National Aggregate"}
+                        {selectedDistrict 
+                          ? (i18n.language === "bn" ? "জেলা সর্বমোট" : "District Total") 
+                          : selectedDivision 
+                            ? (i18n.language === "bn" ? "বিভাগীয় মোট" : "Division Aggregate") 
+                            : (i18n.language === "bn" ? "জাতীয় মোট" : "National Aggregate")}
                       </td>
                       <td className="py-5 bg-slate-900/60">{toBnNumSafe(stats.today.suspected, i18n)}</td>
                       <td className="py-5 bg-slate-900/60 text-rose-400">{toBnNumSafe(stats.today.suspectedDeath, i18n)}</td>
@@ -1311,7 +1353,15 @@ export default function DashboardPage() {
               {filteredTableData.length > itemsPerPage && (
                 <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs select-none">
                   <p className="font-bold text-slate-500">
-                    Showing <b>{(currentPage - 1) * itemsPerPage + 1} &ndash; {Math.min(currentPage * itemsPerPage, filteredTableData.length)}</b> of <b>{filteredTableData.length}</b> records
+                    {i18n.language === "bn" ? (
+                      <>
+                        দেখানো হচ্ছে <b>{toBnNumSafe((currentPage - 1) * itemsPerPage + 1, i18n)} &ndash; {toBnNumSafe(Math.min(currentPage * itemsPerPage, filteredTableData.length), i18n)}</b>, সর্বমোট <b>{toBnNumSafe(filteredTableData.length, i18n)}</b> টি রেকর্ড
+                      </>
+                    ) : (
+                      <>
+                        Showing <b>{(currentPage - 1) * itemsPerPage + 1} &ndash; {Math.min(currentPage * itemsPerPage, filteredTableData.length)}</b> of <b>{filteredTableData.length}</b> records
+                      </>
+                    )}
                   </p>
 
                   <div className="flex items-center gap-2">
@@ -1321,11 +1371,13 @@ export default function DashboardPage() {
                       disabled={currentPage === 1}
                       className="px-3.5 py-1.5 bg-white border border-slate-200 rounded-xl font-bold text-slate-700 hover:text-indigo-600 disabled:opacity-40 transition-all shadow-sm disabled:cursor-not-allowed"
                     >
-                      Previous
+                      {i18n.language === "bn" ? "পূর্ববর্তী" : "Previous"}
                     </button>
 
                     <span className="font-bold text-slate-400 px-2">
-                      Page {currentPage} of {totalPages || 1}
+                      {i18n.language === "bn" 
+                        ? `পৃষ্ঠা ${toBnNumSafe(currentPage, i18n)} / ${toBnNumSafe(totalPages || 1, i18n)}` 
+                        : `Page ${currentPage} of ${totalPages || 1}`}
                     </span>
 
                     <button
@@ -1334,7 +1386,7 @@ export default function DashboardPage() {
                       disabled={currentPage >= totalPages}
                       className="px-3.5 py-1.5 bg-white border border-slate-200 rounded-xl font-bold text-slate-700 hover:text-indigo-600 disabled:opacity-40 transition-all shadow-sm disabled:cursor-not-allowed"
                     >
-                      Next
+                      {i18n.language === "bn" ? "পরবর্তী" : "Next"}
                     </button>
                   </div>
                 </div>
