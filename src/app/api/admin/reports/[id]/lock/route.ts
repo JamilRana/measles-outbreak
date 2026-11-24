@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasPermission } from "@/lib/rbac";
 import { createAuditLog } from "@/lib/audit";
+import { invalidateOutbreakCaches } from "@/lib/redis";
 
 export async function POST(
   req: Request,
@@ -23,6 +24,8 @@ export async function POST(
       data: { isLocked: !!lock },
       include: { facility: true }
     });
+
+    await invalidateOutbreakCaches(report.outbreakId);
 
     await createAuditLog({
       userId: session.user.id,

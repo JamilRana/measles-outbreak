@@ -41,6 +41,17 @@ export function useDashboardConfig(outbreakId: string | null) {
 }
 
 /**
+ * Hook: Facility Reporting Compliance & 10:00 AM BST Cutoff Tracker
+ */
+export function useDashboardCompliance(params: URLSearchParams | null) {
+  return useSWR(
+    params ? `/api/reports/compliance?${params.toString()}` : null,
+    fetcher,
+    { refreshInterval: 60_000, dedupingInterval: 10_000, revalidateOnFocus: true }
+  );
+}
+
+/**
  * Hook: Settings
  */
 export function useDashboardSettings() {

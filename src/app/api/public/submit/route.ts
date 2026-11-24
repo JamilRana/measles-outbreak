@@ -6,9 +6,9 @@ import { rebuildSnapshot } from "@/lib/snapshot";
 import { ReportStatus } from "@prisma/client";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { validateForm } from "@/lib/validation-engine";
+import { validateForm, validateEpidemiologicalData, AnomalyFlag } from "@/lib/validation-engine";
 import { rateLimit, LIMIT_PROFILES, getClientIp } from "@/lib/rate-limit";
-import { invalidateByPattern } from "@/lib/redis";
+import { invalidateOutbreakCaches } from "@/lib/redis";
 
 async function getSettings() {
   const settings = await prisma.settings.findFirst();
@@ -34,7 +34,10 @@ export async function POST(request: Request) {
       facilityCode,
       outbreakId,
       dynamicFields,
-      reportingDate
+      reportingDate,
+      anomalyOverride,
+      remarks,
+      isNilReport
     } = body;
 
     const settings = await getSettings();
@@ -106,18 +109,19 @@ export async function POST(request: Request) {
       }, { status: 403 });
     }
 
-    // 3. Server-side field validation (same engine as client)
+    // 3. Server-side field validation and Epidemiological Cross-Validation
+    let valuesByKey: Record<string, string> = {};
+    let epiValidation: ReturnType<typeof validateEpidemiologicalData> | null = null;
+
     if (dynamicFields && typeof dynamicFields === 'object') {
       const formFields = await prisma.formField.findMany({
         where: { outbreakId: targetOutbreakId },
         orderBy: { sortOrder: 'asc' },
       });
 
-      // Build fieldKey → value map (dynamicFields is keyed by formField.id)
-      const valuesByKey: Record<string, string> = {};
       for (const field of formFields) {
         const raw = (dynamicFields as Record<string, string>)[field.id];
-        if (raw !== undefined) valuesByKey[field.fieldKey] = raw;
+        if (raw !== undefined) valuesByKey[field.fieldKey] = String(raw);
       }
 
       const validationResults = validateForm(
@@ -130,12 +134,38 @@ export async function POST(request: Request) {
         valuesByKey
       );
 
-      const blockingErrors = validationResults.filter(r => r.severity === 'error');
+      // Epidemiological checks (active census, confirmed <= suspected, hybrid outlier threshold)
+      epiValidation = validateEpidemiologicalData(valuesByKey);
+
+      const blockingErrors = [
+        ...validationResults.filter(r => r.severity === 'error'),
+        ...epiValidation.errors
+      ];
+
       if (blockingErrors.length > 0) {
         return NextResponse.json({
           error: 'Validation failed',
           validationErrors: blockingErrors,
         }, { status: 422 });
+      }
+
+      // Check hybrid anomaly threshold: If outliers detected and not overridden, prompt client
+      if (epiValidation.anomalies.length > 0 && !anomalyOverride) {
+        return NextResponse.json({
+          error: 'Epidemiological outlier detected. Outlier confirmation & remarks required.',
+          anomalies: epiValidation.anomalies,
+          requiresOverride: true,
+        }, { status: 422 });
+      }
+
+      // Enforce mandatory remarks when anomaly is overridden
+      if (anomalyOverride) {
+        if (!remarks || typeof remarks !== 'string' || remarks.trim().length < 5) {
+          return NextResponse.json({
+            error: 'Anomaly override requires mandatory clinical remarks / justification (minimum 5 characters).',
+            requiresRemarks: true,
+          }, { status: 422 });
+        }
       }
     }
 
@@ -162,6 +192,9 @@ export async function POST(request: Request) {
         mode: "EDIT"
       });
     }
+
+    const effectiveNil = Boolean(isNilReport || (epiValidation && epiValidation.isNilReport));
+
     // 4. Create Modern Report
     const report = await prisma.$transaction(async (tx) => {
       const newReport = await tx.report.create({
@@ -169,7 +202,7 @@ export async function POST(request: Request) {
           periodStart: reportDate,
           periodEnd: reportDate,
           facilityId: facility.id,
-          userId: "public-submission", // Placeholder if no session
+          userId: session?.user?.id || "public-submission",
           outbreakId: targetOutbreakId,
           status: ReportStatus.SUBMITTED,
         }
@@ -189,24 +222,43 @@ export async function POST(request: Request) {
 
       // Populate snapshot
       const snapshot = await rebuildSnapshot(newReport.id, tx);
-      return await tx.report.update({
+      snapshot.is_nil_report = effectiveNil;
+      snapshot.anomaly_override = Boolean(anomalyOverride);
+      if (remarks) snapshot.remarks = remarks.trim();
+
+      const updated = await tx.report.update({
         where: { id: newReport.id },
         data: { dataSnapshot: snapshot as any }
       });
+
+      // Audit trail for anomaly override
+      if (anomalyOverride) {
+        await tx.auditLog.create({
+          data: {
+            userId: session?.user?.id || "public-submission",
+            action: "ANOMALY_OVERRIDE",
+            entityType: "Report",
+            entityId: newReport.id,
+            details: {
+              facilityCode: facility.facilityCode,
+              facilityName: facility.facilityName,
+              reportingDate: reportDateStr,
+              anomalies: epiValidation?.anomalies || [],
+              remarks: remarks ? remarks.trim() : "",
+              userEmail: session?.user?.email || "anonymous",
+            } as any,
+            ipAddress: clientIp,
+          }
+        });
+      }
+
+      return updated;
     }, {
       timeout: 15000 // Increase timeout to 15s to handle rebuildSnapshot complexity
     });
 
     // Realtime cache invalidation on report creation
-    try {
-      await Promise.all([
-        invalidateByPattern(`summary:${outbreakId}:*`),
-        invalidateByPattern(`geo:${outbreakId}:*`),
-        invalidateByPattern(`timeseries:${outbreakId}:*`),
-      ]);
-    } catch (cacheErr) {
-      console.error("[Cache] Invalidation hook error on submit:", cacheErr);
-    }
+    await invalidateOutbreakCaches(targetOutbreakId);
 
     return NextResponse.json({ success: true, id: report.id, message: "Report submitted", mode: "CREATE" });
   } catch (error) {
@@ -217,14 +269,18 @@ export async function POST(request: Request) {
 
 export async function PUT(request: Request) {
   try {
+    const clientIp = getClientIp(request);
     const body = await request.json();
-    const { reportId, dynamicFields } = body;
+    const { reportId, dynamicFields, anomalyOverride, remarks, isNilReport } = body;
 
     if (!reportId) {
       return NextResponse.json({ error: "Missing report ID" }, { status: 400 });
     }
 
-    const existing = await prisma.report.findUnique({ where: { id: reportId } });
+    const existing = await prisma.report.findUnique({
+      where: { id: reportId },
+      include: { facility: true }
+    });
     if (!existing) {
        return NextResponse.json({ error: "Report not found" }, { status: 404 });
     }
@@ -273,20 +329,21 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: "Reporting window is closed for this record", mode: "VIEW" }, { status: 403 });
     }
 
-    // Server-side field validation (same engine as client, same rules)
+    // Server-side field validation and Epidemiological Cross-Validation
+    let valuesByKey: Record<string, string> = {};
+    let epiValidation: ReturnType<typeof validateEpidemiologicalData> | null = null;
+
     if (dynamicFields && typeof dynamicFields === 'object') {
       const formFields = await prisma.formField.findMany({
         where: { outbreakId: existing.outbreakId },
         orderBy: { sortOrder: 'asc' },
       });
 
-      const valuesByKey: Record<string, string> = {};
       for (const field of formFields) {
         const raw = (dynamicFields as Record<string, string>)[field.id];
-        if (raw !== undefined) valuesByKey[field.fieldKey] = raw;
+        if (raw !== undefined) valuesByKey[field.fieldKey] = String(raw);
       }
 
-      const { validateForm } = await import('@/lib/validation-engine');
       const validationResults = validateForm(
         formFields.map(f => ({
           fieldKey: f.fieldKey,
@@ -297,14 +354,39 @@ export async function PUT(request: Request) {
         valuesByKey
       );
 
-      const blockingErrors = validationResults.filter(r => r.severity === 'error');
+      epiValidation = validateEpidemiologicalData(valuesByKey);
+
+      const blockingErrors = [
+        ...validationResults.filter(r => r.severity === 'error'),
+        ...epiValidation.errors
+      ];
+
       if (blockingErrors.length > 0) {
         return NextResponse.json({
           error: 'Validation failed',
           validationErrors: blockingErrors,
         }, { status: 422 });
       }
+
+      if (epiValidation.anomalies.length > 0 && !anomalyOverride) {
+        return NextResponse.json({
+          error: 'Epidemiological outlier detected. Outlier confirmation & remarks required.',
+          anomalies: epiValidation.anomalies,
+          requiresOverride: true,
+        }, { status: 422 });
+      }
+
+      if (anomalyOverride) {
+        if (!remarks || typeof remarks !== 'string' || remarks.trim().length < 5) {
+          return NextResponse.json({
+            error: 'Anomaly override requires mandatory clinical remarks / justification (minimum 5 characters).',
+            requiresRemarks: true,
+          }, { status: 422 });
+        }
+      }
     }
+
+    const effectiveNil = Boolean(isNilReport || (epiValidation && epiValidation.isNilReport));
 
     const report = await prisma.$transaction(async (tx) => {
       // Optimized: Batch update values using delete/create instead of serial upserts
@@ -328,10 +410,34 @@ export async function PUT(request: Request) {
 
       // Rebuild snapshot
       const snapshot = await rebuildSnapshot(reportId, tx);
+      snapshot.is_nil_report = effectiveNil;
+      snapshot.anomaly_override = Boolean(anomalyOverride);
+      if (remarks) snapshot.remarks = remarks.trim();
+
       const updatedReport = await tx.report.update({
         where: { id: reportId },
         data: { dataSnapshot: snapshot as any }
       });
+
+      if (anomalyOverride) {
+        await tx.auditLog.create({
+          data: {
+            userId: session?.user?.id || existing.userId || "public-submission",
+            action: "ANOMALY_OVERRIDE",
+            entityType: "Report",
+            entityId: reportId,
+            details: {
+              facilityCode: existing.facility?.facilityCode,
+              facilityName: existing.facility?.facilityName,
+              reportingDate: reportDateStr,
+              anomalies: epiValidation?.anomalies || [],
+              remarks: remarks ? remarks.trim() : "",
+              userEmail: session?.user?.email || "anonymous",
+            } as any,
+            ipAddress: clientIp,
+          }
+        });
+      }
 
       return updatedReport;
     }, {
@@ -339,15 +445,7 @@ export async function PUT(request: Request) {
     });
 
     // Realtime cache invalidation on report update
-    try {
-      await Promise.all([
-        invalidateByPattern(`summary:${existing.outbreakId}:*`),
-        invalidateByPattern(`geo:${existing.outbreakId}:*`),
-        invalidateByPattern(`timeseries:${existing.outbreakId}:*`),
-      ]);
-    } catch (cacheErr) {
-      console.error("[Cache] Invalidation hook error on update:", cacheErr);
-    }
+    await invalidateOutbreakCaches(existing.outbreakId);
 
     return NextResponse.json({ success: true, id: report.id, message: "Report updated", mode: "EDIT" });
   } catch (error) {

@@ -7,6 +7,7 @@
     "build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint",
+    "db:restore": "node scripts/restore-backup.js",
     "postinstall": "prisma generate"
   },
   "dependencies": {
@@ -26,6 +27,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
+    "exceljs": "^4.4.0",
     "i18next": "^26.0.4",
     "i18next-browser-languagedetector": "^8.2.1",
     "ioredis": "^5.11.1",

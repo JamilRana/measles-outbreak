@@ -34,8 +34,11 @@ export default async function RootLayout({
     <html
       lang="bn"
       className={cn(inter.variable, nikosh.variable)}
+      suppressHydrationWarning
     >
-      <body className={cn(
+      <body
+        suppressHydrationWarning
+        className={cn(
         "bg-slate-50 text-slate-900 antialiased",
         inter.className,  // Latin text uses Inter
         "font-nikosh"     // Bengali text uses Nikosh (see globals.css)

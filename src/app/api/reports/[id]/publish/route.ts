@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { createAuditLog, AuditActions } from "@/lib/audit";
 import { ReportStatus } from "@prisma/client";
 import { revalidateTag } from "next/cache";
+import { invalidateOutbreakCaches } from "@/lib/redis";
 
 /**
  * POST /api/reports/[id]/publish
@@ -50,6 +51,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     // Invalidate dashboard cache
     revalidateTag('dashboard', 'default');
+    await invalidateOutbreakCaches(existing.outbreakId);
 
     return NextResponse.json({ success: true, status: newStatus });
   } catch (error) {

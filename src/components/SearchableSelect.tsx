@@ -39,7 +39,7 @@ export const SearchableSelect = ({ label, options, value, onChange, placeholder,
 
   return (
     <div className="relative" ref={containerRef}>
-      <label className="block text-[10px] font-black text-slate-600 uppercase tracking-widest mb-3">{label}</label>
+      {label && <label className="block text-[10px] font-black text-slate-600 uppercase tracking-widest mb-1.5">{label}</label>}
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}

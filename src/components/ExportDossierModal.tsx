@@ -1,8 +1,19 @@
 "use client";
 
-import React, { useState } from "react";
-import { Download, FileSpreadsheet, FileText, Calendar, Filter, X, Loader2 } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
+import {
+  Download,
+  FileSpreadsheet,
+  FileText,
+  Calendar,
+  Filter,
+  X,
+  Loader2,
+  Clock,
+} from "lucide-react";
 import { DIVISIONS, DISTRICTS } from "@/lib/constants";
+import { getBdDateString, getBdTime } from "@/lib/timezone";
 
 interface ExportDossierModalProps {
   isOpen: boolean;
@@ -12,6 +23,8 @@ interface ExportDossierModalProps {
   defaultDistrict?: string | null;
 }
 
+type TimePreset = "today" | "yesterday" | "last7" | "last30" | "month" | "range" | "all";
+
 export default function ExportDossierModal({
   isOpen,
   onClose,
@@ -19,9 +32,10 @@ export default function ExportDossierModal({
   defaultDivision = "",
   defaultDistrict = "",
 }: ExportDossierModalProps) {
+  const [mounted, setMounted] = useState(false);
   const [format, setFormat] = useState<"xlsx" | "csv">("xlsx");
-  const [timeMode, setTimeMode] = useState<"all" | "month" | "range">("month");
-  const [selectedMonth, setSelectedMonth] = useState<string>("2026-05");
+  const [preset, setPreset] = useState<TimePreset>("last30");
+  const [selectedMonth, setSelectedMonth] = useState<string>("2026-04");
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
   const [division, setDivision] = useState<string>(defaultDivision || "");
@@ -30,7 +44,20 @@ export default function ExportDossierModal({
   const [downloading, setDownloading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = "";
+      };
+    }
+  }, [isOpen]);
+
+  if (!isOpen || !mounted) return null;
 
   const handleDownload = async () => {
     setDownloading(true);
@@ -41,10 +68,11 @@ export default function ExportDossierModal({
       params.set("outbreakId", outbreakId || "measles-2026");
       params.set("format", format);
       params.set("status", status);
+      params.set("preset", preset);
 
-      if (timeMode === "month" && selectedMonth) {
+      if (preset === "month" && selectedMonth) {
         params.set("month", selectedMonth);
-      } else if (timeMode === "range") {
+      } else if (preset === "range") {
         if (startDate) params.set("startDate", startDate);
         if (endDate) params.set("endDate", endDate);
       }
@@ -53,7 +81,7 @@ export default function ExportDossierModal({
       if (district) params.set("district", district);
 
       const url = `/api/reports/export?${params.toString()}`;
-      
+
       const res = await fetch(url);
       if (!res.ok) {
         const errorJson = await res.json().catch(() => ({}));
@@ -62,7 +90,7 @@ export default function ExportDossierModal({
 
       const blob = await res.blob();
       const contentDisposition = res.headers.get("content-disposition");
-      let filename = `measles_export_${format === "csv" ? "stata.csv" : "dossier.xlsx"}`;
+      let filename = `dghs_measles_${format === "csv" ? "stata.csv" : "dossier.xlsx"}`;
       if (contentDisposition) {
         const match = contentDisposition.match(/filename="?([^"]+)"?/);
         if (match?.[1]) filename = match[1];
@@ -88,250 +116,264 @@ export default function ExportDossierModal({
 
   const availableDistricts = division ? DISTRICTS[division] || [] : [];
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-lg w-full overflow-hidden">
+  return createPortal(
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-md overflow-y-auto animate-in fade-in duration-200">
+      <div 
+        className="relative bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-lg w-full my-auto overflow-hidden animate-in zoom-in-95 duration-150"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
-        <div className="px-6 py-5 bg-gradient-to-r from-slate-900 to-slate-800 text-white flex items-center justify-between">
+        <div className="px-6 py-5 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 text-white flex items-center justify-between border-b border-slate-800">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-emerald-500/20 text-emerald-400 rounded-xl">
+            <div className="p-2.5 bg-emerald-500/20 text-emerald-400 rounded-2xl border border-emerald-500/30">
               <Download className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-lg font-bold">Export Surveillance Dossier</h3>
-              <p className="text-xs text-slate-300">Detailed facility, temporal, and case statistics</p>
+              <h3 className="text-base font-black uppercase tracking-wider">
+                Export Surveillance Data
+              </h3>
+              <p className="text-xs text-slate-400">
+                Raw data ordered by date & facility (.xlsx / .csv)
+              </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-700/50 transition-colors"
+            className="p-1.5 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Body */}
-        <div className="p-6 space-y-5">
+        <div className="p-6 space-y-5 text-xs text-slate-700">
           {errorMessage && (
-            <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl font-medium">
+            <div className="p-3.5 bg-red-50 border border-red-200 text-red-700 rounded-2xl font-bold">
               {errorMessage}
             </div>
           )}
 
           {/* Format Selection */}
           <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-              File Format
+            <label className="block text-[11px] font-black text-slate-500 uppercase tracking-wider mb-2">
+              Select Export Format
             </label>
             <div className="grid grid-cols-2 gap-3">
               <button
                 type="button"
                 onClick={() => setFormat("xlsx")}
-                className={`flex items-center gap-3 p-3.5 rounded-2xl border-2 transition-all ${
+                className={`flex items-start gap-3 p-3.5 rounded-2xl border-2 transition-all cursor-pointer ${
                   format === "xlsx"
-                    ? "border-emerald-600 bg-emerald-50/50 text-emerald-950 font-semibold"
+                    ? "border-emerald-600 bg-emerald-50/60 text-emerald-950 font-bold shadow-sm"
                     : "border-slate-200 hover:border-slate-300 text-slate-600"
                 }`}
               >
-                <FileSpreadsheet className={`w-5 h-5 ${format === "xlsx" ? "text-emerald-600" : "text-slate-400"}`} />
+                <FileSpreadsheet className={`w-5 h-5 shrink-0 mt-0.5 ${format === "xlsx" ? "text-emerald-600" : "text-slate-400"}`} />
                 <div className="text-left">
-                  <div className="text-sm">Excel Workbook</div>
-                  <div className="text-[10px] text-slate-500">4-Sheet Dossier (.xlsx)</div>
+                  <div className="text-sm font-black">Excel Spreadsheet</div>
+                  <div className="text-[10px] text-slate-500 font-medium">Raw Data Sheet (.xlsx)</div>
                 </div>
               </button>
 
               <button
                 type="button"
                 onClick={() => setFormat("csv")}
-                className={`flex items-center gap-3 p-3.5 rounded-2xl border-2 transition-all ${
+                className={`flex items-start gap-3 p-3.5 rounded-2xl border-2 transition-all cursor-pointer ${
                   format === "csv"
-                    ? "border-indigo-600 bg-indigo-50/50 text-indigo-950 font-semibold"
+                    ? "border-indigo-600 bg-indigo-50/60 text-indigo-950 font-bold shadow-sm"
                     : "border-slate-200 hover:border-slate-300 text-slate-600"
                 }`}
               >
-                <FileText className={`w-5 h-5 ${format === "csv" ? "text-indigo-600" : "text-slate-400"}`} />
+                <FileText className={`w-5 h-5 shrink-0 mt-0.5 ${format === "csv" ? "text-indigo-600" : "text-slate-400"}`} />
                 <div className="text-left">
-                  <div className="text-sm">STATA / R CSV</div>
-                  <div className="text-[10px] text-slate-500">Machine-Readable (.csv)</div>
+                  <div className="text-sm font-black">Raw CSV File</div>
+                  <div className="text-[10px] text-slate-500 font-medium">Date & Facility (.csv)</div>
                 </div>
               </button>
             </div>
           </div>
 
-          {/* Timeframe Scope */}
+          {/* Timeframe Presets */}
           <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-              Timeframe Filter
-            </label>
-            <div className="flex rounded-xl bg-slate-100 p-1 mb-3">
-              <button
-                type="button"
-                onClick={() => setTimeMode("month")}
-                className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all ${
-                  timeMode === "month" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                By Month
-              </button>
-              <button
-                type="button"
-                onClick={() => setTimeMode("range")}
-                className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all ${
-                  timeMode === "range" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                Custom Range
-              </button>
-              <button
-                type="button"
-                onClick={() => setTimeMode("all")}
-                className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all ${
-                  timeMode === "all" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                All Time
-              </button>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-[11px] font-black text-slate-500 uppercase tracking-wider">
+                Timeframe Scope & Presets
+              </label>
+              <span className="text-[10px] font-mono font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">
+                BST Timezone
+              </span>
             </div>
 
-            {timeMode === "month" && (
-              <div className="flex items-center gap-3">
-                <input
-                  type="month"
-                  value={selectedMonth}
-                  onChange={(e) => setSelectedMonth(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                />
+            {/* Quick Preset Buttons */}
+            <div className="grid grid-cols-4 gap-1.5 p-1 bg-slate-100 rounded-2xl border border-slate-200 mb-3">
+              {(
+                [
+                  { id: "today", label: "Today" },
+                  { id: "yesterday", label: "Yesterday" },
+                  { id: "last7", label: "Last 7 Days" },
+                  { id: "last30", label: "Last 30 Days" },
+                ] as const
+              ).map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setPreset(p.id)}
+                  className={`py-1.5 px-2 rounded-xl text-[11px] font-bold transition-all text-center ${
+                    preset === p.id
+                      ? "bg-white text-indigo-700 shadow-sm font-black"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-100 rounded-2xl border border-slate-200 mb-3">
+              {(
+                [
+                  { id: "month", label: "By Month" },
+                  { id: "range", label: "Custom Range" },
+                  { id: "all", label: "All Time" },
+                ] as const
+              ).map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setPreset(p.id)}
+                  className={`py-1.5 px-2 rounded-xl text-[11px] font-bold transition-all text-center ${
+                    preset === p.id
+                      ? "bg-white text-indigo-700 shadow-sm font-black"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Month Picker */}
+            {preset === "month" && (
+              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 flex items-center gap-3">
+                <Calendar className="w-4 h-4 text-indigo-500 shrink-0" />
+                <div className="flex-1">
+                  <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">
+                    Target Month
+                  </span>
+                  <input
+                    type="month"
+                    value={selectedMonth}
+                    onChange={(e) => setSelectedMonth(e.target.value)}
+                    className="w-full bg-transparent border-none p-0 text-xs font-bold text-slate-800 focus:ring-0 cursor-pointer"
+                  />
+                </div>
               </div>
             )}
 
-            {timeMode === "range" && (
-              <div className="grid grid-cols-2 gap-3">
+            {/* Custom Range Pickers */}
+            {preset === "range" && (
+              <div className="grid grid-cols-2 gap-3 p-3 bg-slate-50 rounded-2xl border border-slate-200">
                 <div>
-                  <span className="block text-[11px] text-slate-500 mb-1">From Date</span>
+                  <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                    Start Date
+                  </span>
                   <input
                     type="date"
                     value={startDate}
                     onChange={(e) => setStartDate(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-800 focus:outline-none focus:border-indigo-500"
                   />
                 </div>
                 <div>
-                  <span className="block text-[11px] text-slate-500 mb-1">To Date</span>
+                  <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                    End Date
+                  </span>
                   <input
                     type="date"
                     value={endDate}
                     onChange={(e) => setEndDate(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-800 focus:outline-none focus:border-indigo-500"
                   />
                 </div>
               </div>
             )}
           </div>
 
-          {/* Geographic Scope */}
-          <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-              Geographic Scope
-            </label>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <select
-                  value={division}
-                  onChange={(e) => {
-                    setDivision(e.target.value);
-                    setDistrict("");
-                  }}
-                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                >
-                  <option value="">All Divisions</option>
-                  {DIVISIONS.map((div) => (
-                    <option key={div} value={div}>
-                      {div}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <select
-                  value={district}
-                  onChange={(e) => setDistrict(e.target.value)}
-                  disabled={!division}
-                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50"
-                >
-                  <option value="">All Districts</option>
-                  {availableDistricts.map((dist) => (
-                    <option key={dist} value={dist}>
-                      {dist}
-                    </option>
-                  ))}
-                </select>
-              </div>
+          {/* Geographic Filter Scope */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[11px] font-black text-slate-500 uppercase tracking-wider mb-1.5">
+                Division
+              </label>
+              <select
+                value={division}
+                onChange={(e) => {
+                  setDivision(e.target.value);
+                  setDistrict("");
+                }}
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:outline-none focus:border-indigo-500"
+              >
+                <option value="">All Divisions</option>
+                {DIVISIONS.map((d) => (
+                  <option key={d} value={d}>
+                    {d}
+                  </option>
+                ))}
+              </select>
             </div>
-          </div>
 
-          {/* Status Scope */}
-          <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-              Data Scope
-            </label>
-            <div className="flex gap-4">
-              <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700">
-                <input
-                  type="radio"
-                  name="exportStatus"
-                  value="PUBLISHED"
-                  checked={status === "PUBLISHED"}
-                  onChange={() => setStatus("PUBLISHED")}
-                  className="text-emerald-600 focus:ring-emerald-500"
-                />
-                Published Official Data
+            <div>
+              <label className="block text-[11px] font-black text-slate-500 uppercase tracking-wider mb-1.5">
+                District
               </label>
-              <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700">
-                <input
-                  type="radio"
-                  name="exportStatus"
-                  value="ALL"
-                  checked={status === "ALL"}
-                  onChange={() => setStatus("ALL")}
-                  className="text-emerald-600 focus:ring-emerald-500"
-                />
-                All Submissions (Internal Audit)
-              </label>
+              <select
+                value={district}
+                disabled={!division}
+                onChange={(e) => setDistrict(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:outline-none focus:border-indigo-500 disabled:opacity-50 disabled:bg-slate-100"
+              >
+                <option value="">All Districts</option>
+                {availableDistricts.map((d) => (
+                  <option key={d} value={d}>
+                    {d}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3">
+        <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-3">
           <button
             type="button"
             onClick={onClose}
-            disabled={downloading}
-            className="px-5 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors"
+            className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-900 rounded-xl cursor-pointer"
           >
             Cancel
           </button>
+
           <button
             type="button"
             onClick={handleDownload}
             disabled={downloading}
-            className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-lg shadow-emerald-600/20 transition-all disabled:opacity-60"
+            className="flex items-center gap-2 px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl text-xs font-black uppercase tracking-wider shadow-lg transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
           >
             {downloading ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                Generating Dossier...
+                Preparing Raw Export...
               </>
             ) : (
               <>
                 <Download className="w-4 h-4" />
-                Download {format.toUpperCase()}
+                Download Raw {format.toUpperCase()}
               </>
             )}
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

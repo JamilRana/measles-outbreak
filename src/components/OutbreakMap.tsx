@@ -1,17 +1,29 @@
 "use client";
 
-import { useState, useEffect } from 'react';
-import { useTranslation } from 'react-i18next';
+import { useState, useEffect, useMemo } from 'react';
 import dynamic from 'next/dynamic';
-import { MapPin, Activity, Flame, ShieldAlert, Crosshair, X } from 'lucide-react';
-import type { GeoData } from '@/components/OutbreakMapInner';
+import {
+  CheckCircle2,
+  AlertTriangle,
+  Bed,
+  Heart,
+  Compass,
+  MapPin,
+  TrendingUp,
+} from 'lucide-react';
+import type { GeoData, MetricMode } from '@/components/OutbreakMapInner';
+import { normalizeDistrictName, normalizeDivisionName, BD_DISTRICT_TO_DIVISION } from '@/lib/bd-districts';
+import { getBdTime } from '@/lib/timezone';
 
 // Dynamically import the map to avoid SSR issues with Leaflet
-const MapInner = dynamic(() => import('@/components/OutbreakMapInner').then(mod => mod.default), {
+const MapInner = dynamic(() => import('@/components/OutbreakMapInner').then((mod) => mod.default), {
   ssr: false,
   loading: () => (
-    <div className="h-[650px] w-full bg-slate-100 animate-pulse rounded-2xl flex items-center justify-center">
-      <span className="text-slate-400 font-medium">Loading interactive surveillance map...</span>
+    <div className="h-[620px] w-full bg-slate-50 animate-pulse rounded-2xl flex flex-col items-center justify-center gap-3 border border-slate-200/80">
+      <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+      <span className="text-slate-500 text-sm font-semibold tracking-wide">
+        Rendering clinical surveillance choropleth...
+      </span>
     </div>
   ),
 });
@@ -19,18 +31,47 @@ const MapInner = dynamic(() => import('@/components/OutbreakMapInner').then(mod 
 interface OutbreakMapProps {
   apiEndpoint?: string;
   selectedDistrict?: string | null;
+  selectedDivision?: string | null;
   onSelectDistrict?: (district: string) => void;
+  onSelectDivision?: (division: string) => void;
 }
 
 export default function OutbreakMap({
   apiEndpoint = '/api/reports/geo',
   selectedDistrict,
+  selectedDivision: externalSelectedDivision,
   onSelectDistrict,
+  onSelectDivision: externalOnSelectDivision,
 }: OutbreakMapProps) {
-  const { t } = useTranslation();
   const [geoData, setGeoData] = useState<GeoData[]>([]);
   const [loading, setLoading] = useState(true);
-  const [metricMode, setMetricMode] = useState<'attackRate' | 'totalCases' | 'deaths' | 'hospitalized'>('attackRate');
+  const [metricMode, setMetricMode] = useState<MetricMode>('confirmed');
+
+  // Local division state if not externally controlled
+  const [internalDivision, setInternalDivision] = useState<string | null>(null);
+  const activeDivision =
+    externalSelectedDivision !== undefined ? externalSelectedDivision : internalDivision;
+
+  const handleDivisionChange = (div: string | null) => {
+    if (externalOnSelectDivision) {
+      externalOnSelectDivision(div || '');
+    } else {
+      setInternalDivision(div);
+    }
+  };
+
+  const handleDistrictChange = (dist: string) => {
+    if (onSelectDistrict) {
+      onSelectDistrict(dist);
+    }
+    if (dist) {
+      const norm = normalizeDistrictName(dist);
+      const parentDiv = BD_DISTRICT_TO_DIVISION[norm];
+      if (parentDiv && parentDiv !== activeDivision) {
+        handleDivisionChange(parentDiv);
+      }
+    }
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -56,106 +97,361 @@ export default function OutbreakMap({
     };
   }, [apiEndpoint]);
 
+  // Aggregate stats based on active geographic region (National vs Division vs District)
+  const activeStats = useMemo(() => {
+    if (!geoData.length) {
+      return { confirmed: 0, suspected: 0, hospitalized: 0, deaths: 0 };
+    }
+
+    if (selectedDistrict) {
+      const normDist = normalizeDistrictName(selectedDistrict).toLowerCase();
+      const match = geoData.find(
+        (g) => normalizeDistrictName(g.district).toLowerCase() === normDist
+      );
+      if (match) {
+        return {
+          confirmed: match.confirmed || 0,
+          suspected: match.suspected || 0,
+          hospitalized: match.hospitalized || 0,
+          deaths: match.deaths || 0,
+        };
+      }
+    }
+
+    if (activeDivision) {
+      const normDiv = normalizeDivisionName(activeDivision).toLowerCase();
+      const divisionItems = geoData.filter(
+        (g) => normalizeDivisionName(g.division).toLowerCase() === normDiv
+      );
+      return divisionItems.reduce(
+        (acc, item) => ({
+          confirmed: acc.confirmed + (item.confirmed || 0),
+          suspected: acc.suspected + (item.suspected || 0),
+          hospitalized: acc.hospitalized + (item.hospitalized || 0),
+          deaths: acc.deaths + (item.deaths || 0),
+        }),
+        { confirmed: 0, suspected: 0, hospitalized: 0, deaths: 0 }
+      );
+    }
+
+    // National scope
+    return geoData.reduce(
+      (acc, item) => ({
+        confirmed: acc.confirmed + (item.confirmed || 0),
+        suspected: acc.suspected + (item.suspected || 0),
+        hospitalized: acc.hospitalized + (item.hospitalized || 0),
+        deaths: acc.deaths + (item.deaths || 0),
+      }),
+      { confirmed: 0, suspected: 0, hospitalized: 0, deaths: 0 }
+    );
+  }, [geoData, selectedDistrict, activeDivision]);
+
+  // High-Burden Ranked Leaderboard (Image 2 pattern)
+  const highBurdenRanking = useMemo(() => {
+    if (!geoData.length) return [];
+
+    // Helper to extract value based on metricMode
+    const getVal = (g: GeoData) => {
+      if (metricMode === 'confirmed') return g.confirmed || 0;
+      if (metricMode === 'suspected') return g.suspected || 0;
+      if (metricMode === 'deaths') return g.deaths || 0;
+      if (metricMode === 'hospitalized') return g.hospitalized || 0;
+      return g.attackRatePer100k || 0;
+    };
+
+    // If a division is active (or district inside a division), rank districts within that division
+    if (activeDivision) {
+      const normDiv = normalizeDivisionName(activeDivision).toLowerCase();
+      const dists = geoData.filter(
+        (g) => normalizeDivisionName(g.division).toLowerCase() === normDiv
+      );
+      const sorted = [...dists]
+        .map((d) => ({ name: d.district, val: getVal(d), isDistrict: true }))
+        .sort((a, b) => b.val - a.val);
+
+      const maxVal = sorted[0]?.val || 1;
+      return sorted.slice(0, 5).map((item) => ({
+        ...item,
+        pct: Math.min(100, Math.max(8, Math.round((item.val / maxVal) * 100))),
+      }));
+    }
+
+    // Otherwise, rank all 8 divisions in Bangladesh
+    const divMap = new Map<string, number>();
+    for (const item of geoData) {
+      const divName = normalizeDivisionName(item.division);
+      const cur = divMap.get(divName) || 0;
+      divMap.set(divName, cur + getVal(item));
+    }
+
+    const sorted = Array.from(divMap.entries())
+      .map(([name, val]) => ({ name, val, isDistrict: false }))
+      .sort((a, b) => b.val - a.val);
+
+    const maxVal = sorted[0]?.val || 1;
+    return sorted.slice(0, 5).map((item) => ({
+      ...item,
+      pct: Math.min(100, Math.max(8, Math.round((item.val / maxVal) * 100))),
+    }));
+  }, [geoData, activeDivision, metricMode]);
+
+  // Current BST Date String for header & footer
+  const bdDateStr = useMemo(() => {
+    try {
+      const now = getBdTime();
+      return now.toLocaleDateString('en-GB', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+      });
+    } catch {
+      return '18 Nov 2026';
+    }
+  }, []);
+
   return (
-    <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-      <div className="px-8 py-6 border-b border-slate-100 bg-slate-50/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="bg-white rounded-3xl border border-slate-200/90 shadow-sm overflow-hidden text-slate-800">
+      {/* 1. Surveillance Geo-Intel Header & Metric Filter Tabs (Image 2 pattern) */}
+      <div className="px-6 py-5 border-b border-slate-100 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <MapPin className="w-5 h-5 text-indigo-600" />
-            <h3 className="text-xl font-bold text-slate-800 tracking-tight">Geographic Surveillance & Attack Rate</h3>
-          </div>
-          <p className="text-xs text-slate-500">
-            Click any district to filter all dashboard KPIs, Epi-curves, and facility tables.
-          </p>
+          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">
+            Surveillance geo-intel
+          </span>
+          <h3 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+            Outbreak map — affected areas
+          </h3>
         </div>
 
-        {/* Metric Selector Controls */}
+        {/* Metric Mode Filter Tabs (Pills with colored dots matching Image 2) */}
         <div className="flex flex-wrap items-center gap-2">
-          {selectedDistrict && (
-            <div className="flex items-center gap-2 bg-indigo-50 border border-indigo-200 text-indigo-900 px-3 py-1.5 rounded-xl text-xs font-bold animate-in fade-in">
-              <span>Filtered: {selectedDistrict}</span>
-              {onSelectDistrict && (
-                <button
-                  type="button"
-                  onClick={() => onSelectDistrict(selectedDistrict)}
-                  className="p-0.5 hover:bg-indigo-100 rounded text-indigo-600"
-                  title="Clear district filter"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
-          )}
+          <button
+            type="button"
+            onClick={() => setMetricMode('confirmed')}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
+              metricMode === 'confirmed'
+                ? 'bg-blue-50 border-2 border-blue-600 text-blue-900 shadow-sm font-bold'
+                : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+            }`}
+          >
+            <span className="w-2.5 h-2.5 rounded-full bg-blue-600" />
+            Confirmed cases
+          </button>
 
-          <div className="flex bg-slate-100 p-1 rounded-2xl border border-slate-200">
-            <button
-              type="button"
-              onClick={() => setMetricMode('attackRate')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                metricMode === 'attackRate'
-                  ? 'bg-white text-emerald-700 shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <Activity className="w-3.5 h-3.5" />
-              Attack Rate / 100k
-            </button>
+          <button
+            type="button"
+            onClick={() => setMetricMode('suspected')}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
+              metricMode === 'suspected'
+                ? 'bg-amber-50 border-2 border-amber-600 text-amber-900 shadow-sm font-bold'
+                : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+            }`}
+          >
+            <span className="w-2.5 h-2.5 rounded-full bg-amber-600" />
+            Suspected cases
+          </button>
 
-            <button
-              type="button"
-              onClick={() => setMetricMode('totalCases')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                metricMode === 'totalCases'
-                  ? 'bg-white text-purple-700 shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <Flame className="w-3.5 h-3.5" />
-              Total Cases
-            </button>
+          <button
+            type="button"
+            onClick={() => setMetricMode('hospitalized')}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
+              metricMode === 'hospitalized'
+                ? 'bg-emerald-50 border-2 border-emerald-600 text-emerald-900 shadow-sm font-bold'
+                : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+            }`}
+          >
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-600" />
+            Hospitalised
+          </button>
 
-            <button
-              type="button"
-              onClick={() => setMetricMode('deaths')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                metricMode === 'deaths'
-                  ? 'bg-white text-red-700 shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <ShieldAlert className="w-3.5 h-3.5" />
-              Deaths
-            </button>
+          <button
+            type="button"
+            onClick={() => setMetricMode('deaths')}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
+              metricMode === 'deaths'
+                ? 'bg-rose-50 border-2 border-rose-600 text-rose-900 shadow-sm font-bold'
+                : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+            }`}
+          >
+            <span className="w-2.5 h-2.5 rounded-full bg-rose-600" />
+            Deaths
+          </button>
 
-            <button
-              type="button"
-              onClick={() => setMetricMode('hospitalized')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                metricMode === 'hospitalized'
-                  ? 'bg-white text-orange-700 shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <Crosshair className="w-3.5 h-3.5" />
-              Hospitalized
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => setMetricMode('attackRate')}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
+              metricMode === 'attackRate'
+                ? 'bg-indigo-50 border-2 border-indigo-600 text-indigo-900 shadow-sm font-bold'
+                : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+            }`}
+          >
+            <span className="w-2.5 h-2.5 rounded-full bg-indigo-600" />
+            Attack Rate / 100k
+          </button>
         </div>
       </div>
 
-      <div className="p-4">
-        {loading ? (
-          <div className="h-[650px] w-full bg-slate-100 animate-pulse rounded-2xl flex items-center justify-center">
-            <span className="text-slate-400 font-medium">Aggregating district surveillance data...</span>
+      {/* 2. Split Screen: Map on Left, Intelligence Panel on Right (Image 2 pattern) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-0">
+        {/* Left Column: Interactive Vector Map */}
+        <div className="lg:col-span-8 p-4 bg-slate-50/40 relative">
+          {loading ? (
+            <div className="h-[620px] w-full bg-slate-100/70 animate-pulse rounded-2xl flex flex-col items-center justify-center gap-3 border border-slate-200/80">
+              <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+              <span className="text-slate-500 font-medium">Aggregating district surveillance data...</span>
+            </div>
+          ) : (
+            <MapInner
+              geoData={geoData}
+              metricMode={metricMode}
+              selectedDistrict={selectedDistrict}
+              selectedDivision={activeDivision}
+              onSelectDistrict={handleDistrictChange}
+              onSelectDivision={handleDivisionChange}
+            />
+          )}
+        </div>
+
+        {/* Right Column: Contextual Geo-Intelligence Panel (Image 2 pattern) */}
+        <div className="lg:col-span-4 border-t lg:border-t-0 lg:border-l border-slate-200/80 bg-slate-50/50 p-6 flex flex-col justify-between">
+          <div>
+            {/* Active Region Header */}
+            <div className="mb-5">
+              <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                <Compass className="w-3.5 h-3.5 text-blue-600" />
+                <span>Active region</span>
+              </div>
+              <h4 className="text-2xl font-black text-slate-900 tracking-tight">
+                {selectedDistrict
+                  ? `${selectedDistrict} District`
+                  : activeDivision
+                  ? `${activeDivision} Division`
+                  : 'National summary'}
+              </h4>
+              <p className="text-xs text-slate-500 mt-0.5">
+                {selectedDistrict
+                  ? `${activeDivision || 'Division'} · ${bdDateStr}`
+                  : activeDivision
+                  ? `Reporting districts · ${bdDateStr}`
+                  : `All divisions · ${bdDateStr}`}
+              </p>
+            </div>
+
+            {/* 4 Summary Metric Cards (Stacked layout matching Image 2) */}
+            <div className="space-y-2.5 mb-5">
+              <div className="bg-blue-50/70 border border-blue-200/80 rounded-2xl p-3.5 flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-1.5 bg-blue-100 rounded-lg text-blue-700">
+                    <CheckCircle2 className="w-4 h-4" />
+                  </div>
+                  <span className="font-semibold text-slate-800 text-sm">Confirmed</span>
+                </div>
+                <span className="text-xl font-black text-blue-900">
+                  {activeStats.confirmed.toLocaleString()}
+                </span>
+              </div>
+
+              <div className="bg-amber-50/70 border border-amber-200/80 rounded-2xl p-3.5 flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-1.5 bg-amber-100 rounded-lg text-amber-700">
+                    <AlertTriangle className="w-4 h-4" />
+                  </div>
+                  <span className="font-semibold text-slate-800 text-sm">Suspected</span>
+                </div>
+                <span className="text-xl font-black text-amber-900">
+                  {activeStats.suspected.toLocaleString()}
+                </span>
+              </div>
+
+              <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-2xl p-3.5 flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-1.5 bg-emerald-100 rounded-lg text-emerald-700">
+                    <Bed className="w-4 h-4" />
+                  </div>
+                  <span className="font-semibold text-slate-800 text-sm">Hospitalised</span>
+                </div>
+                <span className="text-xl font-black text-emerald-900">
+                  {activeStats.hospitalized.toLocaleString()}
+                </span>
+              </div>
+
+              <div className="bg-rose-50/70 border border-rose-200/80 rounded-2xl p-3.5 flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-1.5 bg-rose-100 rounded-lg text-rose-700">
+                    <Heart className="w-4 h-4" />
+                  </div>
+                  <span className="font-semibold text-slate-800 text-sm">Deaths</span>
+                </div>
+                <span className="text-xl font-black text-rose-900">
+                  {activeStats.deaths.toLocaleString()}
+                </span>
+              </div>
+            </div>
+
+            {/* Interactive Guidance Banner (Image 2 pattern) */}
+            <div className="bg-blue-50/60 border border-blue-200/70 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-blue-800 flex items-center gap-2 mb-6">
+              <span>👆</span>
+              <span>
+                {selectedDistrict || activeDivision
+                  ? 'Click Back or Bangladesh to return to national summary'
+                  : 'Click a division on the map to filter this panel'}
+              </span>
+            </div>
+
+            {/* High-Burden Ranked Leaderboard (Image 2 pattern) */}
+            <div>
+              <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 mb-3">
+                <TrendingUp className="w-3.5 h-3.5 text-rose-600" />
+                <span>
+                  High-burden {activeDivision ? 'districts' : 'divisions'}
+                </span>
+              </div>
+
+              <div className="space-y-2.5">
+                {highBurdenRanking.map((item, idx) => (
+                  <button
+                    key={item.name}
+                    type="button"
+                    onClick={() => {
+                      if (item.isDistrict) {
+                        handleDistrictChange(item.name);
+                      } else {
+                        handleDivisionChange(item.name);
+                      }
+                    }}
+                    className="w-full flex items-center justify-between p-2 rounded-xl hover:bg-slate-100/80 transition-colors text-left group cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-[100px]">
+                      <span className="w-5 h-5 rounded-full bg-slate-200 text-slate-600 font-bold text-[10px] flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                        {idx + 1}
+                      </span>
+                      <span className="text-xs font-bold text-slate-800 group-hover:text-blue-700 transition-colors">
+                        {item.name}
+                      </span>
+                    </div>
+
+                    {/* Proportional micro-progress bar */}
+                    <div className="flex-1 mx-3 h-2 bg-slate-200/70 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-rose-700/80 rounded-full group-hover:bg-rose-600 transition-all"
+                        style={{ width: `${item.pct}%` }}
+                      />
+                    </div>
+
+                    <span className="text-xs font-black text-slate-900 min-w-[40px] text-right">
+                      {item.val.toLocaleString()}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
-        ) : (
-          <MapInner
-            geoData={geoData}
-            metricMode={metricMode}
-            selectedDistrict={selectedDistrict}
-            onSelectDistrict={onSelectDistrict}
-          />
-        )}
+
+          {/* Provenance & Timestamp Footer (Image 2 pattern) */}
+          <div className="pt-6 mt-6 border-t border-slate-200/70 text-[11px] text-slate-400 font-medium text-center">
+            Source: Civil Surgeon Office · Updated 07:00 BST
+          </div>
+        </div>
       </div>
     </div>
   );

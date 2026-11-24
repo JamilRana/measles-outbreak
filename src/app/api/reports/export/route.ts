@@ -4,7 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { getBdTime, getBdDateString } from "@/lib/timezone";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 
 function escapeCsvField(val: any): string {
   if (val === null || val === undefined) return "";
@@ -29,9 +29,38 @@ export async function GET(req: NextRequest) {
     const requestedDivision = searchParams.get("division") || "";
     const requestedDistrict = searchParams.get("district") || "";
     const requestedFacilityId = searchParams.get("facilityId") || "";
+
+    // Preset & Date Resolution
+    const preset = (searchParams.get("preset") || "").toLowerCase();
     const monthParam = searchParams.get("month") || "";
-    const startDateParam = searchParams.get("startDate") || "";
-    const endDateParam = searchParams.get("endDate") || "";
+    let startDateParam = searchParams.get("startDate") || "";
+    let endDateParam = searchParams.get("endDate") || "";
+
+    const bdNow = getBdTime();
+    const todayStr = getBdDateString(bdNow);
+
+    if (preset === "today") {
+      startDateParam = todayStr;
+      endDateParam = todayStr;
+    } else if (preset === "yesterday") {
+      const yesterday = new Date(bdNow.getTime() - 24 * 60 * 60 * 1000);
+      const yesterdayStr = getBdDateString(yesterday);
+      startDateParam = yesterdayStr;
+      endDateParam = yesterdayStr;
+    } else if (preset === "last7") {
+      const past7 = new Date(bdNow.getTime() - 7 * 24 * 60 * 60 * 1000);
+      startDateParam = getBdDateString(past7);
+      endDateParam = todayStr;
+    } else if (preset === "last30") {
+      const past30 = new Date(bdNow.getTime() - 30 * 24 * 60 * 60 * 1000);
+      startDateParam = getBdDateString(past30);
+      endDateParam = todayStr;
+    } else if (monthParam && /^\d{4}-\d{2}$/.test(monthParam)) {
+      const [year, month] = monthParam.split("-").map(Number);
+      startDateParam = `${monthParam}-01`;
+      const lastDay = new Date(year, month, 0).getDate();
+      endDateParam = `${monthParam}-${String(lastDay).padStart(2, "0")}`;
+    }
 
     const userRole = session.user.role || "USER";
     const isSuperAdmin = userRole === "ADMIN" || userRole === "EDITOR";
@@ -51,7 +80,6 @@ export async function GET(req: NextRequest) {
         }
         enforcedFacilityId = userFacilityId;
       } else {
-        // District/Division Supervisor Scoping
         if (managedDistricts.length > 0) {
           if (enforcedDistrict && !managedDistricts.includes(enforcedDistrict)) {
             return NextResponse.json({ error: "Forbidden: Unauthorized district scope" }, { status: 403 });
@@ -71,77 +99,46 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Determine Date Range
-    let startDate: string | undefined;
-    let endDate: string | undefined;
-
-    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-    const monthRegex = /^\d{4}-\d{2}$/;
-
-    if (monthParam && monthRegex.test(monthParam)) {
-      const [yStr, mStr] = monthParam.split("-");
-      const year = parseInt(yStr, 10);
-      const month = parseInt(mStr, 10);
-      const lastDay = new Date(year, month, 0).getDate();
-      startDate = `${monthParam}-01`;
-      endDate = `${monthParam}-${String(lastDay).padStart(2, "0")}`;
-    } else {
-      if (startDateParam && dateRegex.test(startDateParam)) {
-        startDate = startDateParam;
-      }
-      if (endDateParam && dateRegex.test(endDateParam)) {
-        endDate = endDateParam;
-      }
-    }
-
-    // Build Prisma query filter
-    const where: Prisma.ReportWhereInput = {
+    // Build Query Filters
+    const whereClause: Prisma.ReportWhereInput = {
       outbreakId,
     };
 
-    if (statusParam === "PUBLISHED") {
-      where.status = "PUBLISHED";
-    } else if (statusParam !== "ALL") {
-      where.status = statusParam as any;
+    if (statusParam !== "ALL") {
+      whereClause.status = statusParam as any;
     }
 
-    if (startDate && endDate) {
-      where.periodStart = {
-        gte: new Date(`${startDate}T00:00:00.000Z`),
-        lte: new Date(`${endDate}T23:59:59.999Z`),
-      };
-    } else if (startDate) {
-      where.periodStart = {
-        gte: new Date(`${startDate}T00:00:00.000Z`),
-      };
-    } else if (endDate) {
-      where.periodStart = {
-        lte: new Date(`${endDate}T23:59:59.999Z`),
-      };
+    if (startDateParam || endDateParam) {
+      whereClause.periodStart = {};
+      if (startDateParam) {
+        whereClause.periodStart.gte = new Date(`${startDateParam}T00:00:00.000Z`);
+      }
+      if (endDateParam) {
+        whereClause.periodStart.lte = new Date(`${endDateParam}T23:59:59.999Z`);
+      }
     }
 
-    const facilityFilter: Prisma.FacilityWhereInput = {};
-    if (enforcedFacilityId) facilityFilter.id = enforcedFacilityId;
-    if (enforcedDistrict) {
-      facilityFilter.district = enforcedDistrict;
-    } else if (managedDistricts.length > 0 && !isSuperAdmin) {
-      facilityFilter.district = { in: managedDistricts };
-    }
-    if (enforcedDivision) {
-      facilityFilter.division = enforcedDivision;
-    } else if (managedDivisions.length > 0 && !isSuperAdmin) {
-      facilityFilter.division = { in: managedDivisions };
-    }
-
-    if (Object.keys(facilityFilter).length > 0) {
-      where.facility = facilityFilter;
+    if (enforcedFacilityId) {
+      whereClause.facilityId = enforcedFacilityId;
+    } else if (enforcedDistrict || enforcedDivision) {
+      whereClause.facility = {};
+      if (enforcedDistrict) {
+        whereClause.facility.district = enforcedDistrict;
+      }
+      if (enforcedDivision) {
+        whereClause.facility.division = enforcedDivision;
+      }
     }
 
-    // Fetch reports with facility and user relations
+    // Fast, lean query: Order strictly by Date and Facility Name
     const reports = await prisma.report.findMany({
-      where,
-      orderBy: [{ periodStart: "asc" }, { facility: { facilityName: "asc" } }],
-      include: {
+      where: whereClause,
+      select: {
+        id: true,
+        periodStart: true,
+        createdAt: true,
+        status: true,
+        dataSnapshot: true,
         facility: {
           select: {
             facilityCode: true,
@@ -159,39 +156,44 @@ export async function GET(req: NextRequest) {
           },
         },
       },
+      orderBy: [
+        { periodStart: "asc" },
+        { facility: { facilityName: "asc" } },
+      ],
     });
 
-    const filePrefix = `measles_report_${startDate || "all"}_to_${endDate || "latest"}`;
+    const filePrefix = `dghs_measles_raw_${startDateParam || "all"}_to_${endDateParam || "latest"}`;
 
     // ==========================================
-    // 1. CSV EXPORT (Machine-readable for STATA/R)
+    // 1. RAW CSV EXPORT (Ultra-fast & lean)
     // ==========================================
     if (format === "csv") {
-      const headers = [
-        "report_id",
+      const csvHeaders = [
+        "report_date",
         "facility_code",
         "facility_name",
         "facility_type",
         "division",
         "district",
         "upazila",
-        "period_date",
+        "suspected_cases",
+        "confirmed_cases",
+        "suspected_deaths",
+        "confirmed_deaths",
+        "total_deaths",
+        "admitted",
+        "discharged",
+        "serum_sent",
+        "serum_tested",
+        "is_nil_report",
         "status",
-        "suspected_24h",
-        "confirmed_24h",
-        "admitted_24h",
-        "discharged_24h",
-        "suspected_death_24h",
-        "confirmed_death_24h",
-        "total_deaths_24h",
-        "serum_sent_24h",
-        "submitted_by_name",
-        "submitted_by_email",
-        "created_at",
-        "updated_at",
+        "submitted_at",
+        "reporter_name",
+        "remarks",
       ];
 
-      const rows: string[] = [headers.join(",")];
+      // Add UTF-8 BOM (\uFEFF) for immediate native Excel UTF-8 support
+      const rows: string[] = ["\uFEFF" + csvHeaders.join(",")];
 
       for (const r of reports) {
         const snap = (r.dataSnapshot as Record<string, any>) || {};
@@ -203,32 +205,43 @@ export async function GET(req: NextRequest) {
         const confDeath = Number(snap.confirmedDeath24h || 0);
         const totalDeaths = suspDeath + confDeath;
         const serumSent = Number(snap.serumSent24h || 0);
+        const serumTested = Number(snap.serumTested24h || snap.serumTested || 0);
 
-        const periodDateStr = r.periodStart.toISOString().split("T")[0];
+        const isNilReport =
+          suspected === 0 &&
+          confirmed === 0 &&
+          admitted === 0 &&
+          discharged === 0 &&
+          totalDeaths === 0;
+
+        const dateStr = r.periodStart.toISOString().split("T")[0];
+        const submittedAt = r.createdAt.toISOString().replace("T", " ").substring(0, 19);
+        const remarks = snap.remarks || snap.comments || "";
 
         const row = [
-          escapeCsvField(r.id),
+          dateStr,
           escapeCsvField(r.facility?.facilityCode || ""),
           escapeCsvField(r.facility?.facilityName || ""),
           escapeCsvField(r.facility?.facilityType || ""),
           escapeCsvField(r.facility?.division || ""),
           escapeCsvField(r.facility?.district || ""),
           escapeCsvField(r.facility?.upazila || ""),
-          escapeCsvField(periodDateStr),
-          escapeCsvField(r.status),
           suspected,
           confirmed,
-          admitted,
-          discharged,
           suspDeath,
           confDeath,
           totalDeaths,
+          admitted,
+          discharged,
           serumSent,
+          serumTested,
+          isNilReport ? "YES" : "NO",
+          escapeCsvField(r.status),
+          submittedAt,
           escapeCsvField(r.user?.name || ""),
-          escapeCsvField(r.user?.email || ""),
-          escapeCsvField(r.createdAt.toISOString()),
-          escapeCsvField(r.updatedAt.toISOString()),
+          escapeCsvField(remarks),
         ];
+
         rows.push(row.join(","));
       }
 
@@ -244,52 +257,50 @@ export async function GET(req: NextRequest) {
     }
 
     // ==========================================
-    // 2. EXCEL EXPORT (Multi-sheet styled workbook)
+    // 2. RAW EXCEL EXPORT (Direct In-Memory Generation)
     // ==========================================
-    const wb = XLSX.utils.book_new();
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = "DGHS National Outbreak Surveillance";
+    workbook.created = new Date();
 
-    // Aggregations
-    let totalSuspected = 0;
-    let totalConfirmed = 0;
-    let totalAdmitted = 0;
-    let totalDischarged = 0;
-    let totalSuspDeath = 0;
-    let totalConfDeath = 0;
-    let totalSerumSent = 0;
+    const sheet = workbook.addWorksheet("Raw_Data_by_Date_Facility", {
+      views: [{ state: "frozen", ySplit: 1 }],
+    });
 
-    const facilityMap = new Map<string, {
-      code: string;
-      name: string;
-      type: string;
-      division: string;
-      district: string;
-      upazila: string;
-      reportsCount: number;
-      suspected: number;
-      confirmed: number;
-      admitted: number;
-      discharged: number;
-      suspDeath: number;
-      confDeath: number;
-      totalDeaths: number;
-      serumSent: number;
-      lastReportedDate: string;
-    }>();
+    sheet.columns = [
+      { header: "Report Date", key: "report_date", width: 14 },
+      { header: "Facility Code", key: "facility_code", width: 14 },
+      { header: "Facility Name", key: "facility_name", width: 32 },
+      { header: "Facility Type", key: "facility_type", width: 16 },
+      { header: "Division", key: "division", width: 14 },
+      { header: "District", key: "district", width: 14 },
+      { header: "Upazila", key: "upazila", width: 14 },
+      { header: "Suspected (24h)", key: "suspected_cases", width: 16 },
+      { header: "Confirmed (24h)", key: "confirmed_cases", width: 16 },
+      { header: "Suspected Deaths", key: "suspected_deaths", width: 16 },
+      { header: "Confirmed Deaths", key: "confirmed_deaths", width: 16 },
+      { header: "Total Deaths", key: "total_deaths", width: 14 },
+      { header: "Admitted (24h)", key: "admitted", width: 14 },
+      { header: "Discharged (24h)", key: "discharged", width: 16 },
+      { header: "Serum Sent", key: "serum_sent", width: 14 },
+      { header: "Serum Tested", key: "serum_tested", width: 14 },
+      { header: "Nil Report", key: "is_nil_report", width: 12 },
+      { header: "Status", key: "status", width: 12 },
+      { header: "Submitted At", key: "submitted_at", width: 20 },
+      { header: "Reporter", key: "reporter_name", width: 22 },
+      { header: "Remarks", key: "remarks", width: 28 },
+    ];
 
-    const dateMap = new Map<string, {
-      date: string;
-      reportsCount: number;
-      suspected: number;
-      confirmed: number;
-      admitted: number;
-      discharged: number;
-      suspDeath: number;
-      confDeath: number;
-      totalDeaths: number;
-      serumSent: number;
-    }>();
-
-    const rawRows: any[] = [];
+    // Header styling: Dark slate with white bold text
+    const headerRow = sheet.getRow(1);
+    headerRow.height = 26;
+    headerRow.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 10 };
+    headerRow.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "FF0F172A" }, // slate-900
+    };
+    headerRow.alignment = { vertical: "middle", horizontal: "center" };
 
     for (const r of reports) {
       const snap = (r.dataSnapshot as Record<string, any>) || {};
@@ -301,250 +312,47 @@ export async function GET(req: NextRequest) {
       const confDeath = Number(snap.confirmedDeath24h || 0);
       const totalDeaths = suspDeath + confDeath;
       const serumSent = Number(snap.serumSent24h || 0);
+      const serumTested = Number(snap.serumTested24h || snap.serumTested || 0);
 
-      totalSuspected += suspected;
-      totalConfirmed += confirmed;
-      totalAdmitted += admitted;
-      totalDischarged += discharged;
-      totalSuspDeath += suspDeath;
-      totalConfDeath += confDeath;
-      totalSerumSent += serumSent;
+      const isNilReport =
+        suspected === 0 &&
+        confirmed === 0 &&
+        admitted === 0 &&
+        discharged === 0 &&
+        totalDeaths === 0;
 
       const dateStr = r.periodStart.toISOString().split("T")[0];
+      const submittedAt = r.createdAt.toISOString().replace("T", " ").substring(0, 19);
+      const remarks = snap.remarks || snap.comments || "";
 
-      // Facility Aggregation
-      const fKey = r.facilityId;
-      if (!facilityMap.has(fKey)) {
-        facilityMap.set(fKey, {
-          code: r.facility?.facilityCode || "",
-          name: r.facility?.facilityName || "",
-          type: r.facility?.facilityType || "",
-          division: r.facility?.division || "",
-          district: r.facility?.district || "",
-          upazila: r.facility?.upazila || "",
-          reportsCount: 0,
-          suspected: 0,
-          confirmed: 0,
-          admitted: 0,
-          discharged: 0,
-          suspDeath: 0,
-          confDeath: 0,
-          totalDeaths: 0,
-          serumSent: 0,
-          lastReportedDate: dateStr,
-        });
-      }
-      const fStat = facilityMap.get(fKey)!;
-      fStat.reportsCount += 1;
-      fStat.suspected += suspected;
-      fStat.confirmed += confirmed;
-      fStat.admitted += admitted;
-      fStat.discharged += discharged;
-      fStat.suspDeath += suspDeath;
-      fStat.confDeath += confDeath;
-      fStat.totalDeaths += totalDeaths;
-      fStat.serumSent += serumSent;
-      if (dateStr > fStat.lastReportedDate) {
-        fStat.lastReportedDate = dateStr;
-      }
-
-      // Date Timeline Aggregation
-      if (!dateMap.has(dateStr)) {
-        dateMap.set(dateStr, {
-          date: dateStr,
-          reportsCount: 0,
-          suspected: 0,
-          confirmed: 0,
-          admitted: 0,
-          discharged: 0,
-          suspDeath: 0,
-          confDeath: 0,
-          totalDeaths: 0,
-          serumSent: 0,
-        });
-      }
-      const dStat = dateMap.get(dateStr)!;
-      dStat.reportsCount += 1;
-      dStat.suspected += suspected;
-      dStat.confirmed += confirmed;
-      dStat.admitted += admitted;
-      dStat.discharged += discharged;
-      dStat.suspDeath += suspDeath;
-      dStat.confDeath += confDeath;
-      dStat.totalDeaths += totalDeaths;
-      dStat.serumSent += serumSent;
-
-      // Raw Row
-      rawRows.push({
-        "Report ID": r.id,
-        "Facility Code": r.facility?.facilityCode || "",
-        "Facility Name": r.facility?.facilityName || "",
-        "Facility Type": r.facility?.facilityType || "",
-        "Division": r.facility?.division || "",
-        "District": r.facility?.district || "",
-        "Upazila": r.facility?.upazila || "",
-        "Date": dateStr,
-        "Status": r.status,
-        "Suspected": suspected,
-        "Confirmed": confirmed,
-        "Admitted": admitted,
-        "Discharged": discharged,
-        "Suspected Deaths": suspDeath,
-        "Confirmed Deaths": confDeath,
-        "Total Deaths": totalDeaths,
-        "Serum Sent": serumSent,
-        "Submitted By": r.user?.name || r.user?.email || "",
-        "Submitted At": r.createdAt.toISOString().replace("T", " ").substring(0, 19),
+      sheet.addRow({
+        report_date: dateStr,
+        facility_code: r.facility?.facilityCode || "",
+        facility_name: r.facility?.facilityName || "",
+        facility_type: r.facility?.facilityType || "",
+        division: r.facility?.division || "",
+        district: r.facility?.district || "",
+        upazila: r.facility?.upazila || "",
+        suspected_cases: suspected,
+        confirmed_cases: confirmed,
+        suspected_deaths: suspDeath,
+        confirmed_deaths: confDeath,
+        total_deaths: totalDeaths,
+        admitted,
+        discharged,
+        serum_sent: serumSent,
+        serum_tested: serumTested,
+        is_nil_report: isNilReport ? "YES" : "NO",
+        status: r.status,
+        submitted_at: submittedAt,
+        reporter_name: r.user?.name || "",
+        remarks,
       });
     }
 
-    const totalDeathsAll = totalSuspDeath + totalConfDeath;
-    const totalCasesAll = totalSuspected + totalConfirmed;
-    const suspectedCFR = totalSuspected > 0 ? ((totalSuspDeath / totalSuspected) * 100).toFixed(2) + "%" : "0.00%";
-    const confirmedCFR = totalConfirmed > 0 ? ((totalConfDeath / totalConfirmed) * 100).toFixed(2) + "%" : "0.00%";
-    const overallCFR = totalCasesAll > 0 ? ((totalDeathsAll / totalCasesAll) * 100).toFixed(2) + "%" : "0.00%";
+    const buffer = await workbook.xlsx.writeBuffer();
 
-    // Sheet 1: Executive Summary
-    const summaryRows = [
-      ["DGHS MEASLES OUTBREAK SURVEILLANCE DOSSIER"],
-      ["Generated At (BST)", getBdTime().toLocaleString("en-GB", { timeZone: "Asia/Dhaka" })],
-      ["Outbreak Identifier", outbreakId],
-      ["Reporting Status", statusParam],
-      ["Date Range Filter", startDate && endDate ? `${startDate} to ${endDate}` : "All Recorded Periods"],
-      ["Division Filter", enforcedDivision || "All Divisions"],
-      ["District Filter", enforcedDistrict || "All Districts"],
-      ["Total Submissions Analyzed", reports.length],
-      ["Unique Reporting Facilities", facilityMap.size],
-      [],
-      ["EPIDEMIOLOGICAL KEY PERFORMANCE INDICATORS", "VALUE"],
-      ["Total Suspected Cases (24h)", totalSuspected],
-      ["Total Lab-Confirmed Cases (24h)", totalConfirmed],
-      ["Total Cumulative Measles Cases", totalCasesAll],
-      ["Total Inpatients Admitted (24h)", totalAdmitted],
-      ["Total Inpatients Discharged (24h)", totalDischarged],
-      ["Suspected Measles Deaths (24h)", totalSuspDeath],
-      ["Confirmed Measles Deaths (24h)", totalConfDeath],
-      ["Total Measles Deaths (24h)", totalDeathsAll],
-      ["Suspected Case Fatality Rate (CFR)", suspectedCFR],
-      ["Confirmed Case Fatality Rate (CFR)", confirmedCFR],
-      ["Overall Case Fatality Rate (CFR)", overallCFR],
-      ["Total Serum Samples Sent for Testing", totalSerumSent],
-    ];
-    const wsSummary = XLSX.utils.aoa_to_sheet(summaryRows);
-    wsSummary["!cols"] = [{ wch: 38 }, { wch: 32 }];
-    XLSX.utils.book_append_sheet(wb, wsSummary, "Executive Summary");
-
-    // Sheet 2: Facility-wise Matrix
-    const facilityRows = Array.from(facilityMap.values()).map((f) => ({
-      "Facility Code": f.code,
-      "Facility Name": f.name,
-      "Facility Type": f.type,
-      "Division": f.division,
-      "District": f.district,
-      "Upazila": f.upazila,
-      "Reports Count": f.reportsCount,
-      "Total Suspected": f.suspected,
-      "Total Confirmed": f.confirmed,
-      "Total Admitted": f.admitted,
-      "Total Discharged": f.discharged,
-      "Suspected Deaths": f.suspDeath,
-      "Confirmed Deaths": f.confDeath,
-      "Total Deaths": f.totalDeaths,
-      "Serum Sent": f.serumSent,
-      "Last Reported Date": f.lastReportedDate,
-    }));
-    const wsFacility = XLSX.utils.json_to_sheet(facilityRows);
-    wsFacility["!cols"] = [
-      { wch: 14 },
-      { wch: 36 },
-      { wch: 18 },
-      { wch: 14 },
-      { wch: 16 },
-      { wch: 16 },
-      { wch: 14 },
-      { wch: 16 },
-      { wch: 16 },
-      { wch: 16 },
-      { wch: 16 },
-      { wch: 16 },
-      { wch: 16 },
-      { wch: 14 },
-      { wch: 14 },
-      { wch: 18 },
-    ];
-    XLSX.utils.book_append_sheet(wb, wsFacility, "Facility Matrix");
-
-    // Sheet 3: Date-wise Timeline
-    const dateSorted = Array.from(dateMap.values()).sort((a, b) => a.date.localeCompare(b.date));
-    let cumSuspected = 0;
-    let cumConfirmed = 0;
-    let cumDeaths = 0;
-    const dateRows = dateSorted.map((d) => {
-      cumSuspected += d.suspected;
-      cumConfirmed += d.confirmed;
-      cumDeaths += d.totalDeaths;
-      return {
-        "Date": d.date,
-        "Facilities Reporting": d.reportsCount,
-        "Suspected (24h)": d.suspected,
-        "Confirmed (24h)": d.confirmed,
-        "Admitted (24h)": d.admitted,
-        "Discharged (24h)": d.discharged,
-        "Suspected Deaths": d.suspDeath,
-        "Confirmed Deaths": d.confDeath,
-        "Total Deaths (24h)": d.totalDeaths,
-        "Serum Sent (24h)": d.serumSent,
-        "Cumulative Suspected": cumSuspected,
-        "Cumulative Confirmed": cumConfirmed,
-        "Cumulative Deaths": cumDeaths,
-      };
-    });
-    const wsDate = XLSX.utils.json_to_sheet(dateRows);
-    wsDate["!cols"] = [
-      { wch: 14 },
-      { wch: 20 },
-      { wch: 16 },
-      { wch: 16 },
-      { wch: 16 },
-      { wch: 16 },
-      { wch: 16 },
-      { wch: 16 },
-      { wch: 18 },
-      { wch: 16 },
-      { wch: 20 },
-      { wch: 20 },
-      { wch: 18 },
-    ];
-    XLSX.utils.book_append_sheet(wb, wsDate, "Date Timeline");
-
-    // Sheet 4: Raw Submissions
-    const wsRaw = XLSX.utils.json_to_sheet(rawRows);
-    wsRaw["!cols"] = [
-      { wch: 26 },
-      { wch: 14 },
-      { wch: 34 },
-      { wch: 16 },
-      { wch: 14 },
-      { wch: 16 },
-      { wch: 16 },
-      { wch: 14 },
-      { wch: 12 },
-      { wch: 12 },
-      { wch: 12 },
-      { wch: 12 },
-      { wch: 12 },
-      { wch: 16 },
-      { wch: 16 },
-      { wch: 14 },
-      { wch: 12 },
-      { wch: 24 },
-      { wch: 20 },
-    ];
-    XLSX.utils.book_append_sheet(wb, wsRaw, "Raw Submissions");
-
-    const excelBuffer = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
-
-    return new NextResponse(excelBuffer, {
+    return new NextResponse(buffer as any, {
       status: 200,
       headers: {
         "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

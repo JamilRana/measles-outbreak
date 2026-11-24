@@ -326,3 +326,127 @@ export function rulesForFieldType(fieldType: string): RuleMeta[] {
     r.appliesToTypes.includes("ALL") || r.appliesToTypes.includes(fieldType as any)
   )
 }
+
+// ─── Epidemiological & Anomaly Validation ───────────────────────────────────
+
+export interface AnomalyFlag {
+  fieldKey: string;
+  fieldLabel: string;
+  value: number;
+  threshold: number;
+  reason: string;
+}
+
+export interface EpidemiologicalValidationResult {
+  errors: ValidationResult[];
+  warnings: ValidationResult[];
+  anomalies: AnomalyFlag[];
+  isNilReport: boolean;
+}
+
+/**
+ * Validates domain-specific epidemiological logic:
+ * 1. Confirmed <= Suspected cases.
+ * 2. Active inpatient census: Validates that discharges + deaths do not exceed active inpatient census + admissions.
+ *    In daily delta forms where prior census is untracked, allows (discharged + deaths > admitted) with advisory warning.
+ * 3. Hybrid anomaly detection: Flags values exceeding max(historical_mean + 3*std_dev, minimum_floor).
+ */
+export function validateEpidemiologicalData(
+  values: Record<string, string>,
+  historicalStats?: {
+    meanCases?: number;
+    stdCases?: number;
+    meanDeaths?: number;
+    stdDeaths?: number;
+  }
+): EpidemiologicalValidationResult {
+  const errors: ValidationResult[] = [];
+  const warnings: ValidationResult[] = [];
+  const anomalies: AnomalyFlag[] = [];
+
+  const suspected = parseFloat(values["suspected24h"] || "0") || 0;
+  const confirmed = parseFloat(values["confirmed24h"] || "0") || 0;
+  const admitted = parseFloat(values["admitted24h"] || "0") || 0;
+  const discharged = parseFloat(values["discharged24h"] || "0") || 0;
+  const suspDeath = parseFloat(values["suspectedDeath24h"] || "0") || 0;
+  const confDeath = parseFloat(values["confirmedDeath24h"] || "0") || 0;
+  const totalDeaths = suspDeath + confDeath;
+  const serumSent = parseFloat(values["serumSent24h"] || "0") || 0;
+  const serumTested = parseFloat(values["serumTested24h"] || values["serumTested"] || "0") || 0;
+
+  // 1. Confirmed cannot exceed Suspected
+  if (confirmed > suspected) {
+    errors.push({
+      fieldKey: "confirmed24h",
+      rule: { type: "lte", compareToField: "suspected24h" },
+      message: `Confirmed cases (${confirmed}) cannot exceed suspected cases (${suspected}).`,
+      severity: "error",
+    });
+  }
+
+  // 2. Active Inpatient Census Logic
+  const hasCurrentInpatients = values["currentInpatients"] !== undefined && values["currentInpatients"] !== "";
+  if (hasCurrentInpatients) {
+    const currentInpatients = parseFloat(values["currentInpatients"] || "0") || 0;
+    if (currentInpatients + admitted < discharged + totalDeaths) {
+      errors.push({
+        fieldKey: "discharged24h",
+        rule: { type: "sumLte", value: currentInpatients + admitted },
+        message: `Discharges and deaths (${discharged + totalDeaths}) cannot exceed available inpatient census + admissions (${currentInpatients + admitted}).`,
+        severity: "error",
+      });
+    }
+  } else {
+    // In daily delta reporting without recorded baseline census, discharges can legitimately exceed today's admissions
+    if (discharged + totalDeaths > admitted && admitted > 0) {
+      warnings.push({
+        fieldKey: "discharged24h",
+        rule: { type: "sumLte", severity: "warning" },
+        message: `Discharges & deaths (${discharged + totalDeaths}) exceed today's new admissions (${admitted}). Note: Valid for previously admitted cohort.`,
+        severity: "warning",
+      });
+    }
+  }
+
+  // 3. Lab Specimen Check
+  if (serumTested > 0 && serumSent > 0 && serumTested > serumSent) {
+    warnings.push({
+      fieldKey: "serumSent24h",
+      rule: { type: "lte", severity: "warning" },
+      message: `Serum samples tested (${serumTested}) exceed serum sent today (${serumSent}). Backlogged sample processing noted.`,
+      severity: "warning",
+    });
+  }
+
+  // 4. Anomaly Detection (Hybrid rule: value > max(historical_mean + 3*std_dev, minimum_floor))
+  const deathThreshold = Math.max((historicalStats?.meanDeaths ?? 0) + 3 * (historicalStats?.stdDeaths ?? 1), 2);
+  if (totalDeaths > deathThreshold) {
+    anomalies.push({
+      fieldKey: "deaths",
+      fieldLabel: "Mortality (24h)",
+      value: totalDeaths,
+      threshold: deathThreshold,
+      reason: `Reported deaths (${totalDeaths}) exceed hybrid threshold (${deathThreshold.toFixed(1)}) [Max(3σ, 2 deaths)]. Clinical remarks required.`,
+    });
+  }
+
+  const caseThreshold = Math.max((historicalStats?.meanCases ?? 5) + 3 * (historicalStats?.stdCases ?? 10), 40);
+  if (suspected > caseThreshold) {
+    anomalies.push({
+      fieldKey: "suspected24h",
+      fieldLabel: "Suspected cases (24h)",
+      value: suspected,
+      threshold: caseThreshold,
+      reason: `Suspected cases (${suspected}) exceed facility statistical baseline (${caseThreshold.toFixed(1)}). Clinical remarks required.`,
+    });
+  }
+
+  const isNilReport =
+    suspected === 0 &&
+    confirmed === 0 &&
+    admitted === 0 &&
+    discharged === 0 &&
+    totalDeaths === 0;
+
+  return { errors, warnings, anomalies, isNilReport };
+}

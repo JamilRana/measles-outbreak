@@ -84,3 +84,22 @@ export async function invalidateByPattern(pattern: string) {
     console.error(`[Cache] Pattern invalidation failed for ${pattern}:`, err);
   }
 }
+
+/**
+ * Invalidate all Redis caches related to an outbreak after mutations.
+ * Covers summary, geo choropleth, timeseries, facility compliance, and temporal bulletins.
+ */
+export async function invalidateOutbreakCaches(outbreakId: string) {
+  if (!outbreakId) return;
+  try {
+    await Promise.all([
+      invalidateByPattern(`summary:${outbreakId}:*`),
+      invalidateByPattern(`geo:${outbreakId}:*`),
+      invalidateByPattern(`timeseries:${outbreakId}:*`),
+      invalidateByPattern(`compliance:${outbreakId}:*`),
+      invalidateByPattern(`temporal:${outbreakId}:*`),
+    ]);
+  } catch (err) {
+    console.error(`[Cache] Failed to invalidate outbreak caches for ${outbreakId}:`, err);
+  }
+}

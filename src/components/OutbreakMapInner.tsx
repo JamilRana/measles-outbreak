@@ -1,7 +1,11 @@
 "use client";
 
-import React from 'react';
-import { MapContainer, TileLayer, CircleMarker, Popup, Tooltip } from 'react-leaflet';
+import React, { useMemo, useCallback, useEffect, useState, useRef } from 'react';
+import { MapContainer, GeoJSON, useMap } from 'react-leaflet';
+import type { Layer, LeafletMouseEvent, PathOptions } from 'leaflet';
+import { MapPin, ArrowLeft, Sparkles } from 'lucide-react';
+import bdGeoJsonRaw from '@/data/bangladesh-districts.json';
+import { normalizeDistrictName, normalizeDivisionName } from '@/lib/bd-districts';
 
 export interface GeoData {
   district: string;
@@ -17,174 +21,616 @@ export interface GeoData {
   lng: number;
 }
 
+export type MetricMode = 'confirmed' | 'suspected' | 'hospitalized' | 'deaths' | 'attackRate';
+
 interface Props {
   geoData: GeoData[];
-  metricMode: 'attackRate' | 'totalCases' | 'deaths' | 'hospitalized';
+  metricMode: MetricMode;
   selectedDistrict?: string | null;
+  selectedDivision?: string | null;
   onSelectDistrict?: (district: string) => void;
+  onSelectDivision?: (division: string) => void;
 }
 
-function getMetricColor(rate: number, mode: string): string {
+// Light theme clinical color scale generator tailored for epidemiologists
+export function getMetricColor(val: number, mode: MetricMode): string {
+  if (val <= 0) return '#f1f5f9'; // clean slate-100 for zero reporting
+
+  if (mode === 'confirmed') {
+    if (val >= 200) return '#1e3a8a'; // deep blue 900
+    if (val >= 100) return '#1d4ed8'; // blue 700
+    if (val >= 40) return '#2563eb';  // blue 600
+    if (val >= 15) return '#60a5fa';  // blue 400
+    return '#bfdbfe';                 // blue 200
+  }
+
+  if (mode === 'suspected') {
+    if (val >= 500) return '#7c2d12'; // orange 900
+    if (val >= 200) return '#c2410c'; // orange 700
+    if (val >= 80) return '#ea580c';  // orange 600
+    if (val >= 25) return '#fb923c';  // orange 400
+    return '#fed7aa';                 // orange 200
+  }
+
+  if (mode === 'hospitalized') {
+    if (val >= 200) return '#064e3b'; // emerald 900
+    if (val >= 100) return '#047857'; // emerald 700
+    if (val >= 40) return '#059669';  // emerald 600
+    if (val >= 15) return '#34d399';  // emerald 400
+    return '#a7f3d0';                 // emerald 200
+  }
+
   if (mode === 'deaths') {
-    if (rate >= 10) return '#7f1d1d';
-    if (rate >= 5) return '#b91c1c';
-    if (rate >= 2) return '#ef4444';
-    if (rate >= 1) return '#f87171';
-    return '#fca5a5';
+    if (val >= 10) return '#881337'; // rose 900
+    if (val >= 5) return '#be123c';  // rose 700
+    if (val >= 2) return '#e11d48';  // rose 600
+    return '#fda4af';                // rose 300
   }
 
   if (mode === 'attackRate') {
-    if (rate >= 50) return '#7f1d1d'; // Critical (>50 per 100k)
-    if (rate >= 20) return '#b91c1c'; // Severe (20-50 per 100k)
-    if (rate >= 10) return '#ea580c'; // High (10-20 per 100k)
-    if (rate >= 3) return '#f59e0b';  // Moderate (3-10 per 100k)
-    return '#10b981';                 // Low (<3 per 100k)
+    // Attack rate per 100,000 population (DGHS & WHO epidemic thresholds)
+    if (val >= 50) return '#7f1d1d'; // Critical (>50/100k)
+    if (val >= 20) return '#dc2626'; // Severe (20-50/100k)
+    if (val >= 10) return '#ea580c'; // High (10-20/100k)
+    if (val >= 3) return '#f59e0b';  // Moderate (3-10/100k)
+    return '#10b981';                // Low (<3/100k)
   }
 
-  // totalCases or hospitalized
-  if (rate >= 500) return '#581c87';
-  if (rate >= 200) return '#7e22ce';
-  if (rate >= 50) return '#9333ea';
-  if (rate >= 10) return '#c084fc';
-  return '#3b82f6';
+  return '#93c5fd';
 }
 
-function getMarkerRadius(val: number, mode: string): number {
-  if (mode === 'attackRate') {
-    return Math.max(8, Math.min(36, Math.sqrt(val) * 4.5));
+/**
+ * Pure GeoJSON Lat/Lng bounding box calculator:
+ * Traverses polygon coordinates to compute [[minLat, minLng], [maxLat, maxLng]]
+ */
+function getGeoJsonBounds(featureOrFeatures: any): [[number, number], [number, number]] | null {
+  let minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
+  let count = 0;
+
+  function traverse(coords: any) {
+    if (!Array.isArray(coords)) return;
+    if (typeof coords[0] === 'number' && typeof coords[1] === 'number') {
+      const lng = coords[0];
+      const lat = coords[1];
+      if (lat < minLat) minLat = lat;
+      if (lat > maxLat) maxLat = lat;
+      if (lng < minLng) minLng = lng;
+      if (lng > maxLng) maxLng = lng;
+      count++;
+    } else {
+      coords.forEach(traverse);
+    }
   }
-  if (mode === 'deaths') {
-    return Math.max(8, Math.min(32, Math.sqrt(val) * 6));
-  }
-  return Math.max(8, Math.min(38, Math.sqrt(val) * 2.8));
+
+  const features = Array.isArray(featureOrFeatures)
+    ? featureOrFeatures
+    : featureOrFeatures.type === 'FeatureCollection'
+      ? featureOrFeatures.features
+      : [featureOrFeatures];
+
+  features.forEach((f: any) => {
+    if (f?.geometry?.coordinates) {
+      traverse(f.geometry.coordinates);
+    }
+  });
+
+  if (count === 0) return null;
+  return [[minLat, minLng], [maxLat, maxLng]];
+}
+
+/**
+ * Internal Map Controller:
+ * Handles smooth animated zoom-in on Division / District selection,
+ * and smooth zoom-out to all of Bangladesh on deselection.
+ */
+function MapViewController({
+  selectedDivision,
+  selectedDistrict,
+  geoJsonData,
+}: {
+  selectedDivision?: string | null;
+  selectedDistrict?: string | null;
+  geoJsonData: any;
+}) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!map) return;
+
+    const normDist = selectedDistrict ? normalizeDistrictName(selectedDistrict).toLowerCase() : '';
+    const normDiv = selectedDivision ? normalizeDivisionName(selectedDivision).toLowerCase() : '';
+
+    // 1. Zoom in to selected District (e.g. Barguna)
+    if (normDist) {
+      const feature = geoJsonData.features?.find((f: any) => {
+        const d = normalizeDistrictName(f.properties?.district || f.properties?.ADM2_EN).toLowerCase();
+        return d === normDist;
+      });
+
+      if (feature) {
+        const bounds = getGeoJsonBounds(feature);
+        if (bounds) {
+          map.fitBounds(bounds, {
+            padding: [60, 60],
+            maxZoom: 9,
+            animate: true,
+            duration: 0.8,
+          });
+          return;
+        }
+      }
+    }
+
+    // 2. Zoom in to selected Division (e.g. Barisal / Barishal)
+    if (normDiv) {
+      const divisionFeatures = geoJsonData.features?.filter((f: any) => {
+        const div = normalizeDivisionName(f.properties?.division || f.properties?.ADM1_EN).toLowerCase();
+        return div === normDiv;
+      });
+
+      if (divisionFeatures && divisionFeatures.length > 0) {
+        const bounds = getGeoJsonBounds(divisionFeatures);
+        if (bounds) {
+          map.fitBounds(bounds, {
+            padding: [45, 45],
+            maxZoom: 8,
+            animate: true,
+            duration: 0.8,
+          });
+          return;
+        }
+      }
+    }
+
+    // 3. Deselected -> Zoom out to show all of Bangladesh
+    map.flyTo([23.8, 90.3], 7, {
+      animate: true,
+      duration: 0.8,
+    });
+  }, [selectedDivision, selectedDistrict, geoJsonData, map]);
+
+  return null;
 }
 
 export default function OutbreakMapInner({
   geoData,
   metricMode,
   selectedDistrict,
+  selectedDivision,
   onSelectDistrict,
+  onSelectDivision,
 }: Props) {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Single React-managed state for hovered polygon card (avoids multi-card leakage)
+  const [hovered, setHovered] = useState<{
+    name: string;
+    division: string;
+    data?: GeoData;
+    x: number;
+    y: number;
+  } | null>(null);
+
+  // Bounding box for Bangladesh coordinates
   const bangladeshBounds: [[number, number], [number, number]] = [
-    [20.3, 88.0],
+    [20.4, 88.0],
     [26.7, 92.7],
   ];
 
+  // Fast dictionary lookup for district data
+  const dataMap = useMemo(() => {
+    const map = new Map<string, GeoData>();
+    for (const item of geoData) {
+      const canonical = normalizeDistrictName(item.district).toLowerCase();
+      map.set(canonical, item);
+    }
+    return map;
+  }, [geoData]);
+
+  // Compute metric value for a given district
+  const getDistrictMetric = useCallback(
+    (districtName: string): { val: number; data?: GeoData } => {
+      const canonical = normalizeDistrictName(districtName).toLowerCase();
+      const item = dataMap.get(canonical);
+      if (!item) return { val: 0 };
+
+      const totalCases = (item.confirmed || 0) + (item.suspected || 0);
+      const attackRate =
+        item.attackRatePer100k ??
+        (item.population && item.population > 0
+          ? Number(((totalCases / item.population) * 100000).toFixed(2))
+          : 0);
+
+      let val = item.confirmed || 0;
+      if (metricMode === 'suspected') val = item.suspected || 0;
+      else if (metricMode === 'deaths') val = item.deaths || 0;
+      else if (metricMode === 'hospitalized') val = item.hospitalized || 0;
+      else if (metricMode === 'attackRate') val = attackRate;
+
+      return { val, data: item };
+    },
+    [dataMap, metricMode]
+  );
+
+  // Polygon style definition with visual hierarchy in light theme
+  const styleFeature = useCallback(
+    (feature: any): PathOptions => {
+      const districtName = feature?.properties?.district || feature?.properties?.ADM2_EN || '';
+      const divisionName = feature?.properties?.division || feature?.properties?.ADM1_EN || '';
+      const canonical = normalizeDistrictName(districtName);
+
+      const { val } = getDistrictMetric(districtName);
+
+      const normSelectedDist = selectedDistrict ? normalizeDistrictName(selectedDistrict).toLowerCase() : '';
+      const normSelectedDiv = selectedDivision ? normalizeDivisionName(selectedDivision).toLowerCase() : '';
+      const normFeatureDist = canonical.toLowerCase();
+      const normFeatureDiv = normalizeDivisionName(divisionName).toLowerCase();
+
+      const isDistrictSelected = normSelectedDist ? normSelectedDist === normFeatureDist : false;
+      const isDivisionMatched = normSelectedDiv ? normSelectedDiv === normFeatureDiv : true;
+
+      const baseColor = getMetricColor(val, metricMode);
+
+      // Case 1: Exact District Selected -> Bold cobalt border, rich fill
+      if (isDistrictSelected) {
+        return {
+          fillColor: val > 0 ? baseColor : '#3b82f6',
+          fillOpacity: 0.95,
+          color: '#1d4ed8',
+          weight: 3.5,
+          dashArray: '',
+          opacity: 1,
+        };
+      }
+
+      // Case 2: A specific district is selected elsewhere -> Dim non-selected districts
+      if (normSelectedDist) {
+        return {
+          fillColor: isDivisionMatched ? baseColor : '#f8fafc',
+          fillOpacity: isDivisionMatched ? 0.45 : 0.2,
+          color: isDivisionMatched ? '#94a3b8' : '#e2e8f0',
+          weight: isDivisionMatched ? 1 : 0.6,
+          opacity: isDivisionMatched ? 0.8 : 0.4,
+        };
+      }
+
+      // Case 3: Division Selected (without single district) -> Highlight division, dim outer
+      if (normSelectedDiv) {
+        if (isDivisionMatched) {
+          return {
+            fillColor: val > 0 ? baseColor : '#e0f2fe',
+            fillOpacity: val > 0 ? 0.88 : 0.5,
+            color: '#2563eb', // crisp clinical blue boundary
+            weight: 1.8,
+            opacity: 1,
+          };
+        } else {
+          return {
+            fillColor: '#f8fafc',
+            fillOpacity: 0.25,
+            color: '#e2e8f0',
+            weight: 0.6,
+            opacity: 0.5,
+          };
+        }
+      }
+
+      // Case 4: Deselected (All Bangladesh) -> Full national light choropleth view
+      return {
+        fillColor: val > 0 ? baseColor : '#f8fafc',
+        fillOpacity: val > 0 ? 0.85 : 0.45,
+        color: '#cbd5e1',
+        weight: 1.1,
+        opacity: 0.9,
+      };
+    },
+    [getDistrictMetric, metricMode, selectedDistrict, selectedDivision]
+  );
+
+  // Feature interactions (mouse hover, mouse move, click)
+  const onEachFeature = useCallback(
+    (feature: any, layer: Layer) => {
+      const districtName = feature?.properties?.district || feature?.properties?.ADM2_EN || '';
+      const divisionName = feature?.properties?.division || feature?.properties?.ADM1_EN || '';
+      const canonical = normalizeDistrictName(districtName);
+      const { data } = getDistrictMetric(districtName);
+
+      layer.on({
+        mouseover: (e: LeafletMouseEvent) => {
+          const target = e.target;
+          target.setStyle({
+            weight: 2.8,
+            color: '#1d4ed8',
+            fillOpacity: 0.95,
+          });
+          if (typeof target.bringToFront === 'function') {
+            target.bringToFront();
+          }
+
+          if (containerRef.current) {
+            const rect = containerRef.current.getBoundingClientRect();
+            setHovered({
+              name: canonical,
+              division: normalizeDivisionName(divisionName),
+              data,
+              x: e.originalEvent.clientX - rect.left,
+              y: e.originalEvent.clientY - rect.top,
+            });
+          }
+        },
+        mousemove: (e: LeafletMouseEvent) => {
+          if (containerRef.current) {
+            const rect = containerRef.current.getBoundingClientRect();
+            setHovered((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    x: e.originalEvent.clientX - rect.left,
+                    y: e.originalEvent.clientY - rect.top,
+                  }
+                : null
+            );
+          }
+        },
+        mouseout: (e: LeafletMouseEvent) => {
+          const target = e.target;
+          target.setStyle(styleFeature(feature));
+          setHovered(null);
+        },
+        click: () => {
+          const isSelected =
+            selectedDistrict &&
+            normalizeDistrictName(selectedDistrict).toLowerCase() === canonical.toLowerCase();
+
+          if (isSelected) {
+            // Deselecting district
+            if (onSelectDistrict) onSelectDistrict('');
+          } else {
+            // Selecting district
+            if (onSelectDistrict) onSelectDistrict(canonical);
+          }
+        },
+      });
+    },
+    [getDistrictMetric, onSelectDistrict, selectedDistrict, styleFeature]
+  );
+
+  // Handle clicking Back button
+  const handleBackClick = () => {
+    if (selectedDistrict) {
+      if (onSelectDistrict) onSelectDistrict('');
+    } else if (selectedDivision) {
+      if (onSelectDivision) onSelectDivision('');
+    }
+  };
+
+  // Safe floating card coordinates calculation (clamped inside viewport)
+  const cardPos = useMemo(() => {
+    if (!hovered) return null;
+    const cardW = 240;
+    const cardH = 220;
+    const containerW = containerRef.current?.clientWidth || 700;
+    const containerH = containerRef.current?.clientHeight || 620;
+
+    const posX =
+      hovered.x + 20 + cardW > containerW
+        ? Math.max(12, hovered.x - cardW - 15)
+        : hovered.x + 20;
+
+    const posY = Math.max(
+      12,
+      Math.min(hovered.y - 40, containerH - cardH - 12)
+    );
+
+    return { x: posX, y: posY };
+  }, [hovered]);
+
   return (
-    <MapContainer
-      center={[23.685, 90.3563]}
-      zoom={7}
-      minZoom={7}
-      maxBounds={bangladeshBounds}
-      maxBoundsViscosity={1.0}
-      style={{ height: '650px', width: '100%', borderRadius: '1.5rem' }}
-      scrollWheelZoom={true}
+    <div
+      ref={containerRef}
+      className="relative w-full h-[620px] bg-slate-50/60 rounded-2xl overflow-hidden border border-slate-200/90 select-none"
     >
-      <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-      />
-
-      {geoData.map((item) => {
-        const totalCases = (item.confirmed || 0) + (item.suspected || 0);
-        const attackRate = item.attackRatePer100k ?? (item.population ? Number(((totalCases / item.population) * 100000).toFixed(2)) : 0);
-        
-        let displayVal = attackRate;
-        if (metricMode === 'totalCases') displayVal = totalCases;
-        else if (metricMode === 'deaths') displayVal = item.deaths || 0;
-        else if (metricMode === 'hospitalized') displayVal = item.hospitalized || 0;
-
-        if (displayVal <= 0 && metricMode !== 'attackRate') return null;
-
-        const color = getMetricColor(displayVal, metricMode);
-        const radius = getMarkerRadius(displayVal, metricMode);
-        const isSelected = selectedDistrict?.toLowerCase() === item.district.toLowerCase();
-
-        return (
-          <CircleMarker
-            key={item.district}
-            center={[item.lat, item.lng]}
-            radius={isSelected ? radius + 4 : radius}
-            pathOptions={{
-              fillColor: color,
-              color: isSelected ? '#1e1b4b' : '#ffffff',
-              weight: isSelected ? 4 : 1.5,
-              opacity: 1,
-              fillOpacity: isSelected ? 0.9 : 0.65,
-            }}
-            eventHandlers={{
-              click: () => {
-                if (onSelectDistrict) {
-                  onSelectDistrict(item.district);
-                }
-              },
-            }}
+      {/* 1. In-Map Breadcrumb & Back Navigation (Image 2 pattern) */}
+      <div className="absolute top-4 left-4 z-[1000] flex items-center gap-2">
+        {(selectedDistrict || selectedDivision) && (
+          <button
+            type="button"
+            onClick={handleBackClick}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-white/95 backdrop-blur-md border border-slate-200/90 rounded-xl text-xs font-bold text-slate-700 shadow-sm hover:bg-slate-100 hover:text-slate-900 transition-all cursor-pointer"
           >
-            <Tooltip direction="top" offset={[0, -10]} opacity={0.95}>
-              <div className="font-sans text-xs">
-                <span className="font-bold">{item.district}</span>: {displayVal.toLocaleString()}{' '}
-                {metricMode === 'attackRate' ? '/ 100k' : ''}
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>Back</span>
+          </button>
+        )}
+
+        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white/95 backdrop-blur-md border border-slate-200/90 rounded-xl text-xs text-slate-600 shadow-sm">
+          <MapPin className="w-3.5 h-3.5 text-blue-600" />
+          <button
+            type="button"
+            onClick={() => {
+              if (onSelectDistrict) onSelectDistrict('');
+              if (onSelectDivision) onSelectDivision('');
+            }}
+            className={`font-medium transition-colors hover:text-blue-600 cursor-pointer ${
+              !selectedDivision && !selectedDistrict ? 'text-slate-900 font-bold' : ''
+            }`}
+          >
+            Bangladesh
+          </button>
+          {selectedDivision && (
+            <>
+              <span className="text-slate-300">/</span>
+              <button
+                type="button"
+                onClick={() => {
+                  if (onSelectDistrict) onSelectDistrict('');
+                }}
+                className={`font-medium transition-colors hover:text-blue-600 cursor-pointer ${
+                  selectedDivision && !selectedDistrict ? 'text-slate-900 font-bold' : ''
+                }`}
+              >
+                {selectedDivision}
+              </button>
+            </>
+          )}
+          {selectedDistrict && (
+            <>
+              <span className="text-slate-300">/</span>
+              <span className="text-blue-700 font-bold">{selectedDistrict}</span>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* 2. Self-contained Vector Choropleth (Zero external tile dependencies) */}
+      <MapContainer
+        center={[23.8, 90.3]}
+        zoom={7}
+        minZoom={6}
+        maxZoom={10}
+        maxBounds={bangladeshBounds}
+        maxBoundsViscosity={0.9}
+        style={{ height: '100%', width: '100%', background: '#f8fafc' }}
+        scrollWheelZoom={true}
+        attributionControl={false}
+      >
+        <MapViewController
+          selectedDivision={selectedDivision}
+          selectedDistrict={selectedDistrict}
+          geoJsonData={bdGeoJsonRaw}
+        />
+        <GeoJSON
+          key={`bd-districts-${metricMode}-${selectedDistrict}-${selectedDivision}`}
+          data={bdGeoJsonRaw as any}
+          style={styleFeature}
+          onEachFeature={onEachFeature}
+        />
+      </MapContainer>
+
+      {/* 3. Single React-Managed Floating Hover Card (Image 2 pattern) */}
+      {hovered && cardPos && (
+        <div
+          className="absolute z-[1100] pointer-events-none transition-all duration-75 ease-out"
+          style={{
+            left: `${cardPos.x}px`,
+            top: `${cardPos.y}px`,
+          }}
+        >
+          <div className="bg-white/95 backdrop-blur-md border border-slate-200/90 shadow-xl rounded-2xl p-4 w-60 text-slate-800">
+            <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
+              <MapPin className="w-3 h-3 text-slate-400" />
+              <span>District</span>
+            </div>
+            <div className="text-base font-black text-slate-900 tracking-tight mb-2.5">
+              {hovered.name}
+              <span className="ml-1.5 text-xs font-semibold text-slate-400 font-normal">
+                ({hovered.division} Div.)
+              </span>
+            </div>
+
+            <div className="space-y-1.5 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-1.5 text-slate-600 font-medium">
+                  <span className="w-2 h-2 rounded-full bg-amber-500" />
+                  Suspected
+                </span>
+                <span className="font-bold text-slate-900">
+                  {(hovered.data?.suspected || 0).toLocaleString()}
+                </span>
               </div>
-            </Tooltip>
 
-            <Popup>
-              <div className="text-sm font-sans p-1 min-w-[200px]">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-2">
-                  <div>
-                    <h4 className="font-black text-slate-900 text-base leading-tight">{item.district}</h4>
-                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">{item.division} Division</span>
-                  </div>
-                  {item.population && (
-                    <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-medium">
-                      {(item.population / 1000000).toFixed(2)}M Pop
-                    </span>
-                  )}
-                </div>
-
-                <div className="space-y-1.5 my-3 text-xs">
-                  <div className="flex justify-between items-center py-1 px-2 rounded-lg bg-slate-50 font-semibold">
-                    <span className="text-slate-600">Attack Rate (/ 100k):</span>
-                    <span className="font-black" style={{ color }}>{attackRate}</span>
-                  </div>
-                  <div className="flex justify-between items-center py-0.5 px-2">
-                    <span className="text-slate-500">Suspected Cases:</span>
-                    <span className="font-bold text-blue-600">{item.suspected.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between items-center py-0.5 px-2">
-                    <span className="text-slate-500">Confirmed Cases:</span>
-                    <span className="font-bold text-purple-600">{item.confirmed.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between items-center py-0.5 px-2">
-                    <span className="text-slate-500">Inpatients Admitted:</span>
-                    <span className="font-bold text-orange-600">{item.hospitalized.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between items-center py-0.5 px-2">
-                    <span className="text-slate-500">Reported Deaths:</span>
-                    <span className="font-bold text-red-600">{item.deaths.toLocaleString()}</span>
-                  </div>
-                </div>
-
-                {onSelectDistrict && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onSelectDistrict(item.district);
-                    }}
-                    className={`w-full py-2 px-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-sm ${
-                      isSelected
-                        ? 'bg-slate-800 text-white hover:bg-slate-900'
-                        : 'bg-emerald-600 text-white hover:bg-emerald-700'
-                    }`}
-                  >
-                    {isSelected ? '✕ Clear District Filter' : '🎯 Filter Dashboard to District'}
-                  </button>
-                )}
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-1.5 text-slate-600 font-medium">
+                  <span className="w-2 h-2 rounded-full bg-blue-600" />
+                  Confirmed
+                </span>
+                <span className="font-bold text-blue-700">
+                  {(hovered.data?.confirmed || 0).toLocaleString()}
+                </span>
               </div>
-            </Popup>
-          </CircleMarker>
-        );
-      })}
-    </MapContainer>
+
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-1.5 text-slate-600 font-medium">
+                  <span className="w-2 h-2 rounded-full bg-emerald-600" />
+                  Hospitalised
+                </span>
+                <span className="font-bold text-slate-900">
+                  {(hovered.data?.hospitalized || 0).toLocaleString()}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-1.5 text-slate-600 font-medium">
+                  <span className="w-2 h-2 rounded-full bg-rose-600" />
+                  Deaths
+                </span>
+                <span
+                  className={`font-bold ${
+                    (hovered.data?.deaths || 0) > 0 ? 'text-rose-600 font-black' : 'text-slate-400'
+                  }`}
+                >
+                  {(hovered.data?.deaths || 0).toLocaleString()}
+                </span>
+              </div>
+
+              {hovered.data?.attackRatePer100k !== undefined && (
+                <div className="pt-1.5 mt-1 border-t border-slate-100 flex items-center justify-between text-[11px]">
+                  <span className="text-slate-500">Attack Rate (/100k):</span>
+                  <span className="font-mono font-bold text-indigo-700">
+                    {hovered.data.attackRatePer100k}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 4. Bottom-Left Context Guidance Pill (Image 2 pattern) */}
+      <div className="absolute bottom-4 left-4 z-[1000] pointer-events-none">
+        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white/95 backdrop-blur-md border border-slate-200/90 rounded-full text-[11px] font-semibold text-slate-600 shadow-sm">
+          <Sparkles className="w-3.5 h-3.5 text-blue-500" />
+          <span>
+            {selectedDistrict
+              ? 'Click another district or Back to zoom out'
+              : selectedDivision
+              ? 'Click a district to focus'
+              : 'Click a division or district to zoom in'}
+          </span>
+        </div>
+      </div>
+
+      {/* 5. Bottom-Right Compact Legend (Image 2 pattern) */}
+      <div className="absolute bottom-4 right-4 z-[1000] bg-white/95 backdrop-blur-md border border-slate-200/90 shadow-md rounded-2xl p-3 text-xs text-slate-700 min-w-[170px]">
+        <div className="font-bold text-[11px] text-slate-700 mb-1.5 capitalize">
+          {metricMode === 'attackRate'
+            ? 'Attack Rate (/100k)'
+            : metricMode === 'hospitalized'
+            ? 'Hospitalised Cases'
+            : `${metricMode} Cases`}
+        </div>
+        <div
+          className={`h-2 w-full rounded-full mb-1 ${
+            metricMode === 'deaths'
+              ? 'bg-gradient-to-r from-rose-200 via-rose-500 to-rose-900'
+              : metricMode === 'suspected'
+              ? 'bg-gradient-to-r from-amber-200 via-amber-500 to-amber-900'
+              : metricMode === 'hospitalized'
+              ? 'bg-gradient-to-r from-emerald-200 via-emerald-500 to-emerald-900'
+              : metricMode === 'attackRate'
+              ? 'bg-gradient-to-r from-emerald-400 via-amber-500 to-rose-700'
+              : 'bg-gradient-to-r from-blue-200 via-blue-500 to-blue-900'
+          }`}
+        />
+        <div className="flex justify-between text-[10px] text-slate-400 font-semibold mb-1.5">
+          <span>Low</span>
+          <span>High</span>
+        </div>
+        <div className="flex items-center gap-1.5 text-[10px] text-slate-500 border-t border-slate-100 pt-1">
+          <span className="w-2.5 h-2.5 rounded bg-slate-100 border border-slate-300" />
+          <span>No data / reporting facility</span>
+        </div>
+      </div>
+    </div>
   );
 }

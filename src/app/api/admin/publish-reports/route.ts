@@ -39,7 +39,13 @@ export async function POST(request: Request) {
 
     // Invalidate dashboard caches (Next.js tags + Redis)
     revalidateTag('dashboard', 'default');
-    await invalidateByPattern('summary:*');
+    await Promise.all([
+      invalidateByPattern('summary:*'),
+      invalidateByPattern('geo:*'),
+      invalidateByPattern('timeseries:*'),
+      invalidateByPattern('compliance:*'),
+      invalidateByPattern('temporal:*'),
+    ]);
 
     return NextResponse.json({ count: result.count });
   } catch (error) {

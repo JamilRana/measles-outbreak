@@ -24,7 +24,7 @@ import { getBdDateString, getBdTime } from '@/lib/timezone';
 
 import { FormField } from '@/types/form';
 import { Settings } from '@/types/config';
-import { validateForm, ValidationResult } from '@/lib/validation-engine';
+import { validateForm, validateEpidemiologicalData, ValidationResult, AnomalyFlag } from '@/lib/validation-engine';
 import { title } from 'process';
 
 interface UnifiedReportFormProps {
@@ -182,6 +182,11 @@ export default function UnifiedReportForm({
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<ValidationResult[]>([]);
+  const [anomalyList, setAnomalyList] = useState<AnomalyFlag[]>([]);
+  const [anomalyConfirmed, setAnomalyConfirmed] = useState(false);
+  const [clinicalRemarks, setClinicalRemarks] = useState('');
+  const [isNilReport, setIsNilReport] = useState(false);
+  const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null);
   const [reportId, setReportId] = useState<string | null>(initialData?.id || null);
 
   useEffect(() => {
@@ -290,6 +295,7 @@ export default function UnifiedReportForm({
         try {
           if (Object.keys(formData).some(k => formData[k] !== '')) {
             localStorage.setItem(draftKey, JSON.stringify(formData));
+            setDraftSavedAt(new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
           }
         } catch (e) {}
       }, 800);
@@ -307,11 +313,25 @@ export default function UnifiedReportForm({
           const parsed = JSON.parse(savedDraft);
           if (parsed && typeof parsed === 'object') {
             setFormData(prev => ({ ...parsed, ...prev }));
+            setDraftSavedAt("Restored from local storage");
           }
         }
       } catch (e) {}
     }
   }, [facilityId, selectedDate, mode]);
+
+  const handleClearDraft = () => {
+    if (typeof window !== 'undefined' && facilityId && selectedDate) {
+      localStorage.removeItem(`measles_draft_${facilityId}_${selectedDate}`);
+      setDraftSavedAt(null);
+      const empty: Record<string, string> = {};
+      fields.forEach(f => { empty[f.fieldKey] = ''; });
+      setFormData(empty);
+      setAnomalyList([]);
+      setValidationErrors([]);
+      setError(null);
+    }
+  };
 
   const handleZeroReporting = () => {
     const zeros: Record<string, string> = {};
@@ -321,6 +341,8 @@ export default function UnifiedReportForm({
       }
     });
     setFormData(prev => ({ ...prev, ...zeros }));
+    setIsNilReport(true);
+    setAnomalyList([]);
     setValidationErrors([]);
     setError(null);
   };
@@ -337,8 +359,8 @@ export default function UnifiedReportForm({
     e.preventDefault();
     if (mode === 'VIEW') return;
 
-    // Run client-side validation
-    const results = validateForm(
+    // Run client-side field validation
+    const formResults = validateForm(
       fields.map(f => ({
         fieldKey: f.fieldKey,
         label: f.label,
@@ -348,12 +370,28 @@ export default function UnifiedReportForm({
       formData
     );
 
-    const errors = results.filter(r => r.severity === 'error');
-    const warnings = results.filter(r => r.severity === 'warning');
-    setValidationErrors(results);
+    // Run domain-specific epidemiological checks (active census, confirmed <= suspected, hybrid outlier threshold)
+    const epiResults = validateEpidemiologicalData(formData);
+    const combinedErrors = [...formResults.filter(r => r.severity === 'error'), ...epiResults.errors];
+    const combinedWarnings = [...formResults.filter(r => r.severity === 'warning'), ...epiResults.warnings];
 
-    // Block submission on errors; warnings are shown but don't block
-    if (errors.length > 0) return;
+    setValidationErrors([...combinedErrors, ...combinedWarnings]);
+    setAnomalyList(epiResults.anomalies);
+    setIsNilReport(epiResults.isNilReport);
+
+    // Block submission on errors
+    if (combinedErrors.length > 0) return;
+
+    // If anomalies detected and reporter hasn't confirmed with remarks, halt preview and prompt
+    if (epiResults.anomalies.length > 0 && !anomalyConfirmed) {
+      setError("Statistical outlier detected. Please review the highlighted anomaly alert below and provide clinical remarks to proceed.");
+      return;
+    }
+
+    if (anomalyConfirmed && clinicalRemarks.trim().length < 5) {
+      setError("Please provide at least 5 characters of clinical justification / remarks for anomaly override.");
+      return;
+    }
 
     setIsPreview(true);
   };
@@ -371,6 +409,9 @@ export default function UnifiedReportForm({
         reportId,
         dynamicFields, 
         reportingDate: new Date(selectedDate).toISOString(), 
+        anomalyOverride: anomalyConfirmed,
+        remarks: clinicalRemarks,
+        isNilReport: isNilReport,
       };
 
       const res = await fetch('/api/public/submit', {
@@ -591,6 +632,20 @@ export default function UnifiedReportForm({
                   })}
                </div>
 
+               {anomalyConfirmed && (
+                  <div className="mt-6 p-4 bg-amber-50 border border-amber-200 rounded-xl text-xs space-y-1">
+                    <p className="font-black text-amber-900 uppercase tracking-wider">Outlier Override Attached:</p>
+                    <p className="text-amber-800 italic font-medium">"{clinicalRemarks}"</p>
+                  </div>
+               )}
+
+               {isNilReport && (
+                  <div className="mt-6 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs font-bold text-emerald-800 flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                    Zero-Reporting (Nil Report) Protocol Confirmed: All epidemiological channels reported as 0.
+                  </div>
+               )}
+
                <div className="flex gap-4 mt-12 pt-8 border-t border-slate-100">
                   {mode === 'VIEW' ? (
                     <div className="flex-1 flex flex-col items-center gap-6">
@@ -667,6 +722,81 @@ export default function UnifiedReportForm({
               </div>
             )}
 
+            {/* Draft Auto-Saving Indicator */}
+            {mode === 'CREATE' && (
+              <div className="flex items-center justify-between px-4 py-2.5 bg-slate-50 border border-slate-200/80 rounded-xl text-xs text-slate-500">
+                <div className="flex items-center gap-2">
+                  <div className={`w-2 h-2 rounded-full ${draftSavedAt ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`} />
+                  <span className="font-medium">
+                    {draftSavedAt ? `Draft auto-saved: ${draftSavedAt}` : 'Local auto-save ready'}
+                  </span>
+                </div>
+                {draftSavedAt && (
+                  <button
+                    type="button"
+                    onClick={handleClearDraft}
+                    className="text-xs font-semibold text-slate-500 hover:text-red-600 transition-colors"
+                  >
+                    Discard Draft
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Epidemiological Anomaly / Outlier Review Card */}
+            {anomalyList.length > 0 && (
+              <div className="p-5 bg-amber-50/90 border-2 border-amber-300 rounded-2xl shadow-sm space-y-4">
+                <div className="flex items-start gap-3">
+                  <div className="p-2 bg-amber-500 text-white rounded-xl flex-shrink-0 mt-0.5">
+                    <ShieldAlert className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-amber-950 uppercase tracking-wider">
+                      Epidemiological Outlier Detected ({anomalyList.length})
+                    </h4>
+                    <p className="text-xs text-amber-800 mt-1">
+                      Reported values significantly exceed facility historical baseline (&gt; 3σ / threshold). To transmit this submission, please confirm and provide a clinical justification.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-2 pl-2">
+                  {anomalyList.map((a, idx) => (
+                    <div key={idx} className="p-3 bg-white/80 border border-amber-200 rounded-xl text-xs text-amber-950">
+                      <span className="font-bold">{a.fieldLabel}:</span> {a.reason}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="pt-2 border-t border-amber-200/60 space-y-3">
+                  <label className="flex items-center gap-3 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={anomalyConfirmed}
+                      onChange={(e) => setAnomalyConfirmed(e.target.checked)}
+                      className="w-4 h-4 text-amber-600 rounded border-amber-300 focus:ring-amber-500"
+                    />
+                    <span className="text-xs font-bold text-amber-950">
+                      I confirm these outlier counts are verified against physical hospital admission/mortality registers.
+                    </span>
+                  </label>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-amber-900 uppercase tracking-wider mb-1">
+                      Clinical Remarks & Outlier Justification <span className="text-red-500">*</span>
+                    </label>
+                    <textarea
+                      value={clinicalRemarks}
+                      onChange={(e) => setClinicalRemarks(e.target.value)}
+                      placeholder="e.g., Surge due to localized cluster in Ward 4; verified by Civil Surgeon."
+                      rows={2}
+                      className="w-full text-xs p-3 bg-white border border-amber-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 text-slate-800"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
             {fields.length > 0 && (
               <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-5 bg-gradient-to-r from-emerald-50 to-teal-50/60 border border-emerald-200/80 rounded-2xl shadow-sm">
                 <div className="flex items-center gap-3.5">
@@ -674,7 +804,14 @@ export default function UnifiedReportForm({
                     <CheckCircle2 className="w-5 h-5" />
                   </div>
                   <div>
-                    <h4 className="text-sm font-bold text-emerald-950">Zero-Reporting Protocol (Nil Report)</h4>
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-sm font-bold text-emerald-950">Zero-Reporting Protocol (Nil Report)</h4>
+                      {isNilReport && (
+                        <span className="px-2 py-0.5 bg-emerald-200 text-emerald-800 font-black text-[9px] uppercase rounded-full">
+                          Active Nil Report
+                        </span>
+                      )}
+                    </div>
                     <p className="text-xs text-emerald-700 mt-0.5">
                       No suspected or confirmed cases today? Click to populate verified zero counts across all surveillance fields.
                     </p>

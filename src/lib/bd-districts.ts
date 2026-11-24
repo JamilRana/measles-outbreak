@@ -163,3 +163,65 @@ export const BD_DISTRICT_POPULATION: Record<string, number> = {
   'Sunamganj': 2695495,
   'Sylhet': 3857037,
 };
+
+// Aliases and spelling variations to canonical DB names
+const DISTRICT_ALIASES: Record<string, string> = {
+  'bogra': 'Bogura',
+  'bogura': 'Bogura',
+  'brahamanbaria': 'Brahmanbaria',
+  'brahmanbaria': 'Brahmanbaria',
+  'chittagong': 'Chattogram',
+  'chattogram': 'Chattogram',
+  'comilla': 'Cumilla',
+  'cumilla': 'Cumilla',
+  'jessore': 'Jashore',
+  'jashore': 'Jashore',
+  'jhalokati': 'Jhalakathi',
+  'jhalakathi': 'Jhalakathi',
+  'maulvibazar': 'Moulvibazar',
+  'moulvibazar': 'Moulvibazar',
+  'nawabganj': 'Chapainawabganj',
+  'chapainawabganj': 'Chapainawabganj',
+  'netrakona': 'Netrokona',
+  'netrokona': 'Netrokona',
+  'barishal': 'Barisal',
+  'barisal': 'Barisal',
+};
+
+export function normalizeDistrictName(name?: string | null): string {
+  if (!name) return '';
+  const trimmed = name.trim();
+  const lower = trimmed.toLowerCase();
+  return DISTRICT_ALIASES[lower] || trimmed;
+}
+
+const DIVISION_ALIASES: Record<string, string> = {
+  'barishal': 'Barisal',
+  'barisal': 'Barisal',
+  'chittagong': 'Chattogram',
+  'chattogram': 'Chattogram',
+  'dhaka': 'Dhaka',
+  'khulna': 'Khulna',
+  'mymensingh': 'Mymensingh',
+  'rajshahi': 'Rajshahi',
+  'rangpur': 'Rangpur',
+  'sylhet': 'Sylhet',
+};
+
+export function normalizeDivisionName(name?: string | null): string {
+  if (!name) return '';
+  const trimmed = name.trim().toLowerCase();
+  return DIVISION_ALIASES[trimmed] || (name.trim().charAt(0).toUpperCase() + name.trim().slice(1));
+}
+
+export const BD_DISTRICT_TO_DIVISION: Record<string, string> = {
+  'Barguna': 'Barisal', 'Barisal': 'Barisal', 'Bhola': 'Barisal', 'Jhalakathi': 'Barisal', 'Patuakhali': 'Barisal', 'Pirojpur': 'Barisal',
+  'Bandarban': 'Chattogram', 'Brahmanbaria': 'Chattogram', 'Chandpur': 'Chattogram', 'Chattogram': 'Chattogram', "Cox's Bazar": 'Chattogram', 'Cumilla': 'Chattogram', 'Feni': 'Chattogram', 'Khagrachhari': 'Chattogram', 'Lakshmipur': 'Chattogram', 'Noakhali': 'Chattogram', 'Rangamati': 'Chattogram',
+  'Dhaka': 'Dhaka', 'Faridpur': 'Dhaka', 'Gazipur': 'Dhaka', 'Gopalganj': 'Dhaka', 'Kishoreganj': 'Dhaka', 'Madaripur': 'Dhaka', 'Manikganj': 'Dhaka', 'Munshiganj': 'Dhaka', 'Narayanganj': 'Dhaka', 'Narsingdi': 'Dhaka', 'Rajbari': 'Dhaka', 'Shariatpur': 'Dhaka', 'Tangail': 'Dhaka',
+  'Bagerhat': 'Khulna', 'Chuadanga': 'Khulna', 'Jashore': 'Khulna', 'Jhenaidah': 'Khulna', 'Khulna': 'Khulna', 'Kushtia': 'Khulna', 'Magura': 'Khulna', 'Meherpur': 'Khulna', 'Narail': 'Khulna', 'Satkhira': 'Khulna',
+  'Jamalpur': 'Mymensingh', 'Mymensingh': 'Mymensingh', 'Netrokona': 'Mymensingh', 'Sherpur': 'Mymensingh',
+  'Bogura': 'Rajshahi', 'Chapainawabganj': 'Rajshahi', 'Joypurhat': 'Rajshahi', 'Naogaon': 'Rajshahi', 'Natore': 'Rajshahi', 'Pabna': 'Rajshahi', 'Rajshahi': 'Rajshahi', 'Sirajganj': 'Rajshahi',
+  'Dinajpur': 'Rangpur', 'Gaibandha': 'Rangpur', 'Kurigram': 'Rangpur', 'Lalmonirhat': 'Rangpur', 'Nilphamari': 'Rangpur', 'Panchagarh': 'Rangpur', 'Rangpur': 'Rangpur', 'Thakurgaon': 'Rangpur',
+  'Habiganj': 'Sylhet', 'Moulvibazar': 'Sylhet', 'Sunamganj': 'Sylhet', 'Sylhet': 'Sylhet',
+};
+

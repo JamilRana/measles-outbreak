@@ -4,8 +4,38 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { createAuditLog, AuditActions } from '@/lib/audit';
 
+export const dynamic = 'force-dynamic';
+export const maxDuration = 300;
+
 const BACKUP_VERSION = '1.0';
 const BACKUP_PLATFORM = 'measles-outbreak-monitoring';
+const MAX_BACKUP_SIZE = 150 * 1024 * 1024; // 150MB
+
+// Model date fields map for fast, memory-efficient date conversion
+const MODEL_DATE_FIELDS: Record<string, string[]> = {
+  FacilityType: ['createdAt', 'updatedAt'],
+  Disease: ['createdAt', 'updatedAt'],
+  Settings: ['createdAt', 'updatedAt'],
+  Indicator: ['createdAt', 'updatedAt'],
+  Facility: ['createdAt', 'updatedAt'],
+  User: ['createdAt', 'updatedAt'],
+  Outbreak: [
+    'startDate',
+    'endDate',
+    'createdAt',
+    'updatedAt',
+    'backlogStartDate',
+    'backlogEndDate',
+  ],
+  EmailRecipient: ['createdAt', 'updatedAt'],
+  VerificationToken: ['expires'],
+  FormField: ['activeFrom', 'activeTo', 'createdAt', 'updatedAt'],
+  SubmissionWindow: ['periodStart', 'periodEnd', 'opensAt', 'closesAt', 'createdAt'],
+  BacklogSlot: ['periodStart', 'periodEnd', 'opensAt', 'closesAt', 'createdAt'],
+  Report: ['periodStart', 'periodEnd', 'lockedAt', 'publishedAt', 'createdAt', 'updatedAt'],
+  ReportFieldValue: [],
+  AuditLog: ['createdAt'],
+};
 
 // All model names in dependency order (parents first)
 const MODEL_NAMES = [
@@ -159,10 +189,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
     }
 
-    // File validation: Size limit (50MB) and extension
-    const MAX_BACKUP_SIZE = 50 * 1024 * 1024;
+    // File validation: Size limit (150MB) and extension
     if (file.size > MAX_BACKUP_SIZE) {
-      return NextResponse.json({ error: 'Backup file exceeds maximum allowed size of 50MB' }, { status: 400 });
+      return NextResponse.json({ error: 'Backup file exceeds maximum allowed size of 150MB' }, { status: 400 });
     }
 
     if (!file.name.toLowerCase().endsWith('.json')) {
@@ -267,13 +296,17 @@ export async function POST(request: Request) {
       },
     });
 
-    // Helper to convert date strings back to Date objects
-    const parseDates = (records: any[]) => {
+    // Helper to convert date strings back to Date objects efficiently
+    const parseDates = (modelName: string, records: any[]) => {
+      const dateFields = MODEL_DATE_FIELDS[modelName] || [];
+      if (dateFields.length === 0) return records;
+
       return records.map((record: any) => {
         const parsed = { ...record };
-        for (const [key, value] of Object.entries(parsed)) {
-          if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(value)) {
-            parsed[key] = new Date(value);
+        for (const field of dateFields) {
+          const val = parsed[field];
+          if (typeof val === 'string' && val.length > 0) {
+            parsed[field] = new Date(val);
           }
         }
         return parsed;
@@ -290,24 +323,37 @@ export async function POST(request: Request) {
         }
       }
 
-      // Step 2: Re-insert data in parent-first order
+      // Step 2: Re-insert data in parent-first order in safe batches (<65k parameters)
+      const BATCH_SIZE = 1000;
       for (const modelName of MODEL_NAMES) {
-        const records = parseDates(backup.data[modelName] || []);
-        if (records.length === 0) continue;
+        const rawRecords = backup.data[modelName] || [];
+        if (!Array.isArray(rawRecords) || rawRecords.length === 0) continue;
 
+        const records = parseDates(modelName, rawRecords);
         const model = (tx as any)[modelName.charAt(0).toLowerCase() + modelName.slice(1)];
+
         if (model?.createMany) {
-          // createMany for bulk inserts
-          await model.createMany({
-            data: records,
-            skipDuplicates: true,
-          });
+          for (let i = 0; i < records.length; i += BATCH_SIZE) {
+            const batch = records.slice(i, i + BATCH_SIZE);
+            await model.createMany({
+              data: batch,
+              skipDuplicates: true,
+            });
+          }
         }
       }
     }, {
       maxWait: 60000,
-      timeout: 120000,
+      timeout: 300000, // 5 minutes timeout for large datasets
     });
+
+    // Invalidate all Redis caches post-restore
+    try {
+      const { invalidateByPattern } = await import('@/lib/redis');
+      await invalidateByPattern('*');
+    } catch (cacheErr) {
+      console.warn('Failed to invalidate Redis cache post-restore:', cacheErr);
+    }
 
     return NextResponse.json({
       success: true,
