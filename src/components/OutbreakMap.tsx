@@ -49,11 +49,19 @@ export default function OutbreakMap({
   const [loading, setLoading] = useState(true);
   const [metricMode, setMetricMode] = useState<MetricMode>('confirmed');
 
+  const toBnDigits = (str: string | number | null | undefined) => {
+    if (str == null || str === "") return "";
+    const bnNums = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
+    return String(str).replace(/[0-9]/g, (d) => bnNums[parseInt(d, 10)]);
+  };
+
   const toBnNum = (n: number | string | null | undefined) => {
     if (n == null || n === '') return '0';
-    if (i18n.language !== 'bn') return Number(n).toLocaleString('en-US');
+    const num = typeof n === 'number' ? n : Number(n);
+    if (isNaN(num)) return i18n.language === 'bn' ? toBnDigits(n) : String(n);
+    if (i18n.language !== 'bn') return num.toLocaleString('en-US');
     const bnNums = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
-    return Number(n)
+    return num
       .toLocaleString('en-US')
       .toString()
       .split('')

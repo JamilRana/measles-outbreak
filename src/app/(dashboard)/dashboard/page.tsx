@@ -79,11 +79,30 @@ const OutbreakSelector = dynamic(() => import("@/components/OutbreakSelector"), 
 const ExportDossierModal = dynamic(() => import("@/components/ExportDossierModal"), { ssr: false });
 const FacilityComplianceModal = dynamic(() => import("@/components/FacilityComplianceModal"), { ssr: false });
 
-// Safe number conversion function
+// Converts ASCII digits to Bengali digits without altering any punctuation, colons, hyphens, etc.
+const toBnDigits = (str: string | number | null | undefined) => {
+  if (str == null || str === "") return "";
+  const bnNums = ["০", "১", "২", "৩", "৪", "৫", "৬", "৭", "৮", "৯"];
+  return String(str).replace(/[0-9]/g, (d) => bnNums[parseInt(d, 10)]);
+};
+
+// Formats a date string (e.g. "2026-11-24") safely for display without truncating to year
+const formatDateDisplay = (dateStr: string | null | undefined, i18n: any) => {
+  if (!dateStr) return "-";
+  return i18n.language === "bn" ? toBnDigits(dateStr) : dateStr;
+};
+
+// Formats a clock/countdown string (e.g. "00:15:30")
+const formatCountdownDisplay = (timerStr: string | null | undefined, i18n: any) => {
+  if (!timerStr) return "00:00:00";
+  return i18n.language === "bn" ? toBnDigits(timerStr) : timerStr;
+};
+
+// Safe number conversion function for numeric metrics
 const toBnNumSafe = (n: number | string | null | undefined, i18n: any) => {
   if (n == null || n === "" || (typeof n === "number" && isNaN(n))) return "-";
-  const num = typeof n === "string" ? parseFloat(n) : n;
-  if (isNaN(num)) return "-";
+  const num = typeof n === "number" ? n : Number(n);
+  if (isNaN(num)) return String(n);
 
   if (i18n.language === "bn") {
     const bnNums = ["০", "১", "২", "৩", "৪", "৫", "৬", "৭", "৮", "৯"];
@@ -603,13 +622,13 @@ export default function DashboardPage() {
             <div>
               <div className="flex flex-wrap items-center gap-2 mb-1">
                 <span className="text-[10px] font-black uppercase tracking-[0.25em] text-indigo-400">
-                  {i18n.language === "bn" ? "ডিজিএইচএস জাতীয় রোগ নজরদারি কমান্ড" : "DGHS National Surveillance Command"}
+                  {i18n.language === "bn" ? "ডিজিএইচএস জাতীয় ডিসিজ সার্ভিল্যান্স " : "DGHS National Disease Surveillance"}
                 </span>
                 <span className="inline-block w-1 h-1 rounded-full bg-slate-600" />
                 <span className="text-[10px] font-mono font-medium text-slate-400">
-                  {viewMode === "today" 
-                    ? (i18n.language === "bn" ? `লাইভ তারিখ: ${toBnNumSafe(filterDate, i18n)}` : `Live Date: ${filterDate}`) 
-                    : (i18n.language === "bn" ? "ক্রমপুঞ্জিত প্রাদুর্ভাব সময়রেখা" : "Cumulative Outbreak Timeline")}
+                  {viewMode === "today"
+                    ? (i18n.language === "bn" ? `লাইভ তারিখ: ${formatDateDisplay(filterDate, i18n)}` : `Live Date: ${filterDate}`)
+                    : (i18n.language === "bn" ? "প্রাদুর্ভাব সময়সীমা" : "Cumulative Outbreak Timeline")}
                 </span>
               </div>
 
@@ -651,7 +670,7 @@ export default function DashboardPage() {
                 {selectedFacilityId && (
                   <>
                     <ChevronRight className="w-3.5 h-3.5 text-slate-600" />
-                    <span className="text-emerald-400 font-bold">{i18n.language === "bn" ? "স্বাস্থ্য প্রতিষ্ঠান নির্বাচিত" : "Facility Selected"}</span>
+                    <span className="text-emerald-400 font-bold">{i18n.language === "bn" ? "প্রতিষ্ঠান নির্বাচিত" : "Facility Selected"}</span>
                   </>
                 )}
               </div>
@@ -663,8 +682,8 @@ export default function DashboardPage() {
             {/* Publication Status Pill */}
             <div
               className={`flex items-center gap-2.5 px-4 py-2.5 rounded-2xl border transition-all text-xs font-bold ${publicationStatus === "VERIFIED"
-                  ? "bg-emerald-950/60 border-emerald-500/40 text-emerald-300"
-                  : "bg-amber-950/60 border-amber-500/40 text-amber-300 animate-pulse"
+                ? "bg-emerald-950/60 border-emerald-500/40 text-emerald-300"
+                : "bg-amber-950/60 border-amber-500/40 text-amber-300 animate-pulse"
                 }`}
             >
               {publicationStatus === "VERIFIED" ? (
@@ -674,7 +693,7 @@ export default function DashboardPage() {
               )}
               <div>
                 <span className="block text-[9px] uppercase tracking-wider opacity-75">{i18n.language === "bn" ? "তথ্য স্থিতি" : "Data State"}</span>
-                <span>{publicationStatus === "VERIFIED" ? (i18n.language === "bn" ? "যাচাইকৃত সিটর্যাপ" : "Verified SitRep") : (i18n.language === "bn" ? "সাময়িক" : "Provisional")}</span>
+                <span>{publicationStatus === "VERIFIED" ? (i18n.language === "bn" ? "যাচাইকৃত প্রতিবেদন" : "Verified SitRep") : (i18n.language === "bn" ? "সাময়িক" : "Provisional")}</span>
               </div>
             </div>
 
@@ -686,7 +705,7 @@ export default function DashboardPage() {
                   {i18n.language === "bn" ? "রিপোর্টিং উইন্ডো" : "Reporting Window"}
                 </span>
                 <span className="font-mono font-bold text-white tracking-wider">
-                  {toBnNumSafe(countdown, i18n)}
+                  {formatCountdownDisplay(countdown, i18n)}
                 </span>
               </div>
             </div>
@@ -778,8 +797,8 @@ export default function DashboardPage() {
                       type="button"
                       onClick={() => handleSelectDatePreset(p.id)}
                       className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${activeDatePreset === p.id
-                          ? "bg-white text-indigo-600 shadow-sm"
-                          : "text-slate-500 hover:text-slate-900"
+                        ? "bg-white text-indigo-600 shadow-sm"
+                        : "text-slate-500 hover:text-slate-900"
                         }`}
                     >
                       {p.label}
@@ -791,14 +810,14 @@ export default function DashboardPage() {
                 {activeDatePreset === "today" && (
                   <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 rounded-xl border border-slate-200 text-xs font-mono font-bold text-slate-700">
                     <Calendar className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
-                    <span>{toBnNumSafe(filterDate, i18n)}</span>
+                    <span>{formatDateDisplay(filterDate, i18n)}</span>
                   </div>
                 )}
 
                 {activeDatePreset === "yesterday" && (
                   <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 rounded-xl border border-slate-200 text-xs font-mono font-bold text-slate-700">
                     <Calendar className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
-                    <span>{toBnNumSafe(filterDate, i18n)}</span>
+                    <span>{formatDateDisplay(filterDate, i18n)}</span>
                   </div>
                 )}
 
@@ -983,7 +1002,7 @@ export default function DashboardPage() {
                   <div>
                     <div className="flex items-center gap-2">
                       <span className="text-xs font-bold text-slate-800">
-                        {i18n.language === "bn" ? "দৈনিক স্বাস্থ্য প্রতিষ্ঠান রিপোর্টিং কমপ্লায়েন্স (১০:০০ ঘটিকা BST)" : "Facility Reporting Compliance (10:00 AM BST Cutoff)"}
+                        {i18n.language === "bn" ? "দৈনিক স্বাস্থ্য প্রতিষ্ঠান রিপোর্টিং কমপ্লায়েন্স " : "Facility Reporting Compliance"}
                       </span>
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
                         {toBnNumSafe(complianceData?.metrics?.complianceRate ?? 0, i18n)}% {i18n.language === "bn" ? "সময়মতো" : "On-Time"}
@@ -1008,11 +1027,11 @@ export default function DashboardPage() {
               <div>
                 <h3 className="text-base font-black text-slate-900 uppercase tracking-tight flex items-center gap-2.5">
                   <AlertTriangle className="w-5 h-5 text-rose-500 shrink-0" />
-                  {i18n.language === "bn" ? "শীর্ষ ঝুঁকিপূর্ণ মহামারী হটস্পট" : "Priority Epidemiological Hotspots"}
+                  {i18n.language === "bn" ? "মহামারী হটস্পট" : "Epidemiological Hotspots"}
                 </h3>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  {i18n.language === "bn" 
-                    ? "মৃত্যু ও আক্রান্তের সংখ্যা অনুযায়ী শীর্ষ ভৌগোলিক অঞ্চল। ড্যাশবোর্ডে ফিল্টার করতে ক্লিক করুন।" 
+                  {i18n.language === "bn"
+                    ? "মৃত্যু ও আক্রান্তের সংখ্যা অনুযায়ী শীর্ষ ভৌগোলিক অঞ্চল। ড্যাশবোর্ডে ফিল্টার করতে ক্লিক করুন।"
                     : "Top geographic areas ranked by mortality & case burden. Click any hotspot to isolate in dashboard."}
                 </p>
               </div>
@@ -1044,8 +1063,8 @@ export default function DashboardPage() {
                       type="button"
                       onClick={() => handleRowDrilldown(d.name)}
                       className={`text-left p-4 rounded-2xl border transition-all duration-200 relative group ${isTopOne
-                          ? "bg-rose-50/60 border-rose-200 hover:bg-rose-100/70 hover:border-rose-300"
-                          : "bg-slate-50 border-slate-200/70 hover:bg-indigo-50/60 hover:border-indigo-200"
+                        ? "bg-rose-50/60 border-rose-200 hover:bg-rose-100/70 hover:border-rose-300"
+                        : "bg-slate-50 border-slate-200/70 hover:bg-indigo-50/60 hover:border-indigo-200"
                         }`}
                     >
                       <div className="flex items-center justify-between mb-2">
@@ -1067,8 +1086,8 @@ export default function DashboardPage() {
 
                         <span
                           className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${cumDeaths > 0
-                              ? "bg-rose-100 text-rose-700"
-                              : "bg-slate-200 text-slate-600"
+                            ? "bg-rose-100 text-rose-700"
+                            : "bg-slate-200 text-slate-600"
                             }`}
                         >
                           CFR {toBnNumSafe(hotspotCfr, i18n)}%
@@ -1132,16 +1151,16 @@ export default function DashboardPage() {
                 <h2 className="text-xl sm:text-2xl font-black text-slate-900 uppercase tracking-tight flex items-center gap-2.5">
                   <TableIcon className="w-5 h-5 text-indigo-600 shrink-0" />
                   {selectedFacilityId
-                    ? (i18n.language === "bn" ? "স্বাস্থ্য প্রতিষ্ঠান ভিত্তিক নজরদারি ম্যাট্রিক্স" : "Facility-Level Surveillance Matrix")
+                    ? (i18n.language === "bn" ? "প্রতিষ্ঠান ভিত্তিক" : "Facility-Level Surveillance")
                     : selectedDistrict
-                      ? (i18n.language === "bn" ? `${selectedDistrict} জেলা স্বাস্থ্য প্রতিষ্ঠান ম্যাট্রিক্স` : `${selectedDistrict} District Facility Matrix`)
+                      ? (i18n.language === "bn" ? `${selectedDistrict} জেলা ভিত্তিক ` : `${selectedDistrict} District Facility Matrix`)
                       : selectedDivision
                         ? (i18n.language === "bn" ? `${selectedDivision} বিভাগীয় জেলা বিভাজন` : `${selectedDivision} Division District Breakdown`)
-                        : (i18n.language === "bn" ? "জাতীয় প্রশাসনিক বিভাজন" : "National Administrative Breakdown")}
+                        : (i18n.language === "bn" ? "জাতীয়" : "National Administrative Breakdown")}
                 </h2>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  {i18n.language === "bn" 
-                    ? "জেলা বা স্বাস্থ্য প্রতিষ্ঠান ভিত্তিক তথ্য দেখতে যেকোনো সারিতে ক্লিক করুন।" 
+                  {i18n.language === "bn"
+                    ? "জেলা বা প্রতিষ্ঠান ভিত্তিক তথ্য দেখতে যেকোনো সারিতে ক্লিক করুন।"
                     : "Click any row to drill down into district-level or facility-level data."}
                 </p>
               </div>
@@ -1155,7 +1174,7 @@ export default function DashboardPage() {
                     type="text"
                     value={tableSearchTerm}
                     onChange={(e) => setTableSearchTerm(e.target.value)}
-                    placeholder={i18n.language === "bn" ? "জেলা বা স্বাস্থ্য প্রতিষ্ঠান খুঁজুন..." : "Search district / facility..."}
+                    placeholder={i18n.language === "bn" ? "জেলা বা প্রতিষ্ঠান খুঁজুন..." : "Search district / facility..."}
                     className="w-full bg-white border border-slate-200 rounded-2xl pl-10 pr-4 py-2 text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:border-indigo-500 shadow-sm"
                   />
                   {tableSearchTerm && (
@@ -1194,7 +1213,7 @@ export default function DashboardPage() {
                         <div className="flex items-center justify-between gap-2">
                           <span>
                             {selectedDistrict
-                              ? (i18n.language === "bn" ? "স্বাস্থ্য প্রতিষ্ঠান" : "FACILITY NAME")
+                              ? (i18n.language === "bn" ? "প্রতিষ্ঠান" : "FACILITY NAME")
                               : selectedDivision
                                 ? (i18n.language === "bn" ? "জেলা" : "DISTRICT")
                                 : (i18n.language === "bn" ? "বিভাগ" : "DIVISION")}
@@ -1210,7 +1229,7 @@ export default function DashboardPage() {
                         {i18n.language === "bn" ? "গত ২৪ ঘণ্টার নজরদারি" : "Last 24 Hours Surveillance"}
                       </th>
                       <th colSpan={6} className="px-6 py-3.5 bg-slate-950 border-b border-white/10 tracking-widest text-indigo-300">
-                        {i18n.language === "bn" ? "ক্রমপুঞ্জিত মোট প্রাদুর্ভাব" : "Cumulative Outbreak Volume"}
+                        {i18n.language === "bn" ? "মোট প্রাদুর্ভাব" : "Cumulative Outbreak Volume"}
                       </th>
                     </tr>
                     <tr className="bg-slate-900 border-t border-white/10 text-[8px]">
@@ -1326,10 +1345,10 @@ export default function DashboardPage() {
                     {/* Aggregate Summary Footer Row */}
                     <tr className="bg-slate-950 text-white font-black text-xs text-center">
                       <td className="py-5 px-6 text-left sticky left-0 bg-slate-950 z-10 uppercase tracking-wider">
-                        {selectedDistrict 
-                          ? (i18n.language === "bn" ? "জেলা সর্বমোট" : "District Total") 
-                          : selectedDivision 
-                            ? (i18n.language === "bn" ? "বিভাগীয় মোট" : "Division Aggregate") 
+                        {selectedDistrict
+                          ? (i18n.language === "bn" ? "জেলা সর্বমোট" : "District Total")
+                          : selectedDivision
+                            ? (i18n.language === "bn" ? "বিভাগীয় মোট" : "Division Aggregate")
                             : (i18n.language === "bn" ? "জাতীয় মোট" : "National Aggregate")}
                       </td>
                       <td className="py-5 bg-slate-900/60">{toBnNumSafe(stats.today.suspected, i18n)}</td>
@@ -1375,8 +1394,8 @@ export default function DashboardPage() {
                     </button>
 
                     <span className="font-bold text-slate-400 px-2">
-                      {i18n.language === "bn" 
-                        ? `পৃষ্ঠা ${toBnNumSafe(currentPage, i18n)} / ${toBnNumSafe(totalPages || 1, i18n)}` 
+                      {i18n.language === "bn"
+                        ? `পৃষ্ঠা ${toBnNumSafe(currentPage, i18n)} / ${toBnNumSafe(totalPages || 1, i18n)}`
                         : `Page ${currentPage} of ${totalPages || 1}`}
                     </span>
 
