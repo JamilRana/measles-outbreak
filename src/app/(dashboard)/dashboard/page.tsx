@@ -692,8 +692,8 @@ export default function DashboardPage() {
                 <Clock className="w-4 h-4 text-amber-400 shrink-0" />
               )}
               <div>
-                <span className="block text-[9px] uppercase tracking-wider opacity-75">{i18n.language === "bn" ? "তথ্য স্থিতি" : "Data State"}</span>
-                <span>{publicationStatus === "VERIFIED" ? (i18n.language === "bn" ? "যাচাইকৃত প্রতিবেদন" : "Verified SitRep") : (i18n.language === "bn" ? "সাময়িক" : "Provisional")}</span>
+                <span className="block text-[9px] uppercase tracking-wider opacity-75">{i18n.language === "bn" ? "তথ্য" : "Data State"}</span>
+                <span>{publicationStatus === "VERIFIED" ? (i18n.language === "bn" ? "যাচাইকৃত প্রতিবেদন" : "Verified SitRep") : (i18n.language === "bn" ? "খসড়া" : "Draft")}</span>
               </div>
             </div>
 
